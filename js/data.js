@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.64';
+export const GAME_VERSION = 'v4.65';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,14 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.65',
+    notes: [
+      '🔌 Yedek sunucu (EMQX) bağlantısında katılma zaman aşımının erken kesme riski giderildi (sayaç artık sunucu bağlandıktan sonra 4.5 sn sayar).',
+      '🔄 Tekrar Oyna (Rematch) sonrası önbellek & kariyer kayıt kilidi temizlendi.',
+      '❤️ 3 Kalp açıkken tekne üstü durum yazılarının (Çapalandı / Sersemledi) kalplerin üstüne binmesi düzeltildi.'
+    ]
+  },
   {
     ver: 'v4.64',
     notes: [

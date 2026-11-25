@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.64';
-import { sfx } from './audio.js?v=4.64';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.64';
-import { GameSim } from './sim.js?v=4.64';
-import { SeaRenderer } from './render.js?v=4.64';
+} from './data.js?v=4.65';
+import { sfx } from './audio.js?v=4.65';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.65';
+import { GameSim } from './sim.js?v=4.65';
+import { SeaRenderer } from './render.js?v=4.65';
 
 const $ = (id) => document.getElementById(id);
 
@@ -421,6 +421,16 @@ function initNet(isHost, roomCode) {
       if (status === 'connected') {
         if (!isHost) {
           app.net.send({ type: 'join', name: app.myName, skinId: app.mySkin });
+          // ⏱️ Sunucu bağlandıktan sonra 4.5 sn içinde Host'tan yanıt gelmezse oda kapanmıştır!
+          clearTimeout(app.joinTimeout);
+          app.joinTimeout = setTimeout(() => {
+            if (app.mode === 'client' && !app.lobbyState && !app.liveState) {
+              const deadCode = app.roomCode || '';
+              leaveRoom();
+              $('input-code').value = '';
+              showToast(`⚠️ ${deadCode} odası artık aktif değil veya kurucu çıkmış!`);
+            }
+          }, 4500);
         } else {
           broadcastLobby();
         }
@@ -511,15 +521,6 @@ function joinOnlineRoom(rawCode) {
   setScreen('lobby');
   renderLobby();
   sfx.play('ui');
-
-  // ⏱️ 6 saniye içinde kurucudan (Host) yanıt gelmezse oda kapanmıştır -> takılı kalma!
-  app.joinTimeout = setTimeout(() => {
-    if (app.mode === 'client' && !app.lobbyState && !app.liveState) {
-      leaveRoom();
-      $('input-code').value = '';
-      showToast(`⚠️ ${code} odası artık aktif değil veya kurucu çıkmış!`);
-    }
-  }, 6000);
 }
 
 function leaveRoom() {
@@ -802,6 +803,11 @@ function syncPhaseScreens(phase) {
     if (phase === 'draft') {
       const roundNum = (app.lobbyState?.round || app.liveState?.round || 1);
       if (app.draftRoundSeen !== roundNum) {
+        if (roundNum === 1) {
+          // 🔄 Yeni maç / Rematch başlarken önbellek ve kariyer kilidini sıfırla!
+          app.hudCache = {};
+          app.matchRecordedKey = '';
+        }
         app.draftRoundSeen = roundNum;
         app.draftPicks = [];
       }
@@ -1997,6 +2003,9 @@ function init() {
 
   $('btn-rematch').onclick = () => {
     if (!app.sim) return;
+    app.hudCache = {};
+    app.matchRecordedKey = '';
+    app.draftRoundSeen = -1;
     app.sim.startMatch();
     broadcastLobby();
   };

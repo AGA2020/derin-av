@@ -21,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=4.64';
+} from './data.js?v=4.65';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -406,6 +406,13 @@ export class GameSim {
     this.traps = [];
     this.zones = [];
     this.decoys = [];
+    this.barrels = [];
+    this.powerups = [];
+    this.rescueBuoys = [];
+    this.breakables = [];
+    this.crown = null;
+    this.kraken = null;
+    this.banner = null;
     this.pulses = [];
     this.sinkEffects = [];
   }

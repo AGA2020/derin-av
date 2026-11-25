@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.64';
-import { hasLineOfSight } from './sim.js?v=4.64';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.65';
+import { hasLineOfSight } from './sim.js?v=4.65';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -1140,23 +1140,24 @@ export class SeaRenderer {
       ctx.restore();
     }
 
-    // Status badges (Rooted / Stunned / Slowed)
+    // Status badges (Rooted / Stunned / Slowed) — 3 Kalp varsa kalplerin üstünde çiz (çakışma yok!)
+    const badgeY = (p.maxLives || 1) > 1 ? -60 : -40;
     if (p.rootTimer) {
       ctx.fillStyle = '#ffb703';
       ctx.font = '700 11px system-ui, sans-serif';
-      ctx.fillText('⚓ ÇAPALANDI', 0, -40);
+      ctx.fillText('⚓ ÇAPALANDI', 0, badgeY);
     } else if (p.stunTimer) {
       ctx.fillStyle = '#f43f5e';
       ctx.font = '700 11px system-ui, sans-serif';
-      ctx.fillText('⚡ SERSEMLEDİ', 0, -40);
+      ctx.fillText('⚡ SERSEMLEDİ', 0, badgeY);
     } else if (p.inStorm) {
       ctx.fillStyle = '#ff4d6d';
       ctx.font = '700 11px system-ui, sans-serif';
-      ctx.fillText('🌪️ FIRTINA!', 0, -40);
+      ctx.fillText('🌪️ FIRTINA!', 0, badgeY);
     } else if (p.inCurrent) {
       ctx.fillStyle = '#67e8f9';
       ctx.font = '700 11px system-ui, sans-serif';
-      ctx.fillText('⚡ AKINTI!', 0, -40);
+      ctx.fillText('⚡ AKINTI!', 0, badgeY);
     }
 
     // 👑 Altın Taç & 💰 Kelle Ödülü parıltı halkaları!
