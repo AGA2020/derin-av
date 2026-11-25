@@ -11,11 +11,11 @@ import {
   PREY_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=2.8';
-import { sfx } from './audio.js?v=2.8';
-import { NetClient, generateRoomCode } from './net.js?v=2.8';
-import { GameSim } from './sim.js?v=2.8';
-import { SeaRenderer } from './render.js?v=2.8';
+} from './data.js?v=2.9';
+import { sfx } from './audio.js?v=2.9';
+import { NetClient, generateRoomCode } from './net.js?v=2.9';
+import { GameSim } from './sim.js?v=2.9';
+import { SeaRenderer } from './render.js?v=2.9';
 
 const $ = (id) => document.getElementById(id);
 
@@ -572,7 +572,7 @@ function renderLobby() {
         </div>
         <p class="char-passive">${c.passive}</p>
         <div class="char-stats">
-          <span>❤️ ${c.hp}</span>
+          <span>🫁 ${c.breath} · 🌊 ${c.hp}</span>
           <span>⚡ ${'★'.repeat(c.stats.speed)}</span>
         </div>
       </button>
@@ -714,12 +714,17 @@ function updateHudFromState(st) {
       $('hud-role-pill').className = `hud-role-pill ${me.role} ${me.alive ? '' : 'dead'}`;
     });
 
-    const hpKey = `${me.hp}_${me.maxHp}_${me.shield || 0}`;
+    const hpKey = `${me.hp}_${me.maxHp}_${me.breath}_${me.maxBreath}_${me.breathRegen}_${me.shield || 0}`;
     setIfChanged('hp', hpKey, () => {
       const pct = Math.max(0, Math.round((me.hp / me.maxHp) * 100));
+      const bPct = Math.max(0, Math.round(((me.breath || 0) / (me.maxBreath || 70)) * 100));
       $('hud-hp-fill').style.width = `${pct}%`;
+      $('hud-breath-fill').style.width = `${bPct}%`;
+      $('hud-breath-fill').classList.toggle('regen', Boolean(me.breathRegen));
       const shTxt = me.shield > 0 ? ` (+${me.shield} 🛡️)` : '';
-      $('hud-hp-text').textContent = `${ch.icon} ${ch.name} · Su Üstü Direnci: ${me.hp}/${me.maxHp}${shTxt}`;
+      const bStatus = me.breath <= 0 ? ' (KESİLDİ!)' : (me.breathRegen ? ' ↑' : '');
+      $('hud-breath-text').textContent = `🫁 Nefes: ${me.breath}/${me.maxBreath}${bStatus}`;
+      $('hud-hp-text').textContent = `${ch.icon} ${ch.name} · 🌊 Batma Direnci: ${me.hp}/${me.maxHp}${shTxt}`;
     });
 
     for (let i = 0; i < 2; i++) {

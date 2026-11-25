@@ -1,8 +1,16 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v2.8';
+export const GAME_VERSION = 'v2.9';
 export const CHANGELOG = [
+  {
+    ver: 'v2.9',
+    notes: [
+      '🫁 YENİ MEKANİK: Yenilenen Nefes Barı eklendi! Alınan hasar önce Nefes Barından gider; nefes bitince Batma Direncine vurur.',
+      'Son hasardan 3.6 sn sonra Nefes Barı hızla dolmaya başlar — kaçış ve baskı taktikleri çok daha derin!',
+      'Nefes kırılınca "🫁 NEFESİ KESİLDİ!" efekti ve çift barlı yeni HUD eklendi.'
+    ]
+  },
   {
     ver: 'v2.8',
     notes: [
@@ -137,7 +145,8 @@ export const CHARACTERS = [
     icon: '⚓',
     color: '#e09f3e',
     accent: '#ffd166',
-    hp: 220,
+    breath: 85,
+    hp: 145,
     speed: 208,
     vision: 390,
     wakeMult: 1.0,
@@ -145,7 +154,7 @@ export const CHARACTERS = [
     projSpeedMult: 1.0,
     whirlpoolResist: 0.2,
     firstHitReduction: 0.25,
-    passive: 'En yüksek su üstü direnci (220) ve her turda ilk isabetten %25 daha az batar.',
+    passive: 'En yüksek nefes (85) ve batma direnci (145); her turda ilk isabetten %25 az hasar alır.',
     stats: { hp: 5, speed: 3, utility: 3 }
   },
   {
@@ -155,7 +164,8 @@ export const CHARACTERS = [
     icon: '🦈',
     color: '#ef476f',
     accent: '#ff8fa3',
-    hp: 175,
+    breath: 70,
+    hp: 115,
     speed: 238,
     vision: 395,
     wakeMult: 1.12,
@@ -173,7 +183,8 @@ export const CHARACTERS = [
     icon: '👻',
     color: '#8ecae6',
     accent: '#caf0f8',
-    hp: 165,
+    breath: 65,
+    hp: 110,
     speed: 224,
     vision: 400,
     wakeMult: 0.45,
@@ -191,7 +202,8 @@ export const CHARACTERS = [
     icon: '🔦',
     color: '#f4a261',
     accent: '#ffe8d6',
-    hp: 180,
+    breath: 70,
+    hp: 120,
     speed: 214,
     vision: 495,
     wakeMult: 1.0,
@@ -208,7 +220,8 @@ export const CHARACTERS = [
     icon: '🐙',
     color: '#9b5de5',
     accent: '#d8bbff',
-    hp: 190,
+    breath: 75,
+    hp: 125,
     speed: 216,
     vision: 400,
     wakeMult: 0.9,
@@ -226,7 +239,8 @@ export const CHARACTERS = [
     icon: '🌊',
     color: '#06d6a0',
     accent: '#9bf6ff',
-    hp: 175,
+    breath: 75,
+    hp: 110,
     speed: 232,
     vision: 405,
     wakeMult: 0.85,

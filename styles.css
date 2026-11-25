@@ -551,22 +551,43 @@ input:focus { border-color: var(--aqua); }
 
 .hp-wrap {
   width: 100%;
-  max-width: 440px;
-  background: rgba(4, 16, 30, 0.85);
+  max-width: 470px;
+  background: rgba(4, 16, 30, 0.88);
   border: 1px solid var(--border);
-  border-radius: 11px;
-  padding: 6px 10px;
+  border-radius: 12px;
+  padding: 7px 11px;
 }
-.hp-text { font-size: 12px; font-weight: 800; margin-bottom: 4px; text-align: center; }
+.bars-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.hp-text { font-size: 11.5px; font-weight: 800; color: #d9fff5; }
+.breath-text { font-size: 11.5px; font-weight: 800; color: #7dd3fc; }
 .hp-bar {
   height: 9px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
 }
+.breath-bar {
+  height: 6px;
+  margin-bottom: 4px;
+}
+.breath-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0284c7, #38bdf8, #bae6fd);
+  transition: width 0.1s;
+}
+.breath-fill.regen {
+  box-shadow: 0 0 10px #7dd3fc;
+  filter: brightness(1.18);
+}
 .hp-fill {
   height: 100%;
-  background: linear-gradient(90deg, #0ea5e9, #22d3ee, #06d6a0);
+  background: linear-gradient(90deg, #059669, #06d6a0, #34d399);
   transition: width 0.12s;
 }
 

@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.8';
-import { hasLineOfSight } from './sim.js?v=2.8';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.9';
+import { hasLineOfSight } from './sim.js?v=2.9';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -764,16 +764,25 @@ export class SeaRenderer {
     ctx.textAlign = 'center';
     ctx.fillText(p.name || '', 0, -28);
 
-    const bw = 46;
-    const bh = 5;
-    ctx.fillStyle = 'rgba(2, 10, 20, 0.8)';
-    ctx.fillRect(-bw / 2, 26, bw, bh);
-    ctx.fillStyle = ratio > 0.5 ? '#22d3ee' : ratio > 0.25 ? '#f59e0b' : '#ef4444';
-    ctx.fillRect(-bw / 2, 26, bw * ratio, bh);
+    const bw = 48;
+    const bh = 4.5;
+    const bRatio = Math.max(0, Math.min(1, (p.breath ?? 0) / (p.maxBreath || 70)));
+    // Top mini bar: 🫁 Nefes (cyan-sky)
+    ctx.fillStyle = 'rgba(2, 10, 20, 0.85)';
+    ctx.fillRect(-bw / 2, 23, bw, 3.5);
+    ctx.fillStyle = p.breathRegen ? '#a5f3fc' : '#38bdf8';
+    ctx.fillRect(-bw / 2, 23, bw * bRatio, 3.5);
+
+    // Bottom mini bar: 🌊 Batma Direnci (emerald -> amber -> red)
+    ctx.fillStyle = 'rgba(2, 10, 20, 0.85)';
+    ctx.fillRect(-bw / 2, 27.5, bw, bh);
+    ctx.fillStyle = ratio > 0.5 ? '#06d6a0' : ratio > 0.25 ? '#f59e0b' : '#ef4444';
+    ctx.fillRect(-bw / 2, 27.5, bw * ratio, bh);
+
     if (p.shield > 0) {
-      const shRatio = Math.min(1, p.shield / (p.maxHp || 180));
-      ctx.fillStyle = '#e0f2fe';
-      ctx.fillRect(-bw / 2, 23, bw * shRatio, 2.5);
+      const shRatio = Math.min(1, p.shield / (p.maxHp || 120));
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(-bw / 2, 20, bw * shRatio, 2);
     }
 
     ctx.restore();

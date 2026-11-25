@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 2v2 Denizde Av & Avcı</title>
-  <link rel="stylesheet" href="./styles.css?v=2.8" />
+  <link rel="stylesheet" href="./styles.css?v=2.9" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -143,10 +143,14 @@
     <!-- OLAY AKIŞI -->
     <div id="hud-feed" class="hud-feed"></div>
 
-    <!-- ALT HUD (CAN + 2 İTEM + SPACE) -->
+    <!-- ALT HUD (NEFES + BATMA DİRENCİ + 2 İTEM + SPACE) -->
     <div class="hud-bottom">
       <div class="hp-wrap">
-        <div id="hud-hp-text" class="hp-text">Su Üstü Direnci: 100/100</div>
+        <div class="bars-head">
+          <div id="hud-hp-text" class="hp-text">Batma Direnci: 120/120</div>
+          <div id="hud-breath-text" class="breath-text">🫁 Nefes: 70/70</div>
+        </div>
+        <div class="hp-bar breath-bar"><div id="hud-breath-fill" class="breath-fill" style="width:100%"></div></div>
         <div class="hp-bar"><div id="hud-hp-fill" class="hp-fill" style="width:100%"></div></div>
       </div>
       <div class="slots-bar">
@@ -207,7 +211,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v2.8</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v2.9</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -297,7 +301,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=2.8"></script>
+  <script type="module" src="./js/main.js?v=2.9"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

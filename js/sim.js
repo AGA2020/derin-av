@@ -14,7 +14,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=2.8';
+} from './data.js?v=2.9';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -411,6 +411,9 @@ export class GameSim {
         vy: 0,
         aim: role === 'hunter' ? 0 : Math.PI,
         r: 20,
+        breath: Math.round((ch.breath || 70) * (this.settings.hpMult || 1)),
+        maxBreath: Math.round((ch.breath || 70) * (this.settings.hpMult || 1)),
+        breathRegenDelay: 0,
         hp: Math.round(ch.hp * (this.settings.hpMult || 1)),
         maxHp: Math.round(ch.hp * (this.settings.hpMult || 1)),
         shield: 0,
@@ -962,28 +965,53 @@ export class GameSim {
   _applyDamage(target, amount, attackerId, knockVx = 0, knockVy = 0, sourceLabel = '', isHeavy = false) {
     if (!target.alive) return;
     let dmg = amount;
+    if (dmg > 0) {
+      // Hasar alınca nefes yenilenmesi 3.6 sn durur!
+      target.breathRegenDelay = 3.6;
+    }
     if (target.firstHitAvail && dmg >= 5) {
       const ch = CHAR_MAP[target.charId];
       dmg = Math.round(dmg * (1 - (ch?.firstHitReduction || 0)));
       target.firstHitAvail = false;
     }
     const rawShown = Math.round(dmg);
-    // Çelik Gövde kalkanı önce hasarı emer!
+
+    // 1. Geçici kalkan (Çelik Gövde / Kurtarma kalkanı) önce emer
     if (target.shield > 0 && dmg > 0) {
       const absorbed = Math.min(target.shield, dmg);
       target.shield -= absorbed;
       dmg -= absorbed;
     }
-    target.hp = Math.max(0, target.hp - dmg);
+
+    // 2. 🫁 NEFES BARI: Batma hasarından önce nefes barından gider!
+    let breathBroken = false;
+    if (target.breath > 0 && dmg > 0) {
+      const absorbedBreath = Math.min(target.breath, dmg);
+      target.breath -= absorbedBreath;
+      dmg -= absorbedBreath;
+      if (target.breath <= 0) {
+        target.breath = 0;
+        breathBroken = true;
+      }
+    }
+
+    // 3. 🌊 Nefes bittiğinde kalan tüm hasar Batma Direncine (hp) vurur!
+    if (dmg > 0) {
+      target.hp = Math.max(0, target.hp - dmg);
+    }
+
     target.vx += knockVx;
     target.vy += knockVy;
     this._addPulse(target.x, target.y, isHeavy ? 105 : 65, isHeavy ? 'boom' : 'splash', target.team);
+    if (breathBroken && target.hp > 0) {
+      this._addFloatText(target.x, target.y - 38, '🫁 NEFESİ KESİLDİ!', '#38bdf8');
+    }
     if (rawShown >= 15) {
       this._addFloatText(
         target.x + (Math.random() - 0.5) * 22,
-        target.y - 24,
+        target.y - 22,
         isHeavy ? `-${rawShown} 💥` : `-${rawShown}`,
-        isHeavy ? '#ffd166' : '#f87171'
+        isHeavy ? '#ffd166' : (dmg > 0 ? '#f87171' : '#7dd3fc')
       );
     }
     this.onEvent({ type: 'sfx', name: isHeavy ? 'shot_heavy' : 'hit' });
@@ -1146,6 +1174,8 @@ export class GameSim {
           // KURTARMA TAMAMLANDI!
           fallen.alive = true;
           fallen.rescuedOnce = true;
+          fallen.breath = fallen.maxBreath;
+          fallen.breathRegenDelay = 0;
           fallen.hp = Math.round(fallen.maxHp * 0.55);
           fallen.shield = 30;
           fallen.shieldTimer = 3.0;
@@ -1195,6 +1225,13 @@ export class GameSim {
       p.ramActive = Math.max(0, p.ramActive - dt);
       p.shieldTimer = Math.max(0, p.shieldTimer - dt);
       if (p.shieldTimer <= 0) p.shield = 0;
+
+      // 🫁 Nefes Barı zamanla yenilenir (son hasardan 3.6 sn sonra 20/sn)
+      if (p.breathRegenDelay > 0) {
+        p.breathRegenDelay = Math.max(0, p.breathRegenDelay - dt);
+      } else if (p.breath < p.maxBreath) {
+        p.breath = Math.min(p.maxBreath, p.breath + 20 * dt);
+      }
       p.speedBoost = Math.max(0, p.speedBoost - dt);
       if (p.speedBoost <= 0) p.speedMult = 1;
       p.stealthBoost = Math.max(0, p.stealthBoost - dt);
@@ -1908,6 +1945,9 @@ export class GameSim {
         aim: Number(p.aim.toFixed(2)),
         hp: Math.round(p.hp),
         maxHp: p.maxHp,
+        breath: Math.round(p.breath || 0),
+        maxBreath: p.maxBreath || 70,
+        breathRegen: p.breathRegenDelay <= 0 && p.breath < p.maxBreath,
         shield: Math.round(p.shield || 0),
         alive: p.alive,
         sinkingAnim: Number(p.sinkingAnim.toFixed(2)),
