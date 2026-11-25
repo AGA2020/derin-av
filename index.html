@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=4.3" />
+  <link rel="stylesheet" href="./styles.css?v=4.3b" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -80,16 +80,16 @@
       <div class="lobby-grid">
         <div class="lobby-teams">
           <div id="lobby-quick-mode" class="quick-mode-bar">
-            <button class="qmode-btn" data-qmode="2v2">👥 2v2 Takım</button>
-            <button class="qmode-btn" data-qmode="1v1">⚔️ 1v1 Düello</button>
-            <button class="qmode-btn" data-qmode="ffa">💀 Herkes Tek</button>
-            <button class="qmode-btn" data-qmode="crown">👑 Altın Taç</button>
+            <button class="qmode-btn" data-qmode="2v2" title="2v2 Takım">👥 2v2</button>
+            <button class="qmode-btn" data-qmode="1v1" title="1v1 Düello">⚔️ 1v1</button>
+            <button class="qmode-btn" data-qmode="ffa" title="Herkes Tek (Deathmatch)">💀 FFA</button>
+            <button class="qmode-btn" data-qmode="crown" title="Altın Taç (Hazine Kapmaca)">👑 Taç</button>
           </div>
           <div id="lobby-quick-lives" class="quick-lives-bar">
-            <span class="qlives-label">Can Hakkı:</span>
-            <button class="qlives-btn" data-qlives="1">❤️ 1 Kalp</button>
-            <button class="qlives-btn" data-qlives="2">❤️❤️ 2 Kalp</button>
-            <button class="qlives-btn" data-qlives="3">❤️❤️❤️ 3 Kalp</button>
+            <span class="qlives-label">Can:</span>
+            <button class="qlives-btn" data-qlives="1" title="1 Kalp (Klasik)">❤️ 1</button>
+            <button class="qlives-btn" data-qlives="2" title="2 Kalp">❤️❤️ 2</button>
+            <button class="qlives-btn" data-qlives="3" title="3 Kalp (Mario)">❤️❤️❤️ 3</button>
           </div>
 
           <div class="team-panel team-a">
@@ -107,8 +107,6 @@
             </div>
             <div id="team-b-slots" class="slots-col"></div>
           </div>
-
-          <div id="lobby-rules-summary" class="lobby-rules-summary"></div>
 
           <div class="lobby-controls">
             <button id="btn-switch-team" class="btn ghost">⇄ Takım Değiştir</button>
@@ -130,6 +128,10 @@
           <div class="skin-section">
             <div class="skin-label">🚩 Tekne Rengi &amp; Köpük İzi</div>
             <div id="skin-picker-row" class="skin-picker-row"></div>
+          </div>
+          <div class="rules-section">
+            <div class="skin-label">📋 Aktif Maç Kuralları</div>
+            <div id="lobby-rules-summary" class="lobby-rules-summary"></div>
           </div>
         </div>
       </div>
