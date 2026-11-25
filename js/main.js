@@ -11,11 +11,11 @@ import {
   PREY_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=3.0';
-import { sfx } from './audio.js?v=3.0';
-import { NetClient, generateRoomCode } from './net.js?v=3.0';
-import { GameSim } from './sim.js?v=3.0';
-import { SeaRenderer } from './render.js?v=3.0';
+} from './data.js?v=3.1';
+import { sfx } from './audio.js?v=3.1';
+import { NetClient, generateRoomCode } from './net.js?v=3.1';
+import { GameSim } from './sim.js?v=3.1';
+import { SeaRenderer } from './render.js?v=3.1';
 
 const $ = (id) => document.getElementById(id);
 
@@ -400,7 +400,7 @@ function stepClientPrediction(dt) {
 
   let maxSpd = ch.speed * (me.speedBoost ? 1.38 : 1) * (me.slowTimer ? 0.45 : 1);
   if (me.role === 'hunter') maxSpd *= 1.03;
-  if (me.submerged) maxSpd *= 0.88;
+  if (me.submerged) maxSpd *= 0.66;
   if (me.rootTimer || me.stunTimer) maxSpd = 0;
 
   const accel = ch.turnBonus ? 11.5 : 8.5;

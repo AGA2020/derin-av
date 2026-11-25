@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=3.0';
-import { hasLineOfSight } from './sim.js?v=3.0';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=3.1';
+import { hasLineOfSight } from './sim.js?v=3.1';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -648,7 +648,7 @@ export class SeaRenderer {
           ctx.lineWidth = 2;
           ctx.setLineDash([7, 7]);
           ctx.beginPath();
-          ctx.arc(0, 0, 108, 0, Math.PI * 2);
+          ctx.arc(0, 0, 70, 0, Math.PI * 2);
           ctx.stroke();
           ctx.setLineDash([]);
           ctx.restore();

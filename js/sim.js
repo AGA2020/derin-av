@@ -14,7 +14,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=3.0';
+} from './data.js?v=3.1';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -981,13 +981,13 @@ export class GameSim {
     this._addPulse(p.x, p.y, wasDeepEnough ? 115 : 80, 'splash', p.team);
     this.onEvent({ type: 'sfx', name: 'splash' });
 
-    // 🦈 SÜRPRİZ ÇIKIŞ (en az 1 sn su altında kalıp düşmanın dibinde 105px'te çıkınca!)
+    // 🦈 SÜRPRİZ ÇIKIŞ (en az 1 sn su altında kalıp düşmanın dibinde 70px'te çıkınca!)
     if (wasDeepEnough && !forced) {
       let ambushHits = 0;
       for (const other of this.players) {
         if (!other.alive || other.team === p.team || other.submerged) continue;
         const d = dist(p.x, p.y, other.x, other.y);
-        if (d <= 108) {
+        if (d <= 70) {
           ambushHits++;
           const a = d > 1 ? angleBetween(p.x, p.y, other.x, other.y) : Math.random() * Math.PI * 2;
           other.slowTimer = Math.max(other.slowTimer, 2.0);
@@ -1363,7 +1363,7 @@ export class GameSim {
 
       let maxSpd = ch.speed * p.speedMult * p.slowFactor;
       if (p.role === 'hunter') maxSpd *= 1.03; // Hafif avcı takip hızı avantajı
-      if (p.submerged) maxSpd *= 0.88; // Su altında hafif sakin süzülme
+      if (p.submerged) maxSpd *= 0.66; // Su altında yavaş gizlenme ve pusu hızı
       if (p.rootTimer > 0 || p.stunTimer > 0) maxSpd = 0;
 
       // Smooth sea-gliding physics (su üstünde akıcı kayma + çarpışma/itme koruma)
