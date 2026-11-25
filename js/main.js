@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.52';
-import { sfx } from './audio.js?v=4.52';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.52';
-import { GameSim } from './sim.js?v=4.52';
-import { SeaRenderer } from './render.js?v=4.52';
+} from './data.js?v=4.53';
+import { sfx } from './audio.js?v=4.53';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.53';
+import { GameSim } from './sim.js?v=4.53';
+import { SeaRenderer } from './render.js?v=4.53';
 
 const $ = (id) => document.getElementById(id);
 
@@ -983,12 +983,12 @@ function renderDraftUI() {
   const roleBox = $('draft-role-banner');
   roleBox.className = `role-banner ${isFfa ? 'hunter' : myRole}`;
   roleBox.innerHTML = (isCrown
-    ? `<strong>👑 ALTIN TAÇ (HAZİNE KAPMACA)!</strong> — Haritanın ortasındaki Altın Tacı kap, <b>100 puana</b> ilk ulaşan turu kazanır! (Taçla dalınmaz!)`
+    ? `<strong>👑 ALTIN TAÇ</strong> — Tacı kap, <b>100 puana</b> ilk ulaşan kazanır.`
     : isFfa
-      ? `<strong>💀 HERKES TEK (DEATHMATCH)!</strong> — Herkes rakip! Ortak cephanelikten istediğin <b>2 itemi</b> seç, son ayakta kalan turu kazanır!`
+      ? `<strong>💀 HERKES TEK</strong> — Son ayakta kalan kazanır.`
       : myRole === 'hunter'
-        ? `<strong>🎯 BU TUR AVCISIN!</strong> — Görevin: ${st.settings?.mode === '1v1' ? 'Avı' : 'İki Avı da'} <b>suya gömmek</b>! 2 item seç.`
-        : `<strong>🌊 BU TUR AVSIN!</strong> — Görevin: <b>Suya gömülmeden</b> süreyi tamamla veya ${st.settings?.mode === '1v1' ? 'Avcıyı' : 'Avcıları'} batır! 2 item seç.`) + evHtml;
+        ? `<strong>🎯 AVCISIN</strong> — ${st.settings?.mode === '1v1' ? 'Avı' : 'Avları'} suya göm!`
+        : `<strong>🌊 AVSIN</strong> — Süreyi tamamla veya ${st.settings?.mode === '1v1' ? 'Avcıyı' : 'Avcıları'} batır!`) + evHtml;
 
   // 🌿 Yetenek Ağacı (Skill Tree) paneli — ayarda açıksa göster!
   const treeWrap = $('draft-skill-tree');
@@ -999,8 +999,8 @@ function renderDraftUI() {
       treeWrap.style.display = 'block';
       treeWrap.innerHTML = `
         <div class="skill-tree-head">
-          <span>🌿 <b>Yetenek Ağacı</b> — Her tur +1 puan kazanıp kalıcı build kur!</span>
-          <span class="skill-pts-pill ${pts > 0 ? 'has-pts' : ''}">${pts > 0 ? `✨ ${pts} Puan Hazır!` : 'Puan Kullanıldı ✓'}</span>
+          <span>🌿 <b>Yetenek Ağacı</b></span>
+          <span class="skill-pts-pill ${pts > 0 ? 'has-pts' : ''}">${pts > 0 ? `✨ ${pts} Puan` : 'Kullanıldı ✓'}</span>
         </div>
         <div class="skill-branches">
           ${SKILL_TREE.map(br => `
@@ -1117,11 +1117,11 @@ function renderDraftUI() {
   const btnLock = $('btn-lock-items');
   if (locked) {
     btnLock.disabled = true;
-    btnLock.textContent = '✓ 2 İtem Onaylandı — Diğerleri Bekleniyor...';
+    btnLock.textContent = '✓ Onaylandı — Bekleniyor...';
   } else {
     btnLock.disabled = app.draftPicks.length !== 2;
     btnLock.textContent = app.draftPicks.length === 2
-      ? '✓ 2 İtemi Onayla ve Denize Açıl!'
+      ? '✓ Onayla ve Başla'
       : `2 İtem Seç (${app.draftPicks.length}/2)`;
   }
 
@@ -1186,15 +1186,15 @@ function updateHudFromState(st) {
     setIfChanged('role', roleKey, () => {
       $('hud-role-pill').textContent = me.alive
         ? (isCrown
-          ? (me.hasCrown ? '👑 ALTIN TAÇ SENDE — KAÇ VE 100 PUANA ULAŞ!' : '👑 ALTIN TAÇ — TACI KAP, 100 PUANA ULAŞ!')
+          ? (me.hasCrown ? '👑 TAÇ SENDE!' : '👑 ALTIN TAÇ')
           : me.role === 'ffa'
-            ? '💀 HERKES TEK — SON KALAN KAZANIR!'
+            ? '💀 HERKES TEK'
             : me.role === 'hunter'
-              ? '🎯 AVCISIN — AVI SUYA GÖM!'
-              : '🌊 AVSIN — SU ÜSTÜNDE KAL!')
+              ? '🎯 AVCISIN'
+              : '🌊 AVSIN')
         : ((me.lives > 0 || isCrown)
-          ? `❤️ YENİDEN DOĞUYOR... (${me.respawnTimer.toFixed(1)}s)`
-          : '🌊 SUYA GÖMÜLDÜN (İZLEYİCİ)');
+          ? `❤️ DOĞUYOR (${me.respawnTimer.toFixed(1)}s)`
+          : '🌊 İZLEYİCİ');
       $('hud-role-pill').className = `hud-role-pill ${me.role === 'ffa' ? 'hunter' : me.role} ${me.alive ? '' : 'dead'}`;
     });
 
@@ -1687,22 +1687,22 @@ function renderLobbyRulesSummary(st) {
     : (SEA_MAPS[Number(s.mapMode)]?.name || 'Harita');
   const hpLabel = `%${Math.round((s.hpMult || 1) * 100)} Can`;
   const gunLabel = s.firearmMode === 'long_cd' ? '⏳ Silah 30s CD' : '🔥 Tek Atım (Ağır)';
-  const modeLabel = s.mode === '1v1' ? '⚔️ 1v1 Düello' : s.mode === 'crown' ? '👑 Altın Taç' : s.mode === 'ffa' ? '💀 Herkes Tek (FFA)' : '👥 2v2 Takım';
+  const modeLabel = s.mode === '1v1' ? '⚔️ 1v1' : s.mode === 'crown' ? '👑 Altın Taç' : s.mode === 'ffa' ? '💀 FFA' : '👥 2v2';
   const livesVal = s.lives || 1;
   const pills = [
     modeLabel,
     `🏁 ${s.totalRounds} Tur`,
     `⏱️ ${s.roundDuration}sn`,
     `${'❤️'.repeat(livesVal)} ${livesVal} Kalp`,
-    `🛡️ ${hpLabel}`,
+    ...(s.hpMult && s.hpMult !== 1 ? [`🛡️ ${hpLabel}`] : []),
     `🗺️ ${mapLabel}`,
-    gunLabel,
-    `🌿 Ağaç ${s.skillTree !== false ? '✓' : '✕'}`,
-    `🎲 Olay ${s.roundEvents !== false ? '✓' : '✕'}`,
-    `📦 Sandık ${s.powerups ? '✓' : '✕'}`,
-    `🧨 Fıçı ${s.barrels ? '✓' : '✕'}`,
-    `🌪️ Fırtına ${s.storm ? '✓' : '✕'}`,
-    ...(s.mode !== '2v2' ? [] : [`🛟 Kurtarma ${s.rescue ? '✓' : '✕'}`])
+    s.firearmMode === 'long_cd' ? '⏳ Silah 30s CD' : '🔥 Tek Atım',
+    ...(s.skillTree === false ? ['🌿 Ağaç Kapalı'] : []),
+    ...(s.roundEvents === false ? ['🎲 Olay Kapalı'] : []),
+    ...(s.powerups === false ? ['📦 Sandık Kapalı'] : []),
+    ...(s.barrels === false ? ['🧨 Fıçı Kapalı'] : []),
+    ...(s.storm === false ? ['🌪️ Fırtına Kapalı'] : []),
+    ...(s.mode === '2v2' && s.rescue === false ? ['🛟 Kurtarma Kapalı'] : [])
   ];
   $('lobby-rules-summary').innerHTML = pills.map(p => `<span class="rule-chip">${p}</span>`).join('');
 }

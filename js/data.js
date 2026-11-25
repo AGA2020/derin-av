@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.52';
+export const GAME_VERSION = 'v4.53';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -65,6 +65,12 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.53',
+    notes: [
+      '✂️ GENEL METİN SADELEŞTİRMESİ: Ana menü, lobi, 6 çar pasifi, 20 item açıklaması ve oyun içi HUD’daki tekrar eden uzun metinler kısaltıldı — tüm ekranlar çok daha temiz ve hızlı okunur hale geldi!'
+    ]
+  },
   {
     ver: 'v4.52',
     notes: [
@@ -374,7 +380,7 @@ export const CHARACTERS = [
     projSpeedMult: 1.0,
     whirlpoolResist: 0.2,
     firstHitReduction: 0.25,
-    passive: 'En yüksek nefes (85) ve batma direnci (145); her turda ilk isabetten %25 az hasar alır.',
+    passive: 'En yüksek nefes & direnç; ilk darbeden %25 az hasar.',
     stats: { hp: 5, speed: 3, utility: 3 }
   },
   {
@@ -393,7 +399,7 @@ export const CHARACTERS = [
     projSpeedMult: 1.05,
     whirlpoolResist: 0.2,
     dashBoost: 1.22,
-    passive: 'En yüksek seyir hızı; SPACE dalga hamlesi %22 daha güçlü ve uzağa uzanır.',
+    passive: 'En yüksek hız; SPACE hamlesi %22 daha güçlü.',
     stats: { hp: 3, speed: 5, utility: 3 }
   },
   {
@@ -412,7 +418,7 @@ export const CHARACTERS = [
     projSpeedMult: 1.0,
     whirlpoolResist: 0.15,
     stealthBonus: true,
-    passive: 'Köpük ve ses izi %55 daha küçük; deniz sisinde düşmana çok yakınken bile gizli kalır.',
+    passive: '-%55 köpük izi; siste çok yakından bile gizli.',
     stats: { hp: 2, speed: 4, utility: 5 }
   },
   {
@@ -430,7 +436,7 @@ export const CHARACTERS = [
     cdMult: 1.0,
     projSpeedMult: 1.25,
     whirlpoolResist: 0.15,
-    passive: '+%25 daha geniş görüş menzili; ateşli silah mermileri %25 daha hızlı gider.',
+    passive: '+%25 görüş menzili; mermiler %25 daha hızlı.',
     stats: { hp: 3, speed: 3, utility: 5 }
   },
   {
@@ -449,7 +455,7 @@ export const CHARACTERS = [
     projSpeedMult: 1.05,
     whirlpoolResist: 0.25,
     trapBonus: 1.2,
-    passive: 'Tuzak, ağ ve yardımcı eşyaların bekleme süresi %22 kısa, etki alanı %20 geniş.',
+    passive: 'Tuzak & yardımcı beklemesi -%22, alanı +%20.',
     stats: { hp: 4, speed: 3, utility: 5 }
   },
   {
@@ -468,7 +474,7 @@ export const CHARACTERS = [
     projSpeedMult: 1.0,
     currentBonus: true,
     turnBonus: true,
-    passive: 'Süper çevik manevra, turbo akıntılardan ekstra hız kazanır, ters akıntıdan hiç etkilenmez.',
+    passive: 'Çevik dönüş; akıntıda ekstra hız, ters akıntıya bağışık.',
     stats: { hp: 3, speed: 5, utility: 4 }
   }
 ];
@@ -492,7 +498,7 @@ export const HUNTER_ITEMS = [
     knockback: 320,
     slowDur: 2.2,
     revealHitDur: 3.5,
-    desc: 'TEK KULLANIMLIK! Lazerli ağır zıpkın: 112 Batırma Hasarı + 2.2 sn yavaşlatma + 3.5 sn iz bırakma!'
+    desc: '112 Hasar + 2.2 sn yavaşlatma + 3.5 sn iz bırakır.'
   },
   {
     id: 'blunderbuss',
@@ -509,7 +515,7 @@ export const HUNTER_ITEMS = [
     damage: 27, // 5 x 27 = 135 maks yakın hasar!
     knockback: 280,
     slowDur: 0.65,
-    desc: 'TEK KULLANIMLIK! Yakından 5 iri saçma (maks. 135 Batırma Hasarı + dev dalga savurması).'
+    desc: '5 iri saçma (maks. 135 Hasar) + güçlü savurma.'
   },
   {
     id: 'flare_gun',
@@ -526,7 +532,7 @@ export const HUNTER_ITEMS = [
     revealHitDur: 3.5,
     flareRadius: 285,
     flareDur: 12.0,
-    desc: 'TEK KULLANIMLIK! 82 Batırma Hasarı + isabet edeni 3.5 sn işaretler ve bölgeyi 12 sn aydınlatır.'
+    desc: '82 Hasar + 3.5 sn işaretler, bölgeyi 12 sn aydınlatır.'
   },
   {
     id: 'sonar',
@@ -537,7 +543,7 @@ export const HUNTER_ITEMS = [
     uses: 2,
     cooldown: 11,
     revealDur: 3.2,
-    desc: 'Geniş sonar dalgası yayar; tüm Avları 3.2 sn boyunca kayalık ve sis arkasından gösterir.'
+    desc: 'Tüm rakipleri 3.2 sn kayalık ve sis arkasından gösterir.'
   },
   {
     id: 'anchor_trap',
@@ -550,7 +556,7 @@ export const HUNTER_ITEMS = [
     trapRadius: 44,
     damage: 30,
     rootDur: 2.1,
-    desc: 'Suya gizli çapa bırakır; basan Avı 2.1 sn kilitler, 30 Batırma Hasarı verir ve açığa çıkarır.'
+    desc: 'Gizli çapa: basanı 2.1 sn kilitler, 30 Hasar + açığa çıkarır.'
   },
   {
     id: 'capture_net',
@@ -565,7 +571,7 @@ export const HUNTER_ITEMS = [
     slowDur: 2.6,
     slowFactor: 0.3,
     damage: 16,
-    desc: 'Fırlatılan geniş ağ isabet ettiği Avı 2.6 sn boyunca %70 yavaşlatır.'
+    desc: 'İsabet ettiği rakibi 2.6 sn %70 yavaşlatır (+16 Hasar).'
   },
   {
     id: 'storm_surge',
@@ -577,7 +583,7 @@ export const HUNTER_ITEMS = [
     cooldown: 11,
     dur: 4.0,
     speedMult: 1.4,
-    desc: '4 sn boyunca +%40 deniz hızı ve güçlendirilmiş suya bastırma darbesi verir.'
+    desc: '4 sn +%40 hız ve güçlendirilmiş SPACE darbesi.'
   },
   {
     id: 'grapple_hook',
@@ -590,7 +596,7 @@ export const HUNTER_ITEMS = [
     range: 470,
     speed: 800,
     damage: 24,
-    desc: 'İsabet ettiği Avı direkt sana doğru çeker ve 24 Batırma Hasarı verir.'
+    desc: 'Rakibi direkt sana çeker (+24 Hasar).'
   },
   {
     id: 'electric_net',
@@ -606,7 +612,7 @@ export const HUNTER_ITEMS = [
     chainDamage: 28,
     chainRange: 230,
     slowDur: 1.4,
-    desc: 'İsabet ettiği rakibe 32 hasar + yavaşlatma vurur ve 230px içindeki başka bir düşmana elektrik sıçratır!'
+    desc: '32 Hasar + yavaşlatma; yakındaki 2. düşmana elektrik sıçratır.'
   },
   {
     id: 'gravity_bomb',
@@ -619,7 +625,7 @@ export const HUNTER_ITEMS = [
     range: 340,
     radius: 175,
     dur: 3.3,
-    desc: 'Atıldığı bölgede 3.3 sn boyunca yakındaki rakipleri merkeze doğru çeker — barut fıçısıyla efsane kombo!'
+    desc: '3.3 sn girdap alanı — yakındaki rakipleri merkeze çeker.'
   }
 ];
 
@@ -639,7 +645,7 @@ export const PREY_ITEMS = [
     damage: 85,
     knockback: 330,
     stunDur: 2.0,
-    desc: 'TEK KULLANIMLIK! Ağır savunma atışı: Avcıya 85 Batırma Hasarı verir ve 2.0 sn tam sersemletir!'
+    desc: '85 Hasar + 2.0 sn tam sersemletme.'
   },
   {
     id: 'hand_mortar',
@@ -656,7 +662,7 @@ export const PREY_ITEMS = [
     damage: 32, // 3 x 32 = 96 maks hasar!
     knockback: 540,
     slowDur: 0.7,
-    desc: 'TEK KULLANIMLIK! 3 ağır patlayıcı saçma (maks. 96 hasar) + Avcıyı dev dalgayla geri fırlatır!'
+    desc: '3 saçma (maks. 96 Hasar) + güçlü geri itme.'
   },
   {
     id: 'ink_cloud',
@@ -668,7 +674,7 @@ export const PREY_ITEMS = [
     cooldown: 11,
     radius: 140,
     dur: 6.5,
-    desc: 'Suya dev siyah mürekkep bulutu salar (6.5 sn); içindekiler görünmez ve sonardan saklanır.'
+    desc: '6.5 sn siyah bulut — içindekiler görünmez ve sonardan saklı.'
   },
   {
     id: 'flash_flare',
@@ -681,7 +687,7 @@ export const PREY_ITEMS = [
     range: 390,
     blastRadius: 160,
     blindDur: 2.2,
-    desc: 'Atılan flaş kapsülü yakındaki Avcıları 2.2 sn kör eder ve yavaşlatır.'
+    desc: 'Yakındaki rakipleri 2.2 sn kör eder ve yavaşlatır.'
   },
   {
     id: 'decoy_buoy',
@@ -693,7 +699,7 @@ export const PREY_ITEMS = [
     cooldown: 10,
     dur: 5.5,
     speed: 235,
-    desc: 'İleri doğru köpük izi bırakarak ilerleyen sahte bir kopya yollar, Avcıları şaşırtır.'
+    desc: 'İleri giden sahte klon yollar, rakipleri şaşırtır.'
   },
   {
     id: 'jet_stream',
@@ -705,7 +711,7 @@ export const PREY_ITEMS = [
     cooldown: 11,
     dur: 3.6,
     speedMult: 1.44,
-    desc: '3.6 sn boyunca +%44 hız, sessiz süzülme ve ağ/yavaşlatma etkilerini anında temizler.'
+    desc: '3.6 sn +%44 hız, sessiz kaçış + yavaşlatmaları siler.'
   },
   {
     id: 'sea_mine',
@@ -718,7 +724,7 @@ export const PREY_ITEMS = [
     trapRadius: 48,
     damage: 32,
     stunDur: 1.8,
-    desc: 'Suya mayın bırakır; yaklaşan Avcıyı patlatıp 1.8 sn sersemletir ve 32 Batırma Hasarı verir.'
+    desc: 'Patlayan mayın: 32 Hasar + 1.8 sn sersemletme.'
   },
   {
     id: 'buoyancy_kit',
@@ -731,7 +737,7 @@ export const PREY_ITEMS = [
     healSelf: 78,
     healAlly: 42,
     allyRadius: 240,
-    desc: 'Suya batmanı önler! +78 Su Üstü Direnci yeniler (yakındaki dostuna da +42 kazandırır).'
+    desc: '+78 Direnç yeniler (yakındaki dostuna +42).'
   },
   {
     id: 'mirror_shield',
@@ -742,7 +748,7 @@ export const PREY_ITEMS = [
     uses: 2,
     cooldown: 11,
     dur: 1.8,
-    desc: '1.8 sn boyunca sana gelen ilk mermi, zıpkın veya ağı aynen rakibe GERİ SEKTİRİR!'
+    desc: '1.8 sn gelen ilk mermiyi aynen rakibe geri sektirir!'
   },
   {
     id: 'kelp_trail',
@@ -754,7 +760,7 @@ export const PREY_ITEMS = [
     cooldown: 10,
     dur: 4.0,
     speedMult: 1.18,
-    desc: '4 sn boyunca +%18 hızlanıp arkanda yosun şeridi bırakırsın; basan rakipler %60 yavaşlar!'
+    desc: '4 sn +%18 hız + arkanda rakipleri %60 yavaşlatan yosun izi.'
   }
 ];
 
