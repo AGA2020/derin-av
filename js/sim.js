@@ -21,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=4.53';
+} from './data.js?v=4.54';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -476,8 +476,9 @@ export class GameSim {
     return {
       dmgMult: has('atk1') ? 1.12 : 1.0,
       spaceCdMult: has('atk2') ? 0.78 : 1.0,
-      projSpeedMult: has('atk3') ? 1.2 : 1.0,
-      kbMult: has('atk3') ? 1.25 : 1.0,
+      projSpeedMult: has('atk3') ? 1.15 : 1.0,
+      kbMult: has('atk3') ? 1.15 : 1.0,
+      sniperRefund: has('atk3'),
       bonusBreath: has('deep1') ? 22 : 0,
       subSpeedBonus: has('deep2') ? 1.14 : 1.0,
       breathDrainMult: has('deep2') ? 0.85 : 1.0,
@@ -609,8 +610,7 @@ export class GameSim {
       const itemStates = s.items.map(itemId => {
         const def = ALL_ITEMS[itemId];
         const longCdMode = def.firearm && this.settings.firearmMode === 'long_cd';
-        const doubleAmmo = def.firearm && !longCdMode && this.roundEvent === 'cift_cephane';
-        const maxU = longCdMode ? 99 : (doubleAmmo ? 2 : def.uses);
+        const maxU = longCdMode ? 99 : def.uses;
         return {
           id: def.id,
           usesLeft: maxU,
@@ -657,6 +657,7 @@ export class GameSim {
         rescuedOnce: false,
         sinkingAnim: 0,
         firstHitAvail: Boolean(ch.firstHitReduction),
+        sniperRefundUsed: false,
         items: itemStates,
         spaceCd: 0,
         dashTimer: 0,
@@ -900,6 +901,7 @@ export class GameSim {
         this._spawnProjectile(p, {
           kind: 'harpoon',
           firearm: true,
+          itemId: def.id,
           x: p.x + Math.cos(angle) * 24,
           y: p.y + Math.sin(angle) * 24,
           vx: Math.cos(angle) * def.speed * pSpeedMult,
@@ -925,6 +927,7 @@ export class GameSim {
           this._spawnProjectile(p, {
             kind: 'pellet',
             firearm: true,
+            itemId: def.id,
             x: p.x + Math.cos(a) * 22,
             y: p.y + Math.sin(a) * 22,
             vx: Math.cos(a) * def.speed * pSpeedMult,
@@ -947,6 +950,7 @@ export class GameSim {
         this._spawnProjectile(p, {
           kind: 'flare',
           firearm: true,
+          itemId: def.id,
           x: p.x + Math.cos(angle) * 22,
           y: p.y + Math.sin(angle) * 22,
           vx: Math.cos(angle) * def.speed * pSpeedMult,
@@ -969,6 +973,7 @@ export class GameSim {
         this._spawnProjectile(p, {
           kind: 'bullet',
           firearm: true,
+          itemId: def.id,
           x: p.x + Math.cos(angle) * 22,
           y: p.y + Math.sin(angle) * 22,
           vx: Math.cos(angle) * def.speed * pSpeedMult,
@@ -992,6 +997,7 @@ export class GameSim {
           this._spawnProjectile(p, {
             kind: 'pellet',
             firearm: true,
+            itemId: def.id,
             x: p.x + Math.cos(a) * 22,
             y: p.y + Math.sin(a) * 22,
             vx: Math.cos(a) * def.speed * pSpeedMult,
@@ -1352,6 +1358,7 @@ export class GameSim {
       ownerId: owner.id,
       team: owner.team,
       traveled: 0,
+      bouncesLeft: this.roundEvent === 'seken_mermiler' ? 2 : 0,
       ...cfg
     });
   }
@@ -2170,7 +2177,21 @@ export class GameSim {
       pr.traveled += Math.hypot(stepX, stepY);
 
       const minPY = map.beach ? map.beach.sandY : 10;
-      let dead = pr.traveled >= pr.maxDist || pr.x < 10 || pr.x > WORLD_W - 10 || pr.y < minPY || pr.y > WORLD_H - 10;
+      let dead = pr.traveled >= pr.maxDist;
+
+      // 🎱 SEKEN MERMİLER: Deniz sınırından veya kayadan/enkazdan 2 kez seker!
+      if (!dead && (pr.x < 12 || pr.x > WORLD_W - 12 || pr.y < minPY || pr.y > WORLD_H - 12)) {
+        if (pr.bouncesLeft > 0) {
+          pr.bouncesLeft -= 1;
+          if (pr.x < 12 || pr.x > WORLD_W - 12) { pr.vx = -pr.vx; pr.x = clamp(pr.x, 14, WORLD_W - 14); }
+          if (pr.y < minPY || pr.y > WORLD_H - 12) { pr.vy = -pr.vy; pr.y = clamp(pr.y, minPY + 2, WORLD_H - 14); }
+          pr.maxDist += 160;
+          this._addPulse(pr.x, pr.y, 44, 'flash', pr.team);
+          this.onEvent({ type: 'sfx', name: 'hit' });
+        } else {
+          dead = true;
+        }
+      }
 
       // 🪵 Breakable barricade hit -> damage & shatter!
       if (!dead) {
@@ -2184,9 +2205,26 @@ export class GameSim {
         }
       }
 
-      // Obstacle hit
-      if (!dead && this._hitsObstacle(pr.x, pr.y, pr.r, map)) {
-        dead = true;
+      // Obstacle hit (🎱 Seken Mermiler olayı aktifse kayadan & enkazdan bilardo gibi sek!)
+      if (!dead) {
+        const hitNorm = this._getObstacleBounceNormal(pr.x, pr.y, pr.r, map);
+        if (hitNorm) {
+          if (pr.bouncesLeft > 0) {
+            pr.bouncesLeft -= 1;
+            const dot = pr.vx * hitNorm.nx + pr.vy * hitNorm.ny;
+            if (dot < 0) {
+              pr.vx -= 2 * dot * hitNorm.nx;
+              pr.vy -= 2 * dot * hitNorm.ny;
+            }
+            pr.x += hitNorm.nx * 8;
+            pr.y += hitNorm.ny * 8;
+            pr.maxDist += 180;
+            this._addPulse(pr.x, pr.y, 48, 'flash', pr.team);
+            this.onEvent({ type: 'sfx', name: 'hit' });
+          } else {
+            dead = true;
+          }
+        }
       }
 
       // 🧨 Powder barrel hit -> instant explosion!
@@ -2243,6 +2281,23 @@ export class GameSim {
               p.revealTimer = Math.max(p.revealTimer, pr.revealHitDur);
             }
             this._applyDamage(p, pr.damage || 0, pr.ownerId, kx, ky, '', Boolean(pr.firearm));
+            // 🎯 KESKİN NİŞANCI (Saldırı Tier 3): Ateşli silahla ilk isabette +1 mermi iadesi!
+            if (pr.firearm) {
+              const shooter = this.players.find(pl => pl.id === pr.ownerId);
+              if (shooter && shooter.alive && shooter.sk?.sniperRefund && !shooter.sniperRefundUsed) {
+                const gun = shooter.items.find(it => it.id === pr.itemId && !it.longCd)
+                  || shooter.items.find(it => it.firearm && !it.longCd && it.usesLeft < it.maxUses);
+                if (gun) {
+                  shooter.sniperRefundUsed = true;
+                  gun.usesLeft = Math.min(gun.maxUses, gun.usesLeft + 1);
+                  gun.cd = 0;
+                  this._addPulse(shooter.x, shooter.y, 90, 'heal', shooter.team);
+                  this._addFloatText(shooter.x, shooter.y - 34, '🎯 +1 MERMİ İADESİ!', '#ffd166');
+                  this._pushFeed(`🎯 ${shooter.name} Keskin Nişancı ile mermisini geri kazandı!`, 'firearm');
+                  this.onEvent({ type: 'sfx', name: 'boost', targetId: shooter.id });
+                }
+              }
+            }
             // ⚡ Elektrik Ağı: Yakındaki başka bir düşmana zincirleme elektrik sıçrat!
             if (pr.kind === 'shock' && pr.chainRange) {
               for (const other of this.players) {
@@ -2361,6 +2416,7 @@ export class GameSim {
     p.blindTimer = 0;
     p.submerged = false;
     p.diveCd = 0;
+    p.sniperRefundUsed = false;
     // Yeni kalp = taze 2 item şarjı!
     for (const it of p.items) {
       it.usesLeft = it.maxUses;
@@ -2524,6 +2580,36 @@ export class GameSim {
     }
     this.round += 1;
     this.startDraft();
+  }
+
+  _getObstacleBounceNormal(x, y, r, map) {
+    for (const obs of map.rocks) {
+      if (obs.type === 'rock') {
+        const d = dist(x, y, obs.x, obs.y);
+        if (d < obs.r + r && d > 0.001) {
+          return { nx: (x - obs.x) / d, ny: (y - obs.y) / d };
+        }
+      } else {
+        const cx = clamp(x, obs.x, obs.x + obs.w);
+        const cy = clamp(y, obs.y, obs.y + obs.h);
+        const d = dist(x, y, cx, cy);
+        if (d < r) {
+          if (d > 0.001) {
+            return { nx: (x - cx) / d, ny: (y - cy) / d };
+          }
+          const dl = Math.abs(x - obs.x);
+          const dr = Math.abs(obs.x + obs.w - x);
+          const dt = Math.abs(y - obs.y);
+          const db = Math.abs(obs.y + obs.h - y);
+          const m = Math.min(dl, dr, dt, db);
+          if (m === dl) return { nx: -1, ny: 0 };
+          if (m === dr) return { nx: 1, ny: 0 };
+          if (m === dt) return { nx: 0, ny: -1 };
+          return { nx: 0, ny: 1 };
+        }
+      }
+    }
+    return null;
   }
 
   _hitsObstacle(x, y, r, map) {

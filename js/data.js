@@ -1,13 +1,13 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.53';
+export const GAME_VERSION = 'v4.54';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
 export const ROUND_EVENTS = [
   { id: 'barut_yagmuru', name: 'Barut Yağmuru', icon: '🧨', color: '#ff6b35', desc: 'Haritada 2 kat barut fıçısı ve hızlı yenilenme!' },
-  { id: 'cift_cephane', name: 'Çift Cephane', icon: '🔫', color: '#ffb703', desc: 'Tek atımlık ateşli silahlar bu tur 2 atımlık!' },
+  { id: 'seken_mermiler', name: 'Seken Mermiler', icon: '🎱', color: '#38bdf8', desc: 'Mermiler, zıpkınlar ve ağlar kayalardan 2 kez seker!' },
   { id: 'gece_sisi', name: 'Karanlık Gece Sisi', icon: '🌫️', color: '#94a3b8', desc: 'Görüş mesafesi %30 daralır — tam gerilim ve pusu!' },
   { id: 'kasirga_hizi', name: 'Kasırga Hızı', icon: '⚡', color: '#38bdf8', desc: 'Tüm tekneler +%25 daha hızlı süzülür!' },
   { id: 'derin_deniz', name: 'Sonsuz Derinlik', icon: '🤿', color: '#06d6a0', desc: 'Su altında nefes tüketimi yarıya iner (%50)!' },
@@ -35,7 +35,7 @@ export const SKILL_TREE = [
     nodes: [
       { id: 'atk1', tier: 1, name: 'Keskin Barut', icon: '💥', desc: '+%12 tüm saldırı & fıçı hasarı' },
       { id: 'atk2', tier: 2, name: 'Hızlı Hamle', icon: '🌊', desc: 'SPACE bekleme süresi -%22' },
-      { id: 'atk3', tier: 3, name: 'Ağır Namlu', icon: '🎯', desc: '+%20 mermi hızı ve +%25 itme' }
+      { id: 'atk3', tier: 3, name: 'Keskin Nişancı', icon: '🎯', desc: '+%15 mermi hızı & ilk silah isabetinde +1 mermi iadesi' }
     ]
   },
   {
@@ -65,6 +65,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.54',
+    notes: [
+      '🎱 YENİ TUR OLAYI — SEKEN MERMİLER: Çift Cephane kaldırıldı! Artık bu olayda mermiler, zıpkınlar ve ağlar kayalardan, enkazlardan ve deniz sınırlarından 2 kez seker!',
+      '🎯 YETENEK AĞACI (SALDIRI TİER 3) — KESKİN NİŞANCI: +%15 mermi hızı + ateşli silahla rakibe ilk isabetinde anında +1 mermi iadesi!'
+    ]
+  },
   {
     ver: 'v4.53',
     notes: [
