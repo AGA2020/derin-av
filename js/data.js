@@ -1,8 +1,17 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v3.6';
+export const GAME_VERSION = 'v3.7';
 export const CHANGELOG = [
+  {
+    ver: 'v3.7',
+    notes: [
+      '🗺️ 3 YENİ DENİZ HARİTASI (Toplam 6 Harita)!',
+      '🏝️ Mercan Plajı: Altın kumsal, palmiyeler, ahşap iskeleler ve dalış yapılamayan turkuaz sığ su şeridi!',
+      '🌋 Volkanik Resif: Lav parıltılı dar kayalık geçitler, 6 barut fıçısı ve çapraz turbo akıntılar!',
+      '🌫️ Hayalet Sis Denizi: Dev sis labirenti ve kırık gemi enkazları — pusu ve sonar cenneti!'
+    ]
+  },
   {
     ver: 'v3.6',
     notes: [
@@ -710,6 +719,186 @@ export const SEA_MAPS = [
       { x: 960, y: 355 },
       { x: 640, y: 645 },
       { x: 420, y: 500 }
+    ]
+  },
+  {
+    id: 'mercan_plaji',
+    name: 'Mercan Plajı',
+    subtitle: 'Üst kıyıda altın kumsal, palmiyeler, ahşap iskeleler ve dalış yapılamayan sığ su!',
+    theme: { deep: '#072a40', mid: '#0d4a66', foam: 'rgba(186, 245, 255, 0.18)' },
+    beach: {
+      sandY: 145,
+      shallowY: 270,
+      palms: [
+        { x: 130, y: 68, r: 34 },
+        { x: 380, y: 54, r: 38 },
+        { x: 690, y: 72, r: 32 },
+        { x: 960, y: 58, r: 38 },
+        { x: 1270, y: 66, r: 35 },
+        { x: 1480, y: 74, r: 32 }
+      ],
+      umbrellas: [
+        { x: 255, y: 82, color: '#ef476f' },
+        { x: 540, y: 86, color: '#ffb703' },
+        { x: 830, y: 78, color: '#06d6a0' },
+        { x: 1125, y: 84, color: '#38bdf8' },
+        { x: 1390, y: 88, color: '#fb8500' }
+      ]
+    },
+    hunterSpawns: [
+      { x: 165, y: 450 },
+      { x: 165, y: 740 }
+    ],
+    preySpawns: [
+      { x: 1435, y: 450 },
+      { x: 1435, y: 740 }
+    ],
+    powerupSpots: [
+      { x: 800, y: 215 }, // Sığ su risk-ödül sandığı!
+      { x: 450, y: 215 },
+      { x: 1150, y: 215 },
+      { x: 800, y: 580 },
+      { x: 520, y: 760 },
+      { x: 1080, y: 760 },
+      { x: 800, y: 880 }
+    ],
+    rocks: [
+      // Kumsaldan denize uzanan ahşap iskeleler!
+      { type: 'pier', x: 390, y: 145, w: 46, h: 175 },
+      { type: 'pier', x: 1164, y: 145, w: 46, h: 175 },
+      { type: 'pier', x: 774, y: 145, w: 52, h: 140 },
+      // Mercan kayalıkları & batık tekne
+      { type: 'ship', x: 715, y: 620, w: 170, h: 86, label: 'YAT' },
+      { type: 'rock', x: 480, y: 540, r: 48 },
+      { type: 'rock', x: 1120, y: 540, r: 48 },
+      { type: 'rock', x: 340, y: 800, r: 44 },
+      { type: 'rock', x: 1260, y: 800, r: 44 }
+    ],
+    fogs: [
+      { x: 610, y: 440, r: 82 },
+      { x: 990, y: 440, r: 82 },
+      { x: 610, y: 820, r: 90 },
+      { x: 990, y: 820, r: 90 }
+    ],
+    currents: [
+      // Kıyıdan açık denize çeken akıntı + alt kıyı paralel akıntısı
+      { x: 560, y: 310, w: 480, h: 62, dirX: 1, dirY: 0, boost: 1.55 },
+      { x: 480, y: 845, w: 640, h: 62, dirX: -1, dirY: 0, boost: 1.55 }
+    ],
+    barrelSpots: [
+      { x: 600, y: 215 },
+      { x: 1000, y: 215 },
+      { x: 800, y: 470 },
+      { x: 580, y: 670 },
+      { x: 1020, y: 670 },
+      { x: 800, y: 785 }
+    ]
+  },
+  {
+    id: 'volkanik_resif',
+    name: 'Volkanik Resif',
+    subtitle: 'Lav parıltılı dar kayalık geçitler, bol barut fıçısı ve çapraz turbo akıntılar!',
+    theme: { deep: '#17080d', mid: '#2d111a', foam: 'rgba(255, 160, 110, 0.14)' },
+    hunterSpawns: [
+      { x: 155, y: 260 },
+      { x: 155, y: 740 }
+    ],
+    preySpawns: [
+      { x: 1445, y: 260 },
+      { x: 1445, y: 740 }
+    ],
+    powerupSpots: [
+      { x: 800, y: 500 },
+      { x: 520, y: 500 },
+      { x: 1080, y: 500 },
+      { x: 800, y: 220 },
+      { x: 800, y: 780 },
+      { x: 370, y: 220 },
+      { x: 1230, y: 780 }
+    ],
+    rocks: [
+      { type: 'rock', lava: true, x: 800, y: 355, r: 54 },
+      { type: 'rock', lava: true, x: 800, y: 645, r: 54 },
+      { type: 'rock', lava: true, x: 520, y: 290, r: 58 },
+      { type: 'rock', lava: true, x: 1080, y: 710, r: 58 },
+      { type: 'rock', lava: true, x: 520, y: 710, r: 50 },
+      { type: 'rock', lava: true, x: 1080, y: 290, r: 50 },
+      { type: 'rock', lava: true, x: 330, y: 500, r: 44 },
+      { type: 'rock', lava: true, x: 1270, y: 500, r: 44 }
+    ],
+    fogs: [
+      { x: 660, y: 170, r: 78 },
+      { x: 940, y: 830, r: 78 },
+      { x: 940, y: 170, r: 78 },
+      { x: 660, y: 830, r: 78 }
+    ],
+    currents: [
+      { x: 430, y: 468, w: 740, h: 64, dirX: 1, dirY: 0, boost: 1.62 },
+      { x: 645, y: 120, w: 62, h: 760, dirX: 0, dirY: 1, boost: 1.58 },
+      { x: 893, y: 120, w: 62, h: 760, dirX: 0, dirY: -1, boost: 1.58 }
+    ],
+    barrelSpots: [
+      { x: 800, y: 500 },
+      { x: 675, y: 350 },
+      { x: 925, y: 650 },
+      { x: 675, y: 650 },
+      { x: 925, y: 350 },
+      { x: 420, y: 390 },
+      { x: 1180, y: 610 }
+    ]
+  },
+  {
+    id: 'hayalet_sis',
+    name: 'Hayalet Sis Denizi',
+    subtitle: 'Dev sis labirenti ve kırık gemi enkazları — gizlilik, sonar ve pusu cenneti!',
+    theme: { deep: '#041414', mid: '#092929', foam: 'rgba(130, 245, 225, 0.13)' },
+    hunterSpawns: [
+      { x: 150, y: 340 },
+      { x: 150, y: 660 }
+    ],
+    preySpawns: [
+      { x: 1450, y: 340 },
+      { x: 1450, y: 660 }
+    ],
+    powerupSpots: [
+      { x: 800, y: 500 },
+      { x: 470, y: 500 },
+      { x: 1130, y: 500 },
+      { x: 800, y: 180 },
+      { x: 800, y: 820 },
+      { x: 470, y: 200 },
+      { x: 1130, y: 800 }
+    ],
+    rocks: [
+      { type: 'ship', x: 540, y: 230, w: 165, h: 68, label: 'HAYALET' },
+      { type: 'ship', x: 895, y: 702, w: 165, h: 68, label: 'HAYALET' },
+      { type: 'ship', x: 895, y: 230, w: 165, h: 68, label: 'ENKAZ' },
+      { type: 'ship', x: 540, y: 702, w: 165, h: 68, label: 'ENKAZ' },
+      { type: 'rock', x: 800, y: 500, r: 46 },
+      { type: 'rock', x: 350, y: 500, r: 42 },
+      { type: 'rock', x: 1250, y: 500, r: 42 }
+    ],
+    fogs: [
+      { x: 640, y: 420, r: 118 },
+      { x: 960, y: 580, r: 118 },
+      { x: 960, y: 420, r: 118 },
+      { x: 640, y: 580, r: 118 },
+      { x: 360, y: 240, r: 105 },
+      { x: 1240, y: 760, r: 105 },
+      { x: 1240, y: 240, r: 105 },
+      { x: 360, y: 760, r: 105 }
+    ],
+    currents: [
+      { x: 540, y: 110, w: 520, h: 58, dirX: 1, dirY: 0, boost: 1.52 },
+      { x: 540, y: 832, w: 520, h: 58, dirX: -1, dirY: 0, boost: 1.52 }
+    ],
+    barrelSpots: [
+      { x: 640, y: 500 },
+      { x: 960, y: 500 },
+      { x: 800, y: 310 },
+      { x: 800, y: 690 },
+      { x: 460, y: 370 },
+      { x: 1140, y: 630 }
     ]
   }
 ];

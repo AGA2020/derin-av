@@ -12,11 +12,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=3.6';
-import { sfx } from './audio.js?v=3.6';
-import { NetClient, generateRoomCode } from './net.js?v=3.6';
-import { GameSim } from './sim.js?v=3.6';
-import { SeaRenderer } from './render.js?v=3.6';
+} from './data.js?v=3.7';
+import { sfx } from './audio.js?v=3.7';
+import { NetClient, generateRoomCode } from './net.js?v=3.7';
+import { GameSim } from './sim.js?v=3.7';
+import { SeaRenderer } from './render.js?v=3.7';
 
 const $ = (id) => document.getElementById(id);
 
@@ -425,8 +425,9 @@ function stepClientPrediction(dt) {
     }
   }
 
+  const minY = map.beach ? map.beach.sandY + 22 : 32;
   app.pred.x = clamp(app.pred.x + app.pred.vx * dt, 32, WORLD_W - 32);
-  app.pred.y = clamp(app.pred.y + app.pred.vy * dt, 32, WORLD_H - 32);
+  app.pred.y = clamp(app.pred.y + app.pred.vy * dt, minY, WORLD_H - 32);
 
   // Local obstacle collision so prediction never walks through rocks
   const r = 20;
@@ -802,6 +803,7 @@ function updateHudFromState(st) {
     // Active Buff / Debuff Status Pills!
     const effList = [];
     if (me.alive) {
+      if (me.inShallow) effList.push({ cls: 'buff', txt: '🏖️ SIĞ SU (DALIŞ YOK)' });
       if (me.submerged) effList.push({ cls: 'dive', txt: me.diveTime >= 1.0 ? '🦈 SÜRPRİZ HAZIR' : '🤿 SU ALTINDA' });
       if (me.shield > 0) effList.push({ cls: 'shield', txt: `🛡️ KALKAN ${me.shield}` });
       if (me.speedBoostSec > 0) effList.push({ cls: 'buff', txt: `⚡ HIZ ${me.speedBoostSec.toFixed(1)}s` });

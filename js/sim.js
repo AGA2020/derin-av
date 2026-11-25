@@ -15,7 +15,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=3.6';
+} from './data.js?v=3.7';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -300,7 +300,7 @@ export class GameSim {
     if ([0.75, 1, 1.4].includes(Number(patch.hpMult))) {
       this.settings.hpMult = Number(patch.hpMult);
     }
-    if (['rotate', '0', '1', '2'].includes(String(patch.mapMode))) {
+    if (['rotate', '0', '1', '2', '3', '4', '5'].includes(String(patch.mapMode))) {
       this.settings.mapMode = String(patch.mapMode);
     }
     if (['single', 'long_cd'].includes(String(patch.firearmMode))) {
@@ -540,6 +540,7 @@ export class GameSim {
         inFog: false,
         inInk: false,
         inCurrent: false,
+        inShallow: false,
         inStorm: false,
         wakeTimer: 0,
         sinks: 0,
@@ -1062,7 +1063,12 @@ export class GameSim {
       return;
     }
 
-    // Dalma şartları: sersem/çapalı değil, bekleme yok, en az 15 nefes var!
+    // Dalma şartları: sersem/çapalı değil, sığ suda değil, bekleme yok, en az 15 nefes var!
+    if (p.inShallow) {
+      this._addFloatText(p.x, p.y - 28, '🏖️ SIĞ SUDA DALINMAZ!', '#ffd166');
+      this.onEvent({ type: 'sfx', name: 'empty', targetId: p.id });
+      return;
+    }
     if (p.stunTimer > 0 || p.rootTimer > 0 || p.diveCd > 0 || p.breath < 15) {
       this.onEvent({ type: 'sfx', name: 'empty', targetId: p.id });
       return;
@@ -1535,10 +1541,18 @@ export class GameSim {
         }
       }
 
-      // Integrate position
+      // Integrate position (kumsal/plaj varsa kıyı çizgisinden karaya çıkamaz!)
+      const minY = map.beach ? map.beach.sandY + p.r + 2 : p.r + 12;
       p.x = clamp(p.x + p.vx * dt, p.r + 12, WORLD_W - p.r - 12);
-      p.y = clamp(p.y + p.vy * dt, p.r + 12, WORLD_H - p.r - 12);
+      p.y = clamp(p.y + p.vy * dt, minY, WORLD_H - p.r - 12);
       this._resolveObstacleCollision(p, p.r, map, false);
+
+      // 🏖️ Mercan Plajı: Sığ su şeridinde dalış yapılamaz (dalıştaysa yüzeye çıkar!)
+      p.inShallow = Boolean(map.beach && p.y < map.beach.shallowY);
+      if (p.inShallow && p.submerged) {
+        this._addFloatText(p.x, p.y - 28, '🏖️ SIĞ SU!', '#ffd166');
+        this._surfacePlayer(p, true);
+      }
 
       // Fırtına çemberi dışı hasarı!
       p.inStorm = false;
@@ -1630,8 +1644,9 @@ export class GameSim {
       b.y += b.vy * dt;
       b.vx *= Math.pow(0.22, dt);
       b.vy *= Math.pow(0.22, dt);
+      const minBY = map.beach ? map.beach.sandY + b.r + 4 : 30;
       if (b.x < 30 || b.x > WORLD_W - 30) { b.x = clamp(b.x, 30, WORLD_W - 30); b.vx *= -0.7; }
-      if (b.y < 30 || b.y > WORLD_H - 30) { b.y = clamp(b.y, 30, WORLD_H - 30); b.vy *= -0.7; }
+      if (b.y < minBY || b.y > WORLD_H - 30) { b.y = clamp(b.y, minBY, WORLD_H - 30); b.vy *= -0.7; }
       this._resolveObstacleCollision(b, b.r, map, true);
 
       // Player pushes / launches barrel with boat or SPACE ram!
@@ -1709,7 +1724,8 @@ export class GameSim {
       pr.y += stepY;
       pr.traveled += Math.hypot(stepX, stepY);
 
-      let dead = pr.traveled >= pr.maxDist || pr.x < 10 || pr.x > WORLD_W - 10 || pr.y < 10 || pr.y > WORLD_H - 10;
+      const minPY = map.beach ? map.beach.sandY : 10;
+      let dead = pr.traveled >= pr.maxDist || pr.x < 10 || pr.x > WORLD_W - 10 || pr.y < minPY || pr.y > WORLD_H - 10;
 
       // Obstacle hit
       if (!dead && this._hitsObstacle(pr.x, pr.y, pr.r, map)) {
@@ -2267,6 +2283,7 @@ export class GameSim {
         inFog: p.inFog,
         inInk: p.inInk,
         inCurrent: p.inCurrent,
+        inShallow: p.inShallow,
         inStorm: p.inStorm,
         sinks: p.sinks
       })),

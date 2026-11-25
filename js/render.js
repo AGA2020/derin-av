@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=3.6';
-import { hasLineOfSight } from './sim.js?v=3.6';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=3.7';
+import { hasLineOfSight } from './sim.js?v=3.7';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -167,6 +167,7 @@ export class SeaRenderer {
     );
 
     this._drawOcean(ctx, map);
+    this._drawBeach(ctx, map);
     this._drawCurrents(ctx, map);
     this._drawWakes(ctx);
     this._drawPulses(ctx, state.pulses || [], me);
@@ -304,6 +305,125 @@ export class SeaRenderer {
         ctx.stroke();
       }
     }
+  }
+
+  _drawBeach(ctx, map) {
+    const b = map.beach;
+    if (!b) return;
+    const t = this.time;
+    ctx.save();
+
+    // 1. Sığ turkuaz lagün şeridi (sandY -> shallowY)
+    const lag = ctx.createLinearGradient(0, b.sandY, 0, b.shallowY);
+    lag.addColorStop(0, 'rgba(56, 217, 210, 0.52)');
+    lag.addColorStop(0.7, 'rgba(34, 184, 207, 0.25)');
+    lag.addColorStop(1, 'rgba(13, 74, 102, 0)');
+    ctx.fillStyle = lag;
+    ctx.fillRect(0, b.sandY, WORLD_W, b.shallowY - b.sandY);
+
+    // Sığ su sınır çizgisi (dalış yasağı göstergesi)
+    ctx.strokeStyle = 'rgba(125, 249, 255, 0.34)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([12, 10]);
+    ctx.beginPath();
+    ctx.moveTo(0, b.shallowY);
+    ctx.lineTo(WORLD_W, b.shallowY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = 'rgba(186, 245, 255, 0.55)';
+    ctx.font = '800 11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🏖️ SIĞ SU ŞERİDİ — DALIŞ YAPILAMAZ', WORLD_W / 2, b.shallowY - 8);
+
+    // 2. Kıyıya vuran hareketli beyaz köpük dalgaları
+    const surfShift = Math.sin(t * 2.2) * 7;
+    ctx.strokeStyle = 'rgba(235, 252, 255, 0.65)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    for (let x = 0; x <= WORLD_W; x += 40) {
+      const y = b.sandY + 8 + surfShift + Math.sin(x * 0.015 + t * 2.5) * 4;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // 3. Altın sarısı kumsal (0 -> sandY)
+    const sandGrad = ctx.createLinearGradient(0, 0, 0, b.sandY + 8);
+    sandGrad.addColorStop(0, '#c89b55');
+    sandGrad.addColorStop(0.75, '#e2be79');
+    sandGrad.addColorStop(1, '#b88c48');
+    ctx.fillStyle = sandGrad;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(WORLD_W, 0);
+    ctx.lineTo(WORLD_W, b.sandY);
+    for (let x = WORLD_W; x >= 0; x -= 40) {
+      const y = b.sandY + Math.sin(x * 0.012) * 5;
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // 4. Renkli plaj şemsiyeleri
+    for (const u of b.umbrellas || []) {
+      ctx.save();
+      ctx.translate(u.x, u.y);
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath();
+      ctx.arc(4, 5, 18, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = u.color;
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI) / 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * 18, Math.sin(a) * 18);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 5. Sallanan tropikal palmiye ağaçları
+    for (const pm of b.palms || []) {
+      ctx.save();
+      ctx.translate(pm.x, pm.y);
+      const sway = Math.sin(t * 1.6 + pm.x) * 0.08;
+      ctx.rotate(sway);
+      // Gölge
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+      ctx.beginPath();
+      ctx.arc(7, 8, pm.r * 0.85, 0, Math.PI * 2);
+      ctx.fill();
+      // Yapraklar
+      for (let i = 0; i < 7; i++) {
+        ctx.save();
+        ctx.rotate((i * Math.PI * 2) / 7);
+        ctx.fillStyle = i % 2 === 0 ? '#15803d' : '#22c55e';
+        ctx.beginPath();
+        ctx.ellipse(pm.r * 0.55, 0, pm.r * 0.55, pm.r * 0.19, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // Gövde merkezi
+      ctx.fillStyle = '#78350f';
+      ctx.beginPath();
+      ctx.arc(0, 0, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.restore();
   }
 
   _drawCurrents(ctx, map) {
@@ -478,30 +598,78 @@ export class SeaRenderer {
     const wavePulse = Math.sin(this.time * 2.2) * 3;
     for (const obs of map.rocks) {
       if (obs.type === 'rock') {
-        // Shallow reef glow & breaking foam
-        ctx.fillStyle = 'rgba(38, 165, 190, 0.18)';
-        ctx.beginPath();
-        ctx.arc(obs.x, obs.y, obs.r + 16 + wavePulse, 0, Math.PI * 2);
-        ctx.fill();
+        if (obs.lava) {
+          // 🌋 Volkanik lav parıltılı bazalt kayalık
+          ctx.fillStyle = 'rgba(255, 90, 40, 0.22)';
+          ctx.beginPath();
+          ctx.arc(obs.x, obs.y, obs.r + 15 + wavePulse, 0, Math.PI * 2);
+          ctx.fill();
 
-        ctx.strokeStyle = 'rgba(205, 244, 255, 0.32)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(obs.x, obs.y, obs.r + 5 + wavePulse * 0.5, 0, Math.PI * 2);
-        ctx.stroke();
+          const rg = ctx.createRadialGradient(obs.x - obs.r * 0.2, obs.y - obs.r * 0.2, 5, obs.x, obs.y, obs.r);
+          rg.addColorStop(0, '#44262b');
+          rg.addColorStop(0.65, '#261419');
+          rg.addColorStop(1, '#12080b');
+          ctx.fillStyle = rg;
+          ctx.beginPath();
+          ctx.arc(obs.x, obs.y, obs.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255, 110, 50, 0.72)';
+          ctx.lineWidth = 2.8;
+          ctx.stroke();
+        } else {
+          // Shallow reef glow & breaking foam
+          ctx.fillStyle = 'rgba(38, 165, 190, 0.18)';
+          ctx.beginPath();
+          ctx.arc(obs.x, obs.y, obs.r + 16 + wavePulse, 0, Math.PI * 2);
+          ctx.fill();
 
-        // Sea rock body
-        const rg = ctx.createRadialGradient(obs.x - obs.r * 0.25, obs.y - obs.r * 0.25, 6, obs.x, obs.y, obs.r);
-        rg.addColorStop(0, '#4a6070');
-        rg.addColorStop(0.65, '#2b3d4a');
-        rg.addColorStop(1, '#18242e');
-        ctx.fillStyle = rg;
+          ctx.strokeStyle = 'rgba(205, 244, 255, 0.32)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(obs.x, obs.y, obs.r + 5 + wavePulse * 0.5, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Sea rock body
+          const rg = ctx.createRadialGradient(obs.x - obs.r * 0.25, obs.y - obs.r * 0.25, 6, obs.x, obs.y, obs.r);
+          rg.addColorStop(0, '#4a6070');
+          rg.addColorStop(0.65, '#2b3d4a');
+          rg.addColorStop(1, '#18242e');
+          ctx.fillStyle = rg;
+          ctx.beginPath();
+          ctx.arc(obs.x, obs.y, obs.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+      } else if (obs.type === 'pier') {
+        // 🏝️ Ahşap plaj iskelesi
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 18, 30, 0.35)';
+        ctx.fillRect(obs.x + 5, obs.y + 5, obs.w, obs.h);
+        ctx.fillStyle = '#7c4d2b';
+        ctx.strokeStyle = '#3b2110';
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.arc(obs.x, obs.y, obs.r, 0, Math.PI * 2);
+        ctx.roundRect(obs.x, obs.y, obs.w, obs.h, 6);
         ctx.fill();
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 3;
         ctx.stroke();
+        // Yatay tahta çizgileri
+        ctx.strokeStyle = 'rgba(255, 224, 178, 0.22)';
+        ctx.lineWidth = 1.5;
+        for (let py = obs.y + 12; py < obs.y + obs.h - 6; py += 14) {
+          ctx.beginPath();
+          ctx.moveTo(obs.x + 4, py);
+          ctx.lineTo(obs.x + obs.w - 4, py);
+          ctx.stroke();
+        }
+        // İskele direkleri
+        ctx.fillStyle = '#4a2a14';
+        for (let py = obs.y + 18; py <= obs.y + obs.h - 10; py += 46) {
+          ctx.beginPath(); ctx.arc(obs.x + 4, py, 4, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(obs.x + obs.w - 4, py, 4, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
       } else {
         // Shipwreck hull
         ctx.save();
@@ -1145,6 +1313,14 @@ export class SeaRenderer {
     ctx.roundRect(0, 0, mw, mh, 10);
     ctx.fill();
     ctx.stroke();
+
+    // Beach shoreline on minimap
+    if (map.beach) {
+      ctx.fillStyle = 'rgba(226, 190, 121, 0.72)';
+      ctx.fillRect(0, 0, mw, map.beach.sandY * sy);
+      ctx.fillStyle = 'rgba(56, 217, 210, 0.3)';
+      ctx.fillRect(0, map.beach.sandY * sy, mw, (map.beach.shallowY - map.beach.sandY) * sy);
+    }
 
     // Turbo currents on minimap
     for (const cur of map.currents || []) {
