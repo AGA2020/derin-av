@@ -1,6 +1,8 @@
-// DERİN AV — Main Controller (Lobby, Online 2v2 Room Sync, 6-Char Picker, 2-Item Draft, Live Match Loop)
+// DERİN AV — Main Controller (Web Worker Host Loop for Alt-Tab Safety, Client-Side Prediction for Zero-Lag Feel)
 
 import {
+  WORLD_W,
+  WORLD_H,
   CHARACTERS,
   CHAR_MAP,
   HUNTER_ITEMS,
@@ -15,13 +17,40 @@ import { SeaRenderer } from './render.js';
 
 const $ = (id) => document.getElementById(id);
 
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+// Inline Web Worker timer: tarayıcı sekmesi arka plana atılsa / Alt+Tab yapılsa bile
+// host simülasyonunu 60Hz'de DURMADAN çalıştırır!
+function createBackgroundTicker(intervalMs, onTick) {
+  try {
+    const code = `setInterval(() => postMessage(Date.now()), ${intervalMs});`;
+    const blob = new Blob([code], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    const worker = new Worker(url);
+    worker.onmessage = (e) => onTick(e.data);
+    return {
+      stop() {
+        worker.terminate();
+        URL.revokeObjectURL(url);
+      }
+    };
+  } catch (_) {
+    const id = setInterval(() => onTick(Date.now()), intervalMs);
+    return { stop() { clearInterval(id); } };
+  }
+}
+
 const app = {
   mode: 'menu', // menu | host | client | offline
   myName: localStorage.getItem('derinav_name') || '',
   myId: null,
   roomCode: null,
   net: null,
-  sim: null, // only populated when Host or Offline
+  sim: null,
+  hostTicker: null,
+  lastSimNow: Date.now(),
   lobbyState: null,
   liveState: null,
   renderer: null,
@@ -29,11 +58,15 @@ const app = {
   mouseX: 0,
   mouseY: 0,
   localAim: 0,
+  // Client-side prediction state (istemci lagını sıfırlar!)
+  pred: null, // { x, y, vx, vy, round }
+  lastSentMoveKey: '',
   draftPicks: [],
   draftRoundSeen: -1,
   lastBroadcast: 0,
   lastInputSend: 0,
   lastLobbyPing: 0,
+  hudCache: {},
   touchMove: { mx: 0, my: 0 }
 };
 
@@ -64,6 +97,61 @@ function getInviteUrl() {
   const u = new URL(window.location.href);
   u.searchParams.set('room', app.roomCode);
   return u.toString();
+}
+
+// ============================================================
+// HOST BACKGROUND SIMULATION LOOP (ALT+TAB DONMA SORUNU ÇÖZÜMÜ)
+// ============================================================
+
+function startHostTicker() {
+  stopHostTicker();
+  app.lastSimNow = Date.now();
+  app.hostTicker = createBackgroundTicker(16, (now) => {
+    if (!app.sim) return;
+    const rawDt = (now - app.lastSimNow) / 1000;
+    app.lastSimNow = now;
+    // Clamp step to keep physics rock-solid even after micro-hiccups
+    const dt = Math.min(0.05, Math.max(0.004, rawDt));
+
+    if (app.sim.phase === 'playing') {
+      const mv = getMoveVector();
+      app.sim.setInput(app.myId, {
+        mx: mv.mx,
+        my: mv.my,
+        aim: Number(app.localAim.toFixed(2))
+      });
+    }
+
+    app.sim.step(dt);
+
+    if (app.sim.phase === 'playing' || app.sim.phase === 'round_end' || app.sim.phase === 'match_end') {
+      // 28Hz (35ms) network broadcast -> düşük gecikme + akıcı hareket
+      if (now - app.lastBroadcast >= 35) {
+        app.lastBroadcast = now;
+        broadcastState();
+      } else {
+        app.liveState = app.sim.getStateSnapshot();
+      }
+    } else if (app.sim.phase === 'draft') {
+      if (now - app.lastBroadcast >= 450) {
+        app.lastBroadcast = now;
+        broadcastLobby();
+        renderDraftUI();
+      }
+    } else if (app.sim.phase === 'lobby' && app.mode === 'host') {
+      if (now - app.lastLobbyPing >= 1500) {
+        app.lastLobbyPing = now;
+        broadcastLobby();
+      }
+    }
+  });
+}
+
+function stopHostTicker() {
+  if (app.hostTicker) {
+    app.hostTicker.stop();
+    app.hostTicker = null;
+  }
 }
 
 // ============================================================
@@ -105,6 +193,7 @@ function createHostSim() {
     }
   });
   app.sim.addHuman(app.myId, app.myName);
+  startHostTicker();
 }
 
 function startHostOnline() {
@@ -153,8 +242,10 @@ function joinOnlineRoom(rawCode) {
   app.myName = name.slice(0, 14);
   localStorage.setItem('derinav_name', app.myName);
 
+  stopHostTicker();
   app.mode = 'client';
   app.sim = null;
+  app.pred = null;
   app.lobbyState = null;
   app.liveState = null;
   initNet(false, code);
@@ -168,9 +259,11 @@ function leaveRoom() {
   if (app.mode === 'client' && app.net?.connected) {
     app.net.send({ type: 'leave' });
   }
+  stopHostTicker();
   if (app.net) app.net.disconnect();
   app.mode = 'menu';
   app.sim = null;
+  app.pred = null;
   app.lobbyState = null;
   app.liveState = null;
   app.roomCode = null;
@@ -240,6 +333,7 @@ function handleClientReceive(msg) {
     case 'state': {
       app.liveState = msg.data;
       syncPhaseScreens(app.liveState.phase);
+      reconcileClientPrediction(app.liveState);
       updateHudFromState(app.liveState);
       break;
     }
@@ -248,6 +342,85 @@ function handleClientReceive(msg) {
         sfx.play(msg.name);
       }
       break;
+    }
+  }
+}
+
+// ============================================================
+// CLIENT-SIDE PREDICTION & SMOOTH RECONCILIATION (ZERO-LAG)
+// ============================================================
+
+function reconcileClientPrediction(st) {
+  if (app.mode !== 'client' || st.phase !== 'playing') {
+    app.pred = null;
+    return;
+  }
+  const me = st.players?.find(p => p.id === app.myId);
+  if (!me || !me.alive) {
+    app.pred = null;
+    return;
+  }
+  if (!app.pred || app.pred.round !== st.round) {
+    app.pred = { x: me.x, y: me.y, vx: me.vx || 0, vy: me.vy || 0, round: st.round };
+    return;
+  }
+  const err = Math.hypot(me.x - app.pred.x, me.y - app.pred.y);
+  if (err > 125) {
+    // Büyük knockback / kanca / respawn durumunda anında hizala
+    app.pred.x = me.x;
+    app.pred.y = me.y;
+    app.pred.vx = me.vx || 0;
+    app.pred.vy = me.vy || 0;
+  } else if (err > 4) {
+    // Yumuşak düzeltme: asla zıplama / rubberbanding hissi vermez
+    const blend = err > 50 ? 0.28 : 0.14;
+    app.pred.x += (me.x - app.pred.x) * blend;
+    app.pred.y += (me.y - app.pred.y) * blend;
+  }
+}
+
+function stepClientPrediction(dt) {
+  if (app.mode !== 'client' || !app.pred || !app.liveState || app.liveState.phase !== 'playing') return;
+  const me = app.liveState.players?.find(p => p.id === app.myId);
+  if (!me || !me.alive) return;
+
+  const ch = CHAR_MAP[me.charId] || CHARACTERS[0];
+  const mv = getMoveVector();
+  let mx = mv.mx;
+  let my = mv.my;
+  const len = Math.hypot(mx, my);
+  if (len > 1) { mx /= len; my /= len; }
+
+  let maxSpd = ch.speed * (me.speedBoost ? 1.38 : 1) * (me.slowTimer ? 0.45 : 1);
+  if (me.role === 'hunter') maxSpd *= 1.03;
+  if (me.rootTimer || me.stunTimer) maxSpd = 0;
+
+  const accel = ch.turnBonus ? 11.5 : 8.5;
+  app.pred.vx += (mx * maxSpd - app.pred.vx) * Math.min(1, accel * dt);
+  app.pred.vy += (my * maxSpd - app.pred.vy) * Math.min(1, accel * dt);
+
+  app.pred.x = clamp(app.pred.x + app.pred.vx * dt, 32, WORLD_W - 32);
+  app.pred.y = clamp(app.pred.y + app.pred.vy * dt, 32, WORLD_H - 32);
+
+  // Local obstacle collision so prediction never walks through rocks
+  const map = SEA_MAPS[(app.liveState.mapIndex || 0) % SEA_MAPS.length];
+  const r = 20;
+  for (const obs of map.rocks) {
+    if (obs.type === 'rock') {
+      const d = Math.hypot(app.pred.x - obs.x, app.pred.y - obs.y);
+      const minD = obs.r + r;
+      if (d < minD && d > 0.01) {
+        app.pred.x = obs.x + ((app.pred.x - obs.x) / d) * minD;
+        app.pred.y = obs.y + ((app.pred.y - obs.y) / d) * minD;
+      }
+    } else {
+      const cx = clamp(app.pred.x, obs.x, obs.x + obs.w);
+      const cy = clamp(app.pred.y, obs.y, obs.y + obs.h);
+      const d = Math.hypot(app.pred.x - cx, app.pred.y - cy);
+      if (d < r && d > 0.01) {
+        app.pred.x = cx + ((app.pred.x - cx) / d) * r;
+        app.pred.y = cy + ((app.pred.y - cy) / d) * r;
+      }
     }
   }
 }
@@ -346,7 +519,6 @@ function renderLobby() {
   $('team-a-slots').innerHTML = st.slots.filter(s => s.team === 'A').map(renderSlot).join('');
   $('team-b-slots').innerHTML = st.slots.filter(s => s.team === 'B').map(renderSlot).join('');
 
-  // Bind bot buttons
   document.querySelectorAll('[data-add-bot]').forEach(btn => {
     btn.onclick = () => {
       if (!app.sim) return;
@@ -366,7 +538,6 @@ function renderLobby() {
     };
   });
 
-  // Render 6 Characters Grid
   const mySlot = st.slots.find(s => s.id === app.myId);
   const myCharId = mySlot?.charId || 'kaptan';
   $('char-grid').innerHTML = CHARACTERS.map(c => {
@@ -426,7 +597,7 @@ function renderDraftUI() {
   const roleBox = $('draft-role-banner');
   roleBox.className = `role-banner ${myRole}`;
   roleBox.innerHTML = myRole === 'hunter'
-    ? `<strong>🎯 BU TUR AVCISIN!</strong> — Görevin: İki Avı da <b>suya gömmek</b>! 2 item seç (Ateşli silahlar <b>TEK KULLANIMLIKTIR</b>).`
+    ? `<strong>🎯 BU TUR AVCISIN!</strong> — Görevin: İki Avı da <b>suya gömmek</b>! 2 item seç (Ateşli silahlar <b>TEK KULLANIMLIKTIR</b>, denizdeki sandıkları kap!).`
     : `<strong>🌊 BU TUR AVSIN!</strong> — Görevin: <b>Suya gömülmeden</b> süreyi tamamla veya Avcıları batır! 2 item seç (Ateşli silahlar <b>TEK KULLANIMLIKTIR</b>).`;
 
   const locked = mySlot.readyItems && mySlot.items.length === 2;
@@ -441,7 +612,7 @@ function renderDraftUI() {
           <span class="item-ico">${it.icon}</span>
           <div class="item-badges">
             ${it.firearm
-              ? '<span class="badge-firearm">🔥 ATEŞLİ · TEK KULLANIM</span>'
+              ? '<span class="badge-firearm">🔥 TEK KULLANIM</span>'
               : `<span class="badge-util">${it.category} · ${it.uses}x</span>`}
           </div>
         </div>
@@ -480,7 +651,6 @@ function renderDraftUI() {
       : `2 İtem Seç (${app.draftPicks.length}/2)`;
   }
 
-  // Show who is ready
   $('draft-ready-list').innerHTML = st.slots.map(s => {
     const r = (s.team === 'A') ? (teamAIsHunter ? 'Avcı' : 'Av') : (teamAIsHunter ? 'Av' : 'Avcı');
     return `<span class="ready-pill ${s.readyItems ? 'ok' : ''}">${s.name} (${r}) ${s.readyItems ? '✓' : '...'}</span>`;
@@ -488,83 +658,108 @@ function renderDraftUI() {
 }
 
 // ============================================================
-// LIVE HUD & ROUND/MATCH OVERLAYS
+// LIVE HUD (DIRTY-CHECKED — ZERO DOM THRASHING!)
 // ============================================================
+
+function setIfChanged(key, val, applyFn) {
+  if (app.hudCache[key] !== val) {
+    app.hudCache[key] = val;
+    applyFn();
+  }
+}
 
 function updateHudFromState(st) {
   if (!st) return;
   const map = SEA_MAPS[(st.mapIndex || 0) % SEA_MAPS.length];
-  $('hud-round').textContent = `TUR ${st.round}/${st.totalRounds} · ${map.name}`;
-  $('hud-score-a').textContent = st.scores.A;
-  $('hud-score-b').textContent = st.scores.B;
+  const roundStr = `TUR ${st.round}/${st.totalRounds} · ${map.name}`;
+  setIfChanged('round', roundStr, () => { $('hud-round').textContent = roundStr; });
+  setIfChanged('scoreA', st.scores.A, () => { $('hud-score-a').textContent = st.scores.A; });
+  setIfChanged('scoreB', st.scores.B, () => { $('hud-score-b').textContent = st.scores.B; });
 
   const secs = Math.max(0, Math.ceil(st.phaseTimer));
-  const mm = String(Math.floor(secs / 60)).padStart(2, '0');
-  const ss = String(secs % 60).padStart(2, '0');
-  $('hud-timer').textContent = `${mm}:${ss}`;
-  $('hud-timer').classList.toggle('urgent', secs <= 15);
+  setIfChanged('timer', secs, () => {
+    const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+    const ss = String(secs % 60).padStart(2, '0');
+    $('hud-timer').textContent = `${mm}:${ss}`;
+    $('hud-timer').classList.toggle('urgent', secs <= 15);
+  });
 
   const me = st.players?.find(p => p.id === app.myId);
   if (me) {
     const ch = CHAR_MAP[me.charId] || CHARACTERS[0];
-    $('hud-role-pill').textContent = me.alive
-      ? (me.role === 'hunter' ? '🎯 AVCISIN — AVI SUYA GÖM!' : '🌊 AVSIN — SU ÜSTÜNDE KAL!')
-      : '🌊 SUYA GÖMÜLDÜN (İZLEYİCİ)';
-    $('hud-role-pill').className = `hud-role-pill ${me.role} ${me.alive ? '' : 'dead'}`;
+    const roleKey = `${me.role}_${me.alive}`;
+    setIfChanged('role', roleKey, () => {
+      $('hud-role-pill').textContent = me.alive
+        ? (me.role === 'hunter' ? '🎯 AVCISIN — AVI SUYA GÖM!' : '🌊 AVSIN — SU ÜSTÜNDE KAL!')
+        : '🌊 SUYA GÖMÜLDÜN (İZLEYİCİ)';
+      $('hud-role-pill').className = `hud-role-pill ${me.role} ${me.alive ? '' : 'dead'}`;
+    });
 
-    const pct = Math.max(0, Math.round((me.hp / me.maxHp) * 100));
-    $('hud-hp-fill').style.width = `${pct}%`;
-    $('hud-hp-text').textContent = `${ch.icon} ${ch.name} · Su Üstü Direnci: ${me.hp}/${me.maxHp}`;
+    const hpKey = `${me.hp}_${me.maxHp}_${me.shield || 0}`;
+    setIfChanged('hp', hpKey, () => {
+      const pct = Math.max(0, Math.round((me.hp / me.maxHp) * 100));
+      $('hud-hp-fill').style.width = `${pct}%`;
+      const shTxt = me.shield > 0 ? ` (+${me.shield} 🛡️)` : '';
+      $('hud-hp-text').textContent = `${ch.icon} ${ch.name} · Su Üstü Direnci: ${me.hp}/${me.maxHp}${shTxt}`;
+    });
 
-    // 2 Item Slots
     for (let i = 0; i < 2; i++) {
-      const slotEl = $(`hud-slot-${i}`);
       const it = me.items[i];
       if (!it) continue;
-      const def = ALL_ITEMS[it.id];
-      const depleted = it.usesLeft <= 0;
-      const onCd = it.cd > 0 && !depleted;
-      slotEl.className = `hud-item-slot ${depleted ? 'depleted' : ''} ${it.firearm ? 'firearm' : ''} ${onCd ? 'cooldown' : ''}`;
-      slotEl.innerHTML = `
-        <div class="slot-key">${i === 0 ? '1 / SOL' : '2 / SAĞ'}</div>
-        <div class="slot-ico">${def.icon}</div>
-        <div class="slot-meta">
-          <div class="slot-title">${def.name}</div>
-          <div class="slot-uses">
-            ${depleted
-              ? '<span class="txt-spent">TÜKENDİ</span>'
-              : it.firearm
-                ? '<span class="txt-firearm">1/1 TEK ATIM</span>'
-                : onCd
-                  ? `<span>${it.cd.toFixed(1)}s</span>`
-                  : `<span>${it.usesLeft}/${it.maxUses} HAZIR</span>`}
+      const slotKey = `${it.id}_${it.usesLeft}_${it.cd.toFixed(1)}`;
+      setIfChanged(`slot_${i}`, slotKey, () => {
+        const slotEl = $(`hud-slot-${i}`);
+        const def = ALL_ITEMS[it.id];
+        const depleted = it.usesLeft <= 0;
+        const onCd = it.cd > 0 && !depleted;
+        slotEl.className = `hud-item-slot ${depleted ? 'depleted' : ''} ${it.firearm ? 'firearm' : ''} ${onCd ? 'cooldown' : ''}`;
+        slotEl.innerHTML = `
+          <div class="slot-key">${i === 0 ? '1 / SOL' : '2 / SAĞ'}</div>
+          <div class="slot-ico">${def.icon}</div>
+          <div class="slot-meta">
+            <div class="slot-title">${def.name}</div>
+            <div class="slot-uses">
+              ${depleted
+                ? '<span class="txt-spent">TÜKENDİ</span>'
+                : it.firearm
+                  ? `<span class="txt-firearm">${it.usesLeft}/1 TEK ATIM</span>`
+                  : onCd
+                    ? `<span>${it.cd.toFixed(1)}s</span>`
+                    : `<span>${it.usesLeft}/${it.maxUses} HAZIR</span>`}
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      });
     }
 
-    // Space Ability Slot
-    const spEl = $('hud-slot-space');
-    const spReady = me.spaceCd <= 0;
-    spEl.className = `hud-item-slot space ${spReady ? '' : 'cooldown'}`;
-    spEl.innerHTML = `
-      <div class="slot-key">SPACE</div>
-      <div class="slot-ico">${me.role === 'hunter' ? '🌊' : '💨'}</div>
-      <div class="slot-meta">
-        <div class="slot-title">${me.role === 'hunter' ? 'Suya Bastır' : 'Dalga Kaçışı'}</div>
-        <div class="slot-uses">${spReady ? 'HAZIR' : `${me.spaceCd.toFixed(1)}s`}</div>
-      </div>
-    `;
+    const spKey = `${me.role}_${me.spaceCd.toFixed(1)}`;
+    setIfChanged('space', spKey, () => {
+      const spEl = $('hud-slot-space');
+      const spReady = me.spaceCd <= 0;
+      spEl.className = `hud-item-slot space ${spReady ? '' : 'cooldown'}`;
+      spEl.innerHTML = `
+        <div class="slot-key">SPACE</div>
+        <div class="slot-ico">${me.role === 'hunter' ? '🌊' : '💨'}</div>
+        <div class="slot-meta">
+          <div class="slot-title">${me.role === 'hunter' ? 'Suya Bastır' : 'Dalga Kaçışı'}</div>
+          <div class="slot-uses">${spReady ? 'HAZIR' : `${me.spaceCd.toFixed(1)}s`}</div>
+        </div>
+      `;
+    });
   }
 
-  // Team alive indicators
-  const teamA = (st.players || []).filter(p => p.team === 'A');
-  const teamB = (st.players || []).filter(p => p.team === 'B');
-  $('hud-team-a').innerHTML = teamA.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}</span>`).join('');
-  $('hud-team-b').innerHTML = teamB.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}</span>`).join('');
+  const teamKey = (st.players || []).map(p => `${p.id}:${p.alive}`).join('|');
+  setIfChanged('teams', teamKey, () => {
+    const teamA = (st.players || []).filter(p => p.team === 'A');
+    const teamB = (st.players || []).filter(p => p.team === 'B');
+    $('hud-team-a').innerHTML = teamA.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}</span>`).join('');
+    $('hud-team-b').innerHTML = teamB.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}</span>`).join('');
+  });
 
-  // Feed
-  $('hud-feed').innerHTML = (st.feed || []).map(f => `<div class="feed-item ${f.kind}">${f.text}</div>`).join('');
+  const feedKey = (st.feed || []).map(f => f.id).join(',');
+  setIfChanged('feed', feedKey, () => {
+    $('hud-feed').innerHTML = (st.feed || []).map(f => `<div class="feed-item ${f.kind}">${f.text}</div>`).join('');
+  });
 }
 
 function renderRoundEnd(st) {
@@ -598,7 +793,7 @@ function renderMatchEnd(st) {
 }
 
 // ============================================================
-// INPUT & MAIN ANIMATION LOOP
+// INPUT & RENDER LOOP
 // ============================================================
 
 function useSlot(slotIdx) {
@@ -608,9 +803,8 @@ function useSlot(slotIdx) {
   if (app.sim) {
     app.sim.triggerItem(app.myId, slotIdx, app.localAim);
   } else {
-    app.net?.send({ type: 'useItem', slot: slotIdx, aim: app.localAim });
+    app.net?.send({ type: 'useItem', slot: slotIdx, aim: Number(app.localAim.toFixed(2)) });
   }
-  // Subtle camera shake on firearm shot
   const me = st.players?.find(p => p.id === app.myId);
   const it = me?.items?.[slotIdx];
   if (it?.firearm && it.usesLeft > 0) {
@@ -625,7 +819,12 @@ function useSpace() {
   if (app.sim) {
     app.sim.triggerSpace(app.myId, app.localAim);
   } else {
-    app.net?.send({ type: 'space', aim: app.localAim });
+    app.net?.send({ type: 'space', aim: Number(app.localAim.toFixed(2)) });
+    // Instant dash prediction feel on client!
+    if (app.pred) {
+      app.pred.vx = Math.cos(app.localAim) * 520;
+      app.pred.vy = Math.sin(app.localAim) * 520;
+    }
   }
 }
 
@@ -639,63 +838,51 @@ function getMoveVector() {
   return { mx, my };
 }
 
+function sendClientInputNow() {
+  if (app.mode !== 'client' || !app.liveState || app.liveState.phase !== 'playing') return;
+  const mv = getMoveVector();
+  app.lastInputSend = performance.now();
+  app.lastSentMoveKey = `${mv.mx.toFixed(2)}_${mv.my.toFixed(2)}`;
+  app.net?.send({
+    type: 'input',
+    input: { mx: mv.mx, my: mv.my, aim: Number(app.localAim.toFixed(2)) }
+  });
+}
+
 let lastFrameTime = performance.now();
 
-function tick(now) {
+function renderLoop(now) {
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
 
-  // Compute local aim angle relative to player screen position
   if (app.renderer && app.liveState && app.liveState.phase === 'playing') {
     const me = app.liveState.players?.find(p => p.id === app.myId);
     if (me) {
       const worldMouse = app.renderer.screenToWorld(app.mouseX, app.mouseY);
-      const sp = app.renderer.smoothPos.get(me.id) || me;
+      const sp = app.pred || app.renderer.smoothPos.get(me.id) || me;
       app.localAim = Math.atan2(worldMouse.y - sp.y, worldMouse.x - sp.x);
     }
 
-    const mv = getMoveVector();
-    const input = { mx: mv.mx, my: mv.my, aim: Number(app.localAim.toFixed(2)) };
-    if (app.sim) {
-      app.sim.setInput(app.myId, input);
-    } else if (now - app.lastInputSend >= 45) {
-      app.lastInputSend = now;
-      app.net?.send({ type: 'input', input });
-    }
-  }
-
-  // Host simulation step
-  if (app.sim) {
-    app.sim.step(dt);
-
-    if (app.sim.phase === 'playing' || app.sim.phase === 'round_end' || app.sim.phase === 'match_end') {
-      if (now - app.lastBroadcast >= 50) {
-        app.lastBroadcast = now;
-        broadcastState();
-      }
-      // Update local state smoothly every frame for host
-      app.liveState = app.sim.getStateSnapshot();
-      updateHudFromState(app.liveState);
-    } else if (app.sim.phase === 'draft') {
-      if (now - app.lastBroadcast >= 500) {
-        app.lastBroadcast = now;
-        broadcastLobby();
-        renderDraftUI();
-      }
-    } else if (app.sim.phase === 'lobby' && app.mode === 'host') {
-      if (now - app.lastLobbyPing >= 1800) {
-        app.lastLobbyPing = now;
-        broadcastLobby();
+    if (app.mode === 'client') {
+      stepClientPrediction(dt);
+      const mv = getMoveVector();
+      const moveKey = `${mv.mx.toFixed(2)}_${mv.my.toFixed(2)}`;
+      // Hareket tuşu değiştiği an ANINDA gönder, yoksa 38ms'de bir aim güncelle
+      if (moveKey !== app.lastSentMoveKey || now - app.lastInputSend >= 38) {
+        sendClientInputNow();
       }
     }
   }
 
-  // Render canvas
+  // Render canvas & HUD when tab is visible
   if (app.renderer && app.liveState && $('screen-game').classList.contains('active')) {
-    app.renderer.render(app.liveState, app.myId, dt, app.localAim);
+    if (app.sim) {
+      updateHudFromState(app.liveState);
+    }
+    app.renderer.render(app.liveState, app.myId, dt, app.localAim, app.pred);
   }
 
-  requestAnimationFrame(tick);
+  requestAnimationFrame(renderLoop);
 }
 
 // ============================================================
@@ -707,7 +894,6 @@ function init() {
 
   if (app.myName) $('input-name').value = app.myName;
 
-  // Check invite link ?room=XXXX
   const params = new URLSearchParams(window.location.search);
   const urlRoom = params.get('room');
   if (urlRoom) {
@@ -801,15 +987,15 @@ function init() {
     $('btn-mute').textContent = next ? '🔇' : '🔊';
   };
 
-  // Clickable HUD item slots
   $('hud-slot-0').onclick = () => useSlot(0);
   $('hud-slot-1').onclick = () => useSlot(1);
   $('hud-slot-space').onclick = () => useSpace();
 
-  // Keyboard & Mouse
   window.addEventListener('keydown', (e) => {
     if (document.activeElement?.tagName === 'INPUT') return;
+    const had = app.keys.has(e.code);
     app.keys.add(e.code);
+    if (!had && app.mode === 'client') sendClientInputNow();
     if (e.code === 'Digit1') useSlot(0);
     if (e.code === 'Digit2') useSlot(1);
     if (e.code === 'Space') {
@@ -820,6 +1006,13 @@ function init() {
 
   window.addEventListener('keyup', (e) => {
     app.keys.delete(e.code);
+    if (app.mode === 'client') sendClientInputNow();
+  });
+
+  // Clear stuck keys if player Alt+Tabs away
+  window.addEventListener('blur', () => {
+    app.keys.clear();
+    if (app.mode === 'client') sendClientInputNow();
   });
 
   const canvas = $('game-canvas');
@@ -836,7 +1029,6 @@ function init() {
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-  // Simple mobile touch joystick on left half of canvas
   let touchStart = null;
   canvas.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
@@ -870,7 +1062,7 @@ function init() {
     }
   }, { passive: true });
 
-  requestAnimationFrame(tick);
+  requestAnimationFrame(renderLoop);
 }
 
 window.addEventListener('DOMContentLoaded', init);

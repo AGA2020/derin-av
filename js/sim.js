@@ -10,6 +10,8 @@ import {
   HUNTER_ITEMS,
   PREY_ITEMS,
   ALL_ITEMS,
+  POWERUP_TYPES,
+  POWERUP_MAP,
   SEA_MAPS
 } from './data.js';
 
@@ -108,8 +110,11 @@ export class GameSim {
     this.traps = [];
     this.zones = []; // ink clouds, flares
     this.decoys = [];
+    this.powerups = []; // denizde beliren power-up sandıkları!
+    this.powerupSpawnTimer = 4.5;
     this.pulses = []; // sonar rings, sound pings, splash rings
     this.sinkEffects = []; // dramatic "SUYA GÖMÜLDÜ" vortexes
+    this.floatTexts = []; // power-up / kalkan / batma metinleri
     this.feed = []; // kill/event feed
     this.inputs = {}; // playerId -> { mx, my, aim }
     this._nextEntityId = 1;
@@ -310,8 +315,11 @@ export class GameSim {
     this.traps = [];
     this.zones = [];
     this.decoys = [];
+    this.powerups = [];
+    this.powerupSpawnTimer = 5.0;
     this.pulses = [];
     this.sinkEffects = [];
+    this.floatTexts = [];
     this.feed = [];
 
     const map = this.currentMap;
@@ -349,6 +357,8 @@ export class GameSim {
         r: 20,
         hp: ch.hp,
         maxHp: ch.hp,
+        shield: 0,
+        shieldTimer: 0,
         alive: true,
         sinkingAnim: 0,
         firstHitAvail: Boolean(ch.firstHitReduction),
@@ -382,9 +392,46 @@ export class GameSim {
       };
     });
 
-    this._pushFeed(`TUR ${this.round} BAŞLADI — ${map.name}!`, 'info');
+    this._spawnPowerup();
+    this._spawnPowerup();
+    this._pushFeed(`TUR ${this.round} BAŞLADI — ${map.name}! Deniz sandıklarını kap!`, 'info');
     this.onEvent({ type: 'sfx', name: 'round_start' });
     this.onEvent({ type: 'phase', phase: 'playing', round: this.round });
+  }
+
+  _spawnPowerup() {
+    const map = this.currentMap;
+    if (this.powerups.length >= 4) return;
+    const spots = map.powerupSpots || [{ x: 800, y: 500 }];
+    // Pick a spot that doesn't already have a powerup nearby & doesn't overlap a rock
+    const freeSpots = spots.filter(sp =>
+      !this.powerups.some(pu => dist(pu.x, pu.y, sp.x, sp.y) < 90) &&
+      !this._hitsObstacle(sp.x, sp.y, 24, map)
+    );
+    if (freeSpots.length === 0) return;
+    const spot = freeSpots[Math.floor(Math.random() * freeSpots.length)];
+    const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+    this.powerups.push({
+      id: this._nextEntityId++,
+      kind: type.id,
+      x: spot.x,
+      y: spot.y,
+      r: 20,
+      life: 24
+    });
+    this._addPulse(spot.x, spot.y, 85, 'heal', 'N');
+  }
+
+  _addFloatText(x, y, text, color = '#7dd3fc') {
+    this.floatTexts.push({
+      id: this._nextEntityId++,
+      x: Math.round(x),
+      y: Math.round(y),
+      text,
+      color,
+      life: 1.8,
+      maxLife: 1.8
+    });
   }
 
   setInput(playerId, input) {
@@ -701,17 +748,17 @@ export class GameSim {
 
     if (p.role === 'hunter') {
       // AVCI: DALGA HAMLESİ / SUYA BASTIRMA (Ram & Submerge)
-      p.spaceCd = 1.9 * (ch.turnBonus ? 0.8 : 1);
+      p.spaceCd = 2.3 * (ch.turnBonus ? 0.8 : 1);
       p.ramActive = 0.28;
       p.ramHitIds = new Set();
-      const power = (540 + (p.speedBoost > 0 ? 110 : 0)) * boost;
+      const power = (530 + (p.speedBoost > 0 ? 105 : 0)) * boost;
       p.vx = Math.cos(angle) * power;
       p.vy = Math.sin(angle) * power;
       this._addPulse(p.x, p.y, 130, 'splash', p.team);
       this.onEvent({ type: 'sfx', name: 'splash' });
     } else {
       // AV: DALGA SIÇRAMASI / KAÇIŞ (Wave Dash)
-      p.spaceCd = 4.6 * (ch.turnBonus ? 0.78 : 1);
+      p.spaceCd = 4.4 * (ch.turnBonus ? 0.78 : 1);
       p.dashTimer = 0.24;
       const power = 620 * boost;
       p.vx = Math.cos(angle) * power;
@@ -753,10 +800,16 @@ export class GameSim {
   _applyDamage(target, amount, attackerId, knockVx = 0, knockVy = 0, sourceLabel = '') {
     if (!target.alive) return;
     let dmg = amount;
-    if (target.firstHitAvail) {
+    if (target.firstHitAvail && dmg >= 5) {
       const ch = CHAR_MAP[target.charId];
       dmg = Math.round(dmg * (1 - (ch?.firstHitReduction || 0)));
       target.firstHitAvail = false;
+    }
+    // Çelik Gövde kalkanı önce hasarı emer!
+    if (target.shield > 0 && dmg > 0) {
+      const absorbed = Math.min(target.shield, dmg);
+      target.shield -= absorbed;
+      dmg -= absorbed;
     }
     target.hp = Math.max(0, target.hp - dmg);
     target.vx += knockVx;
@@ -828,10 +881,40 @@ export class GameSim {
       if (pu.life <= 0) this.pulses.splice(i, 1);
     }
 
-    // Update sink effects
+    // Update sink effects & float texts
     for (let i = this.sinkEffects.length - 1; i >= 0; i--) {
       this.sinkEffects[i].life -= dt;
       if (this.sinkEffects[i].life <= 0) this.sinkEffects.splice(i, 1);
+    }
+    for (let i = this.floatTexts.length - 1; i >= 0; i--) {
+      this.floatTexts[i].life -= dt;
+      this.floatTexts[i].y -= dt * 26;
+      if (this.floatTexts[i].life <= 0) this.floatTexts.splice(i, 1);
+    }
+
+    // Spawn & collect Sea Power-Ups!
+    this.powerupSpawnTimer -= dt;
+    if (this.powerupSpawnTimer <= 0) {
+      this.powerupSpawnTimer = 9.0;
+      this._spawnPowerup();
+    }
+    for (let i = this.powerups.length - 1; i >= 0; i--) {
+      const pu = this.powerups[i];
+      pu.life -= dt;
+      let pickedBy = null;
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        if (dist(p.x, p.y, pu.x, pu.y) <= p.r + pu.r + 4) {
+          pickedBy = p;
+          break;
+        }
+      }
+      if (pickedBy) {
+        this._grantPowerup(pickedBy, pu);
+        this.powerups.splice(i, 1);
+      } else if (pu.life <= 0) {
+        this.powerups.splice(i, 1);
+      }
     }
 
     // Update decoys
@@ -859,6 +942,8 @@ export class GameSim {
       p.spaceCd = Math.max(0, p.spaceCd - dt);
       p.dashTimer = Math.max(0, p.dashTimer - dt);
       p.ramActive = Math.max(0, p.ramActive - dt);
+      p.shieldTimer = Math.max(0, p.shieldTimer - dt);
+      if (p.shieldTimer <= 0) p.shield = 0;
       p.speedBoost = Math.max(0, p.speedBoost - dt);
       if (p.speedBoost <= 0) p.speedMult = 1;
       p.stealthBoost = Math.max(0, p.stealthBoost - dt);
@@ -964,11 +1049,11 @@ export class GameSim {
           if (dist(p.x, p.y, other.x, other.y) <= p.r + other.r + 14) {
             p.ramHitIds.add(other.id);
             const pushA = angleBetween(p.x, p.y, other.x, other.y);
-            const dmg = p.speedBoost > 0 ? 44 : 34;
-            const kb = p.speedBoost > 0 ? 440 : 340;
+            const dmg = p.speedBoost > 0 ? 34 : 26;
+            const kb = p.speedBoost > 0 ? 430 : 340;
             this._applyDamage(other, dmg, p.id, Math.cos(pushA) * kb, Math.sin(pushA) * kb, 'Suya Bastırma');
-            other.slowTimer = Math.max(other.slowTimer, 0.85);
-            other.slowFactor = Math.min(other.slowFactor, 0.62);
+            other.slowTimer = Math.max(other.slowTimer, 0.8);
+            other.slowFactor = Math.min(other.slowFactor, 0.65);
           }
         }
       }
@@ -1105,6 +1190,52 @@ export class GameSim {
     } else if (this.phaseTimer <= 0) {
       const preyTeam = this.players.find(p => p.role === 'prey').team;
       this._endRound('prey', preyTeam, 'Süre doldu — Avlar su üstünde kaldı!');
+    }
+  }
+
+  _grantPowerup(p, pu) {
+    const def = POWERUP_MAP[pu.kind];
+    if (!def) return;
+    this._addPulse(pu.x, pu.y, 95, 'heal', p.team);
+    this.onEvent({ type: 'sfx', name: 'boost' });
+    this._addFloatText(p.x, p.y - 26, `${def.icon} ${def.label}`, def.color);
+
+    switch (pu.kind) {
+      case 'heal':
+        p.hp = Math.min(p.maxHp, p.hp + 50);
+        break;
+      case 'shield':
+        p.shield = Math.min(60, (p.shield || 0) + 45);
+        p.shieldTimer = Math.max(p.shieldTimer, 8.5);
+        break;
+      case 'speed':
+        p.speedBoost = Math.max(p.speedBoost, 5.0);
+        p.speedMult = Math.max(p.speedMult, 1.35);
+        break;
+      case 'reload': {
+        // Öncelik: tükenmiş ateşli silahı veya eksik itemi +1 doldur!
+        const spent = p.items.find(it => it.usesLeft === 0) || p.items.find(it => it.usesLeft < it.maxUses);
+        if (spent) {
+          spent.usesLeft += 1;
+          spent.cd = 0;
+          this._pushFeed(`📦 ${p.name} Cephane Sandığı kaptı (+1 Şarj)!`, 'firearm');
+        } else {
+          // Tüm itemler doluysa +35 direnç + hız bonusu ver
+          p.hp = Math.min(p.maxHp, p.hp + 35);
+          p.speedBoost = Math.max(p.speedBoost, 3.0);
+          p.speedMult = Math.max(p.speedMult, 1.28);
+        }
+        break;
+      }
+      case 'reveal':
+        this._addPulse(p.x, p.y, 950, 'sonar', p.team);
+        for (const other of this.players) {
+          if (other.alive && other.team !== p.team && !other.inInk) {
+            other.revealTimer = Math.max(other.revealTimer, 3.5);
+          }
+        }
+        this.onEvent({ type: 'sfx', name: 'sonar' });
+        break;
     }
   }
 
@@ -1422,6 +1553,7 @@ export class GameSim {
         aim: Number(p.aim.toFixed(2)),
         hp: Math.round(p.hp),
         maxHp: p.maxHp,
+        shield: Math.round(p.shield || 0),
         alive: p.alive,
         sinkingAnim: Number(p.sinkingAnim.toFixed(2)),
         items: p.items.map(it => ({
@@ -1483,6 +1615,20 @@ export class GameSim {
         x: Math.round(d.x),
         y: Math.round(d.y),
         aim: Number(d.aim.toFixed(2))
+      })),
+      powerups: this.powerups.map(pu => ({
+        id: pu.id,
+        kind: pu.kind,
+        x: Math.round(pu.x),
+        y: Math.round(pu.y)
+      })),
+      floatTexts: this.floatTexts.map(ft => ({
+        id: ft.id,
+        x: Math.round(ft.x),
+        y: Math.round(ft.y),
+        text: ft.text,
+        color: ft.color,
+        alpha: Number(clamp(ft.life / ft.maxLife, 0, 1).toFixed(2))
       })),
       pulses: this.pulses.map(pu => ({
         id: pu.id,

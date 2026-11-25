@@ -726,22 +726,30 @@ input:focus { border-color: var(--aqua); }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
 }
-.item-ico { font-size: 26px; }
+.item-ico { font-size: 26px; flex-shrink: 0; }
+.item-badges { display: flex; align-items: center; flex-shrink: 0; }
 .badge-firearm {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
   font-size: 10px;
   font-weight: 900;
-  padding: 3px 7px;
+  padding: 4px 8px;
   border-radius: 6px;
   background: rgba(239, 71, 111, 0.24);
   border: 1px solid rgba(255, 183, 3, 0.65);
   color: #ffd166;
 }
 .badge-util {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
   font-size: 10px;
   font-weight: 800;
-  padding: 3px 7px;
+  padding: 4px 8px;
   border-radius: 6px;
   background: rgba(56, 189, 248, 0.16);
   color: #bae6fd;

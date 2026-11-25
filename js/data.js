@@ -1,11 +1,56 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
-// 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık
+// 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
 export const WORLD_W = 1600;
 export const WORLD_H = 1000;
-export const ROUND_DURATION = 70; // saniye
+export const ROUND_DURATION = 85; // dengeli taktiksel kovalamaca süresi (sn)
 export const DRAFT_DURATION = 22; // item seçme süresi (sn)
 export const MAX_ITEMS = 2;
+
+export const POWERUP_TYPES = [
+  {
+    id: 'heal',
+    name: 'Can Simidi',
+    label: '+50 DİRENÇ',
+    icon: '🛟',
+    color: '#06d6a0',
+    desc: '+50 Su Üstü Direnci yeniler'
+  },
+  {
+    id: 'shield',
+    name: 'Çelik Gövde',
+    label: '+45 KALKAN',
+    icon: '🛡️',
+    color: '#38bdf8',
+    desc: '8 sn boyunca 45 hasar emen kalkan'
+  },
+  {
+    id: 'speed',
+    name: 'Rüzgar Akıntısı',
+    label: 'HIZ +35%',
+    icon: '⚡',
+    color: '#ffd166',
+    desc: '5 sn boyunca +%35 deniz hızı'
+  },
+  {
+    id: 'reload',
+    name: 'Cephane Sandığı',
+    label: '+1 ŞARJ',
+    icon: '📦',
+    color: '#ff6b6b',
+    desc: 'Tükenmiş bir itemine +1 kullanım ekler!'
+  },
+  {
+    id: 'reveal',
+    name: 'Fener Gözü',
+    label: 'RADAR 3.5s',
+    icon: '👁️',
+    color: '#c084fc',
+    desc: 'Düşmanları 3.5 sn haritada açığa çıkarır'
+  }
+];
+
+export const POWERUP_MAP = Object.fromEntries(POWERUP_TYPES.map(p => [p.id, p]));
 
 export const CHARACTERS = [
   {
@@ -15,15 +60,15 @@ export const CHARACTERS = [
     icon: '⚓',
     color: '#e09f3e',
     accent: '#ffd166',
-    hp: 130,
-    speed: 205,
-    vision: 380,
+    hp: 220,
+    speed: 208,
+    vision: 390,
     wakeMult: 1.0,
     cdMult: 1.0,
     projSpeedMult: 1.0,
-    whirlpoolResist: 0.15,
+    whirlpoolResist: 0.2,
     firstHitReduction: 0.25,
-    passive: 'Yüksek su üstü direnci (130) ve her turda ilk isabetten %25 daha az batar.',
+    passive: 'En yüksek su üstü direnci (220) ve her turda ilk isabetten %25 daha az batar.',
     stats: { hp: 5, speed: 3, utility: 3 }
   },
   {
@@ -33,15 +78,15 @@ export const CHARACTERS = [
     icon: '🦈',
     color: '#ef476f',
     accent: '#ff8fa3',
-    hp: 100,
+    hp: 175,
     speed: 238,
-    vision: 390,
-    wakeMult: 1.15,
+    vision: 395,
+    wakeMult: 1.12,
     cdMult: 0.95,
     projSpeedMult: 1.05,
     whirlpoolResist: 0.2,
-    dashBoost: 1.25,
-    passive: 'En yüksek seyir hızı; SPACE dalga hamlesi %25 daha güçlü ve uzağa uzanır.',
+    dashBoost: 1.22,
+    passive: 'En yüksek seyir hızı; SPACE dalga hamlesi %22 daha güçlü ve uzağa uzanır.',
     stats: { hp: 3, speed: 5, utility: 3 }
   },
   {
@@ -51,9 +96,9 @@ export const CHARACTERS = [
     icon: '👻',
     color: '#8ecae6',
     accent: '#caf0f8',
-    hp: 95,
-    speed: 222,
-    vision: 390,
+    hp: 165,
+    speed: 224,
+    vision: 400,
     wakeMult: 0.45,
     cdMult: 1.0,
     projSpeedMult: 1.0,
@@ -69,13 +114,13 @@ export const CHARACTERS = [
     icon: '🔦',
     color: '#f4a261',
     accent: '#ffe8d6',
-    hp: 105,
-    speed: 212,
-    vision: 485,
+    hp: 180,
+    speed: 214,
+    vision: 495,
     wakeMult: 1.0,
     cdMult: 1.0,
     projSpeedMult: 1.25,
-    whirlpoolResist: 0.1,
+    whirlpoolResist: 0.15,
     passive: '+%25 daha geniş görüş menzili; ateşli silah mermileri %25 daha hızlı gider.',
     stats: { hp: 3, speed: 3, utility: 5 }
   },
@@ -86,9 +131,9 @@ export const CHARACTERS = [
     icon: '🐙',
     color: '#9b5de5',
     accent: '#d8bbff',
-    hp: 110,
-    speed: 214,
-    vision: 395,
+    hp: 190,
+    speed: 216,
+    vision: 400,
     wakeMult: 0.9,
     cdMult: 0.78,
     projSpeedMult: 1.05,
@@ -104,9 +149,9 @@ export const CHARACTERS = [
     icon: '🌊',
     color: '#06d6a0',
     accent: '#9bf6ff',
-    hp: 100,
-    speed: 230,
-    vision: 400,
+    hp: 175,
+    speed: 232,
+    vision: 405,
     wakeMult: 0.85,
     cdMult: 0.9,
     projSpeedMult: 1.0,
@@ -130,12 +175,12 @@ export const HUNTER_ITEMS = [
     firearm: true,
     uses: 1,
     cooldown: 0.5,
-    range: 720,
-    speed: 960,
-    damage: 85,
-    knockback: 260,
-    slowDur: 1.3,
-    desc: 'TEK KULLANIMLIK! Lazer nişangahlı dev zıpkın mermisi (85 Batırma Hasarı + ağırlaştırma).'
+    range: 740,
+    speed: 980,
+    damage: 78,
+    knockback: 250,
+    slowDur: 1.5,
+    desc: 'TEK KULLANIMLIK! Lazer nişangahlı uzun menzil zıpkın (78 Batırma Hasarı + yavaşlatma).'
   },
   {
     id: 'blunderbuss',
@@ -146,12 +191,12 @@ export const HUNTER_ITEMS = [
     uses: 1,
     cooldown: 0.5,
     range: 340,
-    speed: 740,
+    speed: 760,
     pellets: 5,
     spread: 0.34,
-    damage: 32, // 5 x 32 = yakından tek atışta gömebilir!
-    knockback: 220,
-    desc: 'TEK KULLANIMLIK! Yakından 5 iri saçma fırlatır; tam isabette Avı tek atışta suya gömer.'
+    damage: 21, // 5 x 21 = 105 maks yakın hasar (tek atışta öldürmez ama fena batırır!)
+    knockback: 210,
+    desc: 'TEK KULLANIMLIK! Yakından 5 iri saçma fırlatır (maks. 105 Batırma Hasarı + sert dalga itmesi).'
   },
   {
     id: 'flare_gun',
@@ -161,13 +206,13 @@ export const HUNTER_ITEMS = [
     firearm: true,
     uses: 1,
     cooldown: 0.5,
-    range: 600,
-    speed: 760,
-    damage: 60,
+    range: 620,
+    speed: 780,
+    damage: 58,
     knockback: 180,
-    flareRadius: 250,
-    flareDur: 9.0,
-    desc: 'TEK KULLANIMLIK! 60 Batırma Hasarı verir ve düştüğü yeri 9 sn aydınlatıp sisleri dağıtır.'
+    flareRadius: 265,
+    flareDur: 10.0,
+    desc: 'TEK KULLANIMLIK! 58 Batırma Hasarı verir ve düştüğü yeri 10 sn aydınlatıp sisleri dağıtır.'
   },
   {
     id: 'sonar',
@@ -177,8 +222,8 @@ export const HUNTER_ITEMS = [
     firearm: false,
     uses: 2,
     cooldown: 11,
-    revealDur: 3.0,
-    desc: 'Geniş sonar dalgası yayar; tüm Avları 3 sn boyunca kayalık ve sis arkasından gösterir.'
+    revealDur: 3.2,
+    desc: 'Geniş sonar dalgası yayar; tüm Avları 3.2 sn boyunca kayalık ve sis arkasından gösterir.'
   },
   {
     id: 'anchor_trap',
@@ -188,10 +233,10 @@ export const HUNTER_ITEMS = [
     firearm: false,
     uses: 2,
     cooldown: 6,
-    trapRadius: 42,
-    damage: 32,
-    rootDur: 2.4,
-    desc: 'Suya gizli çapa bırakır; basan Avı 2.4 sn kilitler, 32 Batırma Hasarı verir ve açığa çıkarır.'
+    trapRadius: 44,
+    damage: 30,
+    rootDur: 2.1,
+    desc: 'Suya gizli çapa bırakır; basan Avı 2.1 sn kilitler, 30 Batırma Hasarı verir ve açığa çıkarır.'
   },
   {
     id: 'capture_net',
@@ -201,12 +246,12 @@ export const HUNTER_ITEMS = [
     firearm: false,
     uses: 2,
     cooldown: 8,
-    range: 430,
-    speed: 580,
+    range: 440,
+    speed: 600,
     slowDur: 2.6,
-    slowFactor: 0.28,
-    damage: 14,
-    desc: 'Fırlatılan geniş ağ isabet ettiği Avı 2.6 sn boyunca %72 yavaşlatır.'
+    slowFactor: 0.3,
+    damage: 16,
+    desc: 'Fırlatılan geniş ağ isabet ettiği Avı 2.6 sn boyunca %70 yavaşlatır.'
   },
   {
     id: 'storm_surge',
@@ -215,10 +260,10 @@ export const HUNTER_ITEMS = [
     category: 'HIZ',
     firearm: false,
     uses: 2,
-    cooldown: 12,
-    dur: 3.8,
-    speedMult: 1.42,
-    desc: '3.8 sn boyunca +%42 deniz hızı ve güçlendirilmiş suya bastırma darbesi verir.'
+    cooldown: 11,
+    dur: 4.0,
+    speedMult: 1.4,
+    desc: '4 sn boyunca +%40 deniz hızı ve güçlendirilmiş suya bastırma darbesi verir.'
   },
   {
     id: 'grapple_hook',
@@ -228,10 +273,10 @@ export const HUNTER_ITEMS = [
     firearm: false,
     uses: 2,
     cooldown: 9,
-    range: 460,
-    speed: 780,
-    damage: 22,
-    desc: 'İsabet ettiği Avı direkt sana doğru çeker ve 22 Batırma Hasarı verir.'
+    range: 470,
+    speed: 800,
+    damage: 24,
+    desc: 'İsabet ettiği Avı direkt sana doğru çeker ve 24 Batırma Hasarı verir.'
   }
 ];
 
@@ -246,12 +291,12 @@ export const PREY_ITEMS = [
     firearm: true,
     uses: 1,
     cooldown: 0.5,
-    range: 540,
-    speed: 820,
-    damage: 60,
+    range: 560,
+    speed: 840,
+    damage: 58,
     knockback: 260,
-    stunDur: 1.4,
-    desc: 'TEK KULLANIMLIK! Savunma silahı: Avcıya 60 Batırma Hasarı verir ve 1.4 sn sersemletir.'
+    stunDur: 1.35,
+    desc: 'TEK KULLANIMLIK! Savunma silahı: Avcıya 58 Batırma Hasarı verir ve 1.35 sn sersemletir.'
   },
   {
     id: 'hand_mortar',
@@ -261,12 +306,12 @@ export const PREY_ITEMS = [
     firearm: true,
     uses: 1,
     cooldown: 0.5,
-    range: 310,
-    speed: 680,
+    range: 320,
+    speed: 700,
     pellets: 3,
     spread: 0.36,
-    damage: 30,
-    knockback: 460,
+    damage: 24,
+    knockback: 450,
     desc: 'TEK KULLANIMLIK! Yakından patlayıcı 3 saçma atar ve Avcıyı şiddetli dalgayla geri savurur.'
   },
   {
@@ -277,7 +322,7 @@ export const PREY_ITEMS = [
     firearm: false,
     uses: 2,
     cooldown: 11,
-    radius: 135,
+    radius: 140,
     dur: 6.5,
     desc: 'Suya dev siyah mürekkep bulutu salar (6.5 sn); içindekiler görünmez ve sonardan saklanır.'
   },
@@ -289,10 +334,10 @@ export const PREY_ITEMS = [
     firearm: false,
     uses: 2,
     cooldown: 10,
-    range: 380,
-    blastRadius: 155,
-    blindDur: 2.3,
-    desc: 'Atılan flaş kapsülü yakındaki Avcıları 2.3 sn kör eder ve yavaşlatır.'
+    range: 390,
+    blastRadius: 160,
+    blindDur: 2.2,
+    desc: 'Atılan flaş kapsülü yakındaki Avcıları 2.2 sn kör eder ve yavaşlatır.'
   },
   {
     id: 'decoy_buoy',
@@ -314,9 +359,9 @@ export const PREY_ITEMS = [
     firearm: false,
     uses: 2,
     cooldown: 11,
-    dur: 3.4,
-    speedMult: 1.46,
-    desc: '3.4 sn boyunca +%46 hız, sessiz süzülme ve ağ/yavaşlatma etkilerini anında temizler.'
+    dur: 3.6,
+    speedMult: 1.44,
+    desc: '3.6 sn boyunca +%44 hız, sessiz süzülme ve ağ/yavaşlatma etkilerini anında temizler.'
   },
   {
     id: 'sea_mine',
@@ -327,9 +372,9 @@ export const PREY_ITEMS = [
     uses: 2,
     cooldown: 7,
     trapRadius: 48,
-    damage: 34,
-    stunDur: 2.0,
-    desc: 'Suya mayın bırakır; yaklaşan Avcıyı patlatıp 2.0 sn sersemletir ve 34 Batırma Hasarı verir.'
+    damage: 32,
+    stunDur: 1.8,
+    desc: 'Suya mayın bırakır; yaklaşan Avcıyı patlatıp 1.8 sn sersemletir ve 32 Batırma Hasarı verir.'
   },
   {
     id: 'buoyancy_kit',
@@ -339,10 +384,10 @@ export const PREY_ITEMS = [
     firearm: false,
     uses: 1,
     cooldown: 4,
-    healSelf: 55,
-    healAlly: 28,
-    allyRadius: 220,
-    desc: 'Suya batmanı önler! +55 Su Üstü Direnci yeniler (yakındaki dostuna da +28 kazandırır).'
+    healSelf: 78,
+    healAlly: 42,
+    allyRadius: 240,
+    desc: 'Suya batmanı önler! +78 Su Üstü Direnci yeniler (yakındaki dostuna da +42 kazandırır).'
   }
 ];
 
@@ -350,10 +395,7 @@ export const ALL_ITEMS = Object.fromEntries(
   [...HUNTER_ITEMS, ...PREY_ITEMS].map(i => [i.id, i])
 );
 
-// 3 DÖNÜŞÜMLÜ DENİZ HARİTASI
-// rocks: solid obstacles (rect or circle)
-// fogs: sea fog banks (gizlenme alanı)
-// whirlpools: derin girdaplar (içine çekip suya gömer!)
+// 3 DÖNÜŞÜMLÜ DENİZ HARİTASI (Power-up noktaları dahil)
 export const SEA_MAPS = [
   {
     id: 'firtina_bogazi',
@@ -368,10 +410,19 @@ export const SEA_MAPS = [
       { x: 1440, y: 320 },
       { x: 1440, y: 680 }
     ],
+    powerupSpots: [
+      { x: 800, y: 500 },
+      { x: 520, y: 340 },
+      { x: 1080, y: 660 },
+      { x: 520, y: 660 },
+      { x: 1080, y: 340 },
+      { x: 800, y: 65 },
+      { x: 800, y: 935 },
+      { x: 300, y: 200 },
+      { x: 1300, y: 800 }
+    ],
     rocks: [
-      // Merkez Batık Gemi Enkazı
       { type: 'ship', x: 710, y: 445, w: 180, h: 110, label: 'BATIK' },
-      // Kayalıklar
       { type: 'rock', x: 420, y: 230, r: 58 },
       { type: 'rock', x: 420, y: 770, r: 58 },
       { type: 'rock', x: 1180, y: 230, r: 58 },
@@ -390,8 +441,8 @@ export const SEA_MAPS = [
       { x: 640, y: 730, r: 80 }
     ],
     whirlpools: [
-      { x: 800, y: 310, r: 78, pull: 135, dps: 22 },
-      { x: 800, y: 690, r: 78, pull: 135, dps: 22 }
+      { x: 800, y: 310, r: 78, pull: 125, dps: 16 },
+      { x: 800, y: 690, r: 78, pull: 125, dps: 16 }
     ]
   },
   {
@@ -406,6 +457,16 @@ export const SEA_MAPS = [
     preySpawns: [
       { x: 1430, y: 240 },
       { x: 1430, y: 760 }
+    ],
+    powerupSpots: [
+      { x: 580, y: 500 },
+      { x: 1020, y: 500 },
+      { x: 960, y: 240 },
+      { x: 640, y: 760 },
+      { x: 360, y: 490 },
+      { x: 1240, y: 510 },
+      { x: 800, y: 90 },
+      { x: 800, y: 910 }
     ],
     rocks: [
       { type: 'ship', x: 430, y: 330, w: 170, h: 72, label: 'ENKAZ' },
@@ -425,8 +486,8 @@ export const SEA_MAPS = [
       { x: 380, y: 830, r: 85 }
     ],
     whirlpools: [
-      { x: 560, y: 210, r: 70, pull: 125, dps: 20 },
-      { x: 1040, y: 790, r: 70, pull: 125, dps: 20 }
+      { x: 560, y: 210, r: 70, pull: 118, dps: 15 },
+      { x: 1040, y: 790, r: 70, pull: 118, dps: 15 }
     ]
   },
   {
@@ -441,6 +502,16 @@ export const SEA_MAPS = [
     preySpawns: [
       { x: 1430, y: 400 },
       { x: 1430, y: 600 }
+    ],
+    powerupSpots: [
+      { x: 800, y: 355 },
+      { x: 800, y: 645 },
+      { x: 470, y: 250 },
+      { x: 1130, y: 750 },
+      { x: 470, y: 750 },
+      { x: 1130, y: 250 },
+      { x: 650, y: 580 },
+      { x: 950, y: 420 }
     ],
     rocks: [
       { type: 'rock', x: 470, y: 500, r: 52 },
@@ -459,9 +530,9 @@ export const SEA_MAPS = [
       { x: 1260, y: 710, r: 95 }
     ],
     whirlpools: [
-      { x: 800, y: 500, r: 96, pull: 160, dps: 26 },
-      { x: 590, y: 390, r: 66, pull: 120, dps: 18 },
-      { x: 1010, y: 610, r: 66, pull: 120, dps: 18 }
+      { x: 800, y: 500, r: 94, pull: 145, dps: 19 },
+      { x: 590, y: 390, r: 66, pull: 112, dps: 15 },
+      { x: 1010, y: 610, r: 66, pull: 112, dps: 15 }
     ]
   }
 ];

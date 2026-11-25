@@ -1,6 +1,6 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, SEA_MAPS } from './data.js';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js';
 import { hasLineOfSight } from './sim.js';
 
 function dist(ax, ay, bx, by) {
@@ -18,6 +18,7 @@ export class SeaRenderer {
     this.bubbles = []; // visual bubbles for sinking players
     this.shake = 0;
     this.smoothPos = new Map(); // id -> { x, y, aim }
+    this.smoothProj = new Map(); // id -> { x, y }
   }
 
   resize() {
@@ -44,7 +45,7 @@ export class SeaRenderer {
     };
   }
 
-  render(state, myId, dt, localAim) {
+  render(state, myId, dt, localAim, localPred) {
     this.resize();
     this.time += dt;
     this.shake = Math.max(0, this.shake - dt * 28);
@@ -56,16 +57,29 @@ export class SeaRenderer {
     const map = SEA_MAPS[(state.mapIndex || 0) % SEA_MAPS.length];
     const players = state.players || [];
 
-    // Interpolate player positions smoothly
+    // Smooth velocity-assisted interpolation for remote players, instant CSP for local client!
     for (const p of players) {
       let sp = this.smoothPos.get(p.id);
       if (!sp) {
         sp = { x: p.x, y: p.y, aim: p.aim };
         this.smoothPos.set(p.id, sp);
+      } else if (p.id === myId && localPred) {
+        sp.x = localPred.x;
+        sp.y = localPred.y;
+        sp.aim = Number.isFinite(localAim) ? localAim : p.aim;
       } else {
-        const k = Math.min(1, dt * 18);
-        sp.x += (p.x - sp.x) * k;
-        sp.y += (p.y - sp.y) * k;
+        // Dead-reckoning + smooth error correction (lag hissini sıfırlar!)
+        const err = Math.hypot(p.x - sp.x, p.y - sp.y);
+        if (err > 180) {
+          sp.x = p.x;
+          sp.y = p.y;
+        } else {
+          sp.x += (p.vx || 0) * dt * 0.65;
+          sp.y += (p.vy || 0) * dt * 0.65;
+          const k = Math.min(1, dt * 16);
+          sp.x += (p.x - sp.x) * k;
+          sp.y += (p.y - sp.y) * k;
+        }
         sp.aim = p.id === myId && Number.isFinite(localAim) ? localAim : p.aim;
       }
 
@@ -145,14 +159,16 @@ export class SeaRenderer {
     this._drawWakes(ctx);
     this._drawPulses(ctx, state.pulses || [], me);
     this._drawTraps(ctx, state.traps || [], me);
+    this._drawPowerups(ctx, state.powerups || []);
     this._drawRocksAndShips(ctx, map);
     this._drawSinkEffects(ctx, state.sinkEffects || []);
     this._drawDecoys(ctx, state.decoys || [], me, map);
     this._drawPlayers(ctx, players, me, map);
-    this._drawProjectiles(ctx, state.projectiles || []);
+    this._drawProjectiles(ctx, state.projectiles || [], dt);
     this._drawZones(ctx, state.zones || []);
     this._drawFogs(ctx, map, me);
     this._drawBubbles(ctx);
+    this._drawFloatTexts(ctx, state.floatTexts || []);
 
     // Subtle sea border buoys
     ctx.strokeStyle = 'rgba(255, 183, 3, 0.35)';
@@ -620,6 +636,17 @@ export class SeaRenderer {
       ctx.fill();
     }
 
+    // Shield barrier ring
+    if (p.shield > 0) {
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)';
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.14)';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, 27 + Math.sin(this.time * 6) * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
     // Water ring around hull (gets thicker as player sinks!)
     ctx.strokeStyle = ratio < 0.45 ? 'rgba(56, 189, 248, 0.75)' : 'rgba(200, 242, 255, 0.28)';
     ctx.lineWidth = ratio < 0.45 ? 3 : 1.6;
@@ -692,20 +719,92 @@ export class SeaRenderer {
     ctx.textAlign = 'center';
     ctx.fillText(p.name || '', 0, -28);
 
-    const bw = 44;
+    const bw = 46;
     const bh = 5;
     ctx.fillStyle = 'rgba(2, 10, 20, 0.8)';
     ctx.fillRect(-bw / 2, 26, bw, bh);
     ctx.fillStyle = ratio > 0.5 ? '#22d3ee' : ratio > 0.25 ? '#f59e0b' : '#ef4444';
     ctx.fillRect(-bw / 2, 26, bw * ratio, bh);
+    if (p.shield > 0) {
+      const shRatio = Math.min(1, p.shield / (p.maxHp || 180));
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(-bw / 2, 23, bw * shRatio, 2.5);
+    }
 
     ctx.restore();
   }
 
-  _drawProjectiles(ctx, projectiles) {
-    for (const pr of projectiles) {
+  _drawPowerups(ctx, powerups) {
+    const t = this.time;
+    for (const pu of powerups) {
+      const def = POWERUP_MAP[pu.kind];
+      if (!def) continue;
+      const bob = Math.sin(t * 4.2 + pu.id) * 3.5;
+      const pulse = 22 + Math.sin(t * 5 + pu.id) * 4;
       ctx.save();
-      ctx.translate(pr.x, pr.y);
+      ctx.translate(pu.x, pu.y + bob);
+
+      // Outer glowing sea ripple
+      ctx.strokeStyle = def.color;
+      ctx.globalAlpha = 0.45;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Buoy / crate badge
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(4, 18, 34, 0.9)';
+      ctx.strokeStyle = def.color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 17, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = '17px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(def.icon, 0, 1);
+
+      ctx.fillStyle = def.color;
+      ctx.font = '800 10px system-ui, sans-serif';
+      ctx.fillText(def.label, 0, 27);
+      ctx.restore();
+    }
+  }
+
+  _drawFloatTexts(ctx, floatTexts) {
+    for (const ft of floatTexts) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, ft.alpha);
+      ctx.font = '800 13px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#03101d';
+      ctx.fillText(ft.text, ft.x + 1, ft.y + 1);
+      ctx.fillStyle = ft.color || '#7dd3fc';
+      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.restore();
+    }
+  }
+
+  _drawProjectiles(ctx, projectiles, dt) {
+    const aliveIds = new Set();
+    for (const pr of projectiles) {
+      aliveIds.add(pr.id);
+      let sp = this.smoothProj.get(pr.id);
+      if (!sp) {
+        sp = { x: pr.x, y: pr.y };
+        this.smoothProj.set(pr.id, sp);
+      } else {
+        sp.x += (pr.vx || 0) * dt;
+        sp.y += (pr.vy || 0) * dt;
+        const k = Math.min(1, dt * 22);
+        sp.x += (pr.x - sp.x) * k;
+        sp.y += (pr.y - sp.y) * k;
+      }
+      ctx.save();
+      ctx.translate(sp.x, sp.y);
       const a = Math.atan2(pr.vy, pr.vx);
       ctx.rotate(a);
 
@@ -747,6 +846,9 @@ export class SeaRenderer {
         ctx.fill();
       }
       ctx.restore();
+    }
+    for (const id of this.smoothProj.keys()) {
+      if (!aliveIds.has(id)) this.smoothProj.delete(id);
     }
   }
 
@@ -813,6 +915,15 @@ export class SeaRenderer {
       } else {
         ctx.fillRect(obs.x * sx, obs.y * sy, obs.w * sx, obs.h * sy);
       }
+    }
+
+    // Power-ups on minimap
+    for (const pu of state.powerups || []) {
+      const def = POWERUP_MAP[pu.kind];
+      ctx.fillStyle = def?.color || '#ffd166';
+      ctx.beginPath();
+      ctx.arc(pu.x * sx, pu.y * sy, 3.2, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     // Visible players
