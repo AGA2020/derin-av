@@ -212,3 +212,60 @@ export function fetchCloudTelemetry(topicPrefix, timeoutMs = 3000) {
     return [...byTopic.values()];
   });
 }
+
+// Davet linkindeki odanın hâlâ aktif (Host'un canlı) olup olmadığını hızlıca yoklar.
+// Host 'pingRoom' alınca anında 'pongRoom' döner (~150ms); yanıt yoksa oda kapanmıştır.
+export function checkRoomAlive(roomCode, timeoutMs = 2600) {
+  const code = String(roomCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  if (!code || typeof window === 'undefined' || typeof window.mqtt === 'undefined') {
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    const clients = [];
+    const finish = (alive) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      for (const c of clients) {
+        try { c.end(true); } catch (_) {}
+      }
+      resolve(alive);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    const probeId = `probe_${Math.random().toString(36).slice(2, 8)}`;
+    const h2c = `derinav2v2/r/${code}/h2c`;
+    const c2h = `derinav2v2/r/${code}/c2h`;
+
+    for (const url of BROKERS) {
+      try {
+        const cli = window.mqtt.connect(url, {
+          clientId: `derinav_${probeId}_${Math.floor(Math.random() * 999)}`,
+          clean: true,
+          connectTimeout: 2200,
+          reconnectPeriod: 0
+        });
+        clients.push(cli);
+        cli.on('connect', () => {
+          if (settled) { try { cli.end(true); } catch (_) {} return; }
+          cli.subscribe(h2c, { qos: 0 }, (err) => {
+            if (!err && !settled) {
+              try { cli.publish(c2h, JSON.stringify({ type: 'pingRoom', from: probeId }), { qos: 0 }); } catch (_) {}
+            }
+          });
+        });
+        cli.on('message', (_topic, payload) => {
+          try {
+            const msg = JSON.parse(payload.toString());
+            if (msg && msg.from && msg.from !== probeId) {
+              finish(true);
+            }
+          } catch (_) {}
+        });
+        cli.on('error', () => {
+          try { cli.end(true); } catch (_) {}
+        });
+      } catch (_) {}
+    }
+  });
+}

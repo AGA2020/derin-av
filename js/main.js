@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.4';
-import { sfx } from './audio.js?v=4.4';
-import { NetClient, generateRoomCode, fetchCloudTelemetry } from './net.js?v=4.4';
-import { GameSim } from './sim.js?v=4.4';
-import { SeaRenderer } from './render.js?v=4.4';
+} from './data.js?v=4.41';
+import { sfx } from './audio.js?v=4.41';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.41';
+import { GameSim } from './sim.js?v=4.41';
+import { SeaRenderer } from './render.js?v=4.41';
 
 const $ = (id) => document.getElementById(id);
 
@@ -79,6 +79,7 @@ const app = {
   matchRecordedKey: '',
   verClicks: 0,
   verClickTimer: null,
+  joinTimeout: null,
   touchMove: { mx: 0, my: 0 }
 };
 
@@ -497,6 +498,7 @@ function joinOnlineRoom(rawCode) {
   localStorage.setItem('derinav_name', app.myName);
 
   stopHostTicker();
+  clearTimeout(app.joinTimeout);
   app.mode = 'client';
   app.sim = null;
   app.pred = null;
@@ -507,9 +509,20 @@ function joinOnlineRoom(rawCode) {
   setScreen('lobby');
   renderLobby();
   sfx.play('ui');
+
+  // ⏱️ 6 saniye içinde kurucudan (Host) yanıt gelmezse oda kapanmıştır -> takılı kalma!
+  app.joinTimeout = setTimeout(() => {
+    if (app.mode === 'client' && !app.lobbyState && !app.liveState) {
+      leaveRoom();
+      $('input-code').value = '';
+      showToast(`⚠️ ${code} odası artık aktif değil veya kurucu çıkmış!`);
+    }
+  }, 6000);
 }
 
 function leaveRoom() {
+  clearTimeout(app.joinTimeout);
+  app.joinTimeout = null;
   if (app.mode === 'client' && app.net?.connected) {
     app.net.send({ type: 'leave' });
   }
@@ -521,6 +534,7 @@ function leaveRoom() {
   app.lobbyState = null;
   app.liveState = null;
   app.roomCode = null;
+  $('invite-banner').style.display = 'none';
   updateUrlRoom(null);
   setScreen('home');
 }
@@ -529,6 +543,10 @@ function handleHostReceive(msg) {
   if (!app.sim) return;
   const sender = msg.from;
   switch (msg.type) {
+    case 'pingRoom': {
+      app.net?.send({ type: 'pongRoom', room: app.roomCode });
+      break;
+    }
     case 'join': {
       app.sim.addHuman(sender, msg.name);
       if (msg.skinId) app.sim.pickSkin(sender, msg.skinId);
@@ -600,6 +618,7 @@ function handleHostReceive(msg) {
 function handleClientReceive(msg) {
   switch (msg.type) {
     case 'lobby': {
+      if (app.joinTimeout) { clearTimeout(app.joinTimeout); app.joinTimeout = null; }
       app.lobbyState = msg.data;
       checkVersionMismatch(app.lobbyState?.version);
       syncPhaseScreens(app.lobbyState.phase);
@@ -608,6 +627,7 @@ function handleClientReceive(msg) {
       break;
     }
     case 'state': {
+      if (app.joinTimeout) { clearTimeout(app.joinTimeout); app.joinTimeout = null; }
       app.liveState = msg.data;
       syncPhaseScreens(app.liveState.phase);
       reconcileClientPrediction(app.liveState);
@@ -1771,9 +1791,21 @@ function init() {
   const params = new URLSearchParams(window.location.search);
   const urlRoom = params.get('room');
   if (urlRoom) {
-    $('input-code').value = urlRoom.toUpperCase();
-    $('invite-banner').style.display = 'flex';
-    $('invite-banner-code').textContent = urlRoom.toUpperCase();
+    const cleanCode = urlRoom.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    // Ölü davet linkini körü körüne gösterme — önce Host hâlâ canlı mı kontrol et!
+    checkRoomAlive(cleanCode, 2600).then((alive) => {
+      if (app.mode !== 'menu') return;
+      if (alive) {
+        $('input-code').value = cleanCode;
+        $('invite-banner').style.display = 'flex';
+        $('invite-banner-code').textContent = cleanCode;
+      } else {
+        $('invite-banner').style.display = 'none';
+        $('input-code').value = '';
+        updateUrlRoom(null);
+        showToast(`ℹ️ ${cleanCode} odası artık kapalı.`);
+      }
+    });
   }
 
   $('btn-host').onclick = startHostOnline;
