@@ -11,11 +11,11 @@ import {
   PREY_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js';
-import { sfx } from './audio.js';
-import { NetClient, generateRoomCode } from './net.js';
-import { GameSim } from './sim.js';
-import { SeaRenderer } from './render.js';
+} from './data.js?v=2.2';
+import { sfx } from './audio.js?v=2.2';
+import { NetClient, generateRoomCode } from './net.js?v=2.2';
+import { GameSim } from './sim.js?v=2.2';
+import { SeaRenderer } from './render.js?v=2.2';
 
 const $ = (id) => document.getElementById(id);
 
@@ -940,6 +940,7 @@ function initVersionUI() {
 }
 
 function init() {
+  window.__DERINAV_BOOTED = true;
   app.renderer = new SeaRenderer($('game-canvas'));
   initVersionUI();
 

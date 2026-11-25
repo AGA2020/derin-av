@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 2v2 Denizde Av & Avcı</title>
-  <link rel="stylesheet" href="./styles.css?v=2.1" />
+  <link rel="stylesheet" href="./styles.css?v=2.2" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -207,7 +207,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v2.1</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v2.2</button>
 
   <div id="overlay-changelog" class="overlay">
     <div class="modal compact-modal changelog-modal">
@@ -219,6 +219,24 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=2.1"></script>
+  <script type="module" src="./js/main.js?v=2.2"></script>
+  <script>
+    setTimeout(function () {
+      if (!window.__DERINAV_BOOTED) {
+        var b = document.getElementById('version-mismatch');
+        var t = document.getElementById('version-mismatch-text');
+        var r = document.getElementById('btn-reload-ver');
+        if (b && t && r) {
+          t.textContent = '⚠️ Eski tarayıcı önbelleği algılandı — oyunu başlatmak için yenile!';
+          b.style.display = 'flex';
+          r.onclick = function () {
+            var u = new URL(window.location.href);
+            u.searchParams.set('_r', Date.now());
+            window.location.replace(u.toString());
+          };
+        }
+      }
+    }, 2500);
+  </script>
 </body>
 </html>
