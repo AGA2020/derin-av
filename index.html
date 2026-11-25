@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=4.2" />
+  <link rel="stylesheet" href="./styles.css?v=4.3" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -83,6 +83,13 @@
             <button class="qmode-btn" data-qmode="2v2">👥 2v2 Takım</button>
             <button class="qmode-btn" data-qmode="1v1">⚔️ 1v1 Düello</button>
             <button class="qmode-btn" data-qmode="ffa">💀 Herkes Tek</button>
+            <button class="qmode-btn" data-qmode="crown">👑 Altın Taç</button>
+          </div>
+          <div id="lobby-quick-lives" class="quick-lives-bar">
+            <span class="qlives-label">Can Hakkı:</span>
+            <button class="qlives-btn" data-qlives="1">❤️ 1 Kalp</button>
+            <button class="qlives-btn" data-qlives="2">❤️❤️ 2 Kalp</button>
+            <button class="qlives-btn" data-qlives="3">❤️❤️❤️ 3 Kalp</button>
           </div>
 
           <div class="team-panel team-a">
@@ -172,9 +179,12 @@
       <button class="emote-btn" data-emote="3" title="6: Batırdım"><span>6</span>💀</button>
     </div>
 
-    <!-- ALT HUD (KOMPAKT TAKTİKSEL BAR + CANLI ETKİ ROZETLERİ) -->
+    <!-- ALT HUD (KOMPAKT TAKTİKSEL BAR + MARİO KALPLER + CANLI ETKİ ROZETLERİ) -->
     <div class="hud-bottom">
-      <div id="hud-effects" class="hud-effects"></div>
+      <div class="hud-top-row">
+        <div id="hud-hearts" class="hud-hearts" style="display:none"></div>
+        <div id="hud-effects" class="hud-effects"></div>
+      </div>
       <div class="hud-dock">
         <div class="hp-wrap">
           <div class="bars-head">
@@ -264,7 +274,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.2</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.3</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -287,6 +297,7 @@
             <button class="seg-btn" data-val="2v2">👥 2v2 Takım</button>
             <button class="seg-btn" data-val="1v1">⚔️ 1v1 Düello</button>
             <button class="seg-btn" data-val="ffa">💀 Herkes Tek (FFA)</button>
+            <button class="seg-btn" data-val="crown">👑 Altın Taç</button>
           </div>
         </div>
 
@@ -502,7 +513,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=4.2"></script>
+  <script type="module" src="./js/main.js?v=4.3"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

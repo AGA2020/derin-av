@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.2';
-import { hasLineOfSight } from './sim.js?v=4.2';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.3';
+import { hasLineOfSight } from './sim.js?v=4.3';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -178,12 +178,15 @@ export class SeaRenderer {
     this._drawBarrels(ctx, state.barrels || []);
     this._drawRescueBuoys(ctx, state.rescueBuoys || [], me);
     this._drawRocksAndShips(ctx, map);
+    this._drawBreakables(ctx, state.breakables || []);
+    this._drawCrown(ctx, state.crown);
     this._drawSinkEffects(ctx, state.sinkEffects || []);
     this._drawDecoys(ctx, state.decoys || [], me, map);
     this._drawPlayers(ctx, players, me, map, state.roundEvent);
     this._drawProjectiles(ctx, state.projectiles || [], dt);
     this._drawZones(ctx, state.zones || []);
     this._drawFogs(ctx, map, me);
+    this._drawLighthouse(ctx, state.lighthouse);
     this._drawStorm(ctx, state.storm);
     this._drawBubbles(ctx, me);
     this._drawFloatTexts(ctx, state.floatTexts || []);
@@ -748,6 +751,31 @@ export class SeaRenderer {
         ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+      } else if (z.kind === 'geyser_warn') {
+        const prog = 1 - Math.max(0, z.life / (z.maxLife || 1.6));
+        ctx.save();
+        ctx.translate(z.x, z.y);
+        ctx.fillStyle = `rgba(239, 68, 68, ${0.14 + prog * 0.28})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, z.r, 0, Math.PI * 2);
+        ctx.fill();
+        // Expanding inner eruption countdown circle
+        ctx.fillStyle = `rgba(255, 107, 53, ${0.26 + prog * 0.35})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, Math.max(8, z.r * prog), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ff6b35';
+        ctx.lineWidth = 2.6;
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.arc(0, 0, z.r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '18px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🌋', 0, 0);
+        ctx.restore();
       } else if (z.kind === 'flare') {
         const g = ctx.createRadialGradient(z.x, z.y, 6, z.x, z.y, z.r);
         g.addColorStop(0, `rgba(255, 110, 130, ${0.42 * fade})`);
@@ -1027,14 +1055,42 @@ export class SeaRenderer {
       ctx.fillText('⚡ AKINTI!', 0, -40);
     }
 
+    // 👑 Altın Taç & 💰 Kelle Ödülü parıltı halkaları!
+    if (p.hasCrown) {
+      ctx.save();
+      ctx.strokeStyle = '#ffd166';
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 31 + Math.sin(this.time * 8) * 3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    } else if (p.bounty) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 183, 3, 0.85)';
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([6, 5]);
+      ctx.rotate(this.time * 2.2);
+      ctx.beginPath();
+      ctx.arc(0, 0, 29, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
     // Name & ❤️ Mario Hearts (eğer 1'den fazla kalp seçiliyse!)
-    ctx.fillStyle = p.role === 'hunter' ? '#ffd166' : p.role === 'ffa' ? ch.accent : '#80ffdb';
+    ctx.fillStyle = p.hasCrown ? '#ffd166' : (p.role === 'hunter' ? '#ffd166' : p.role === 'ffa' ? ch.accent : '#80ffdb');
     ctx.font = '700 12px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(p.name || '', 0, -28);
+    const prefix = p.hasCrown ? '👑 ' : (p.bounty ? '💰 ' : '');
+    ctx.fillText(prefix + (p.name || ''), 0, -28);
     if ((p.maxLives || 1) > 1) {
       const hStr = '❤️'.repeat(Math.max(0, p.lives || 0)) + '🖤'.repeat(Math.max(0, (p.maxLives || 1) - (p.lives || 0)));
-      ctx.font = '11px system-ui, sans-serif';
+      const pillW = Math.max(44, (p.maxLives || 1) * 16 + 10);
+      ctx.fillStyle = 'rgba(4, 14, 28, 0.82)';
+      ctx.beginPath();
+      ctx.roundRect(-pillW / 2, -52, pillW, 18, 8);
+      ctx.fill();
+      ctx.font = '13px system-ui, sans-serif';
       ctx.fillText(hStr, 0, -42);
     }
 
@@ -1363,6 +1419,136 @@ export class SeaRenderer {
     }
   }
 
+  _drawBreakables(ctx, breakables) {
+    for (const br of breakables) {
+      ctx.save();
+      ctx.translate(br.x, br.y);
+      const dmgPct = 1 - Math.max(0, br.hp / (br.maxHp || 55));
+      // Sea foam around barricade
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, br.r + 3, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Octagonal wooden sea barricade
+      ctx.fillStyle = '#78350f';
+      ctx.strokeStyle = '#fde68a';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+        const px = Math.cos(a) * br.r;
+        const py = Math.sin(a) * br.r;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Cross beams
+      ctx.strokeStyle = '#451a03';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-br.r * 0.65, -br.r * 0.65);
+      ctx.lineTo(br.r * 0.65, br.r * 0.65);
+      ctx.moveTo(br.r * 0.65, -br.r * 0.65);
+      ctx.lineTo(-br.r * 0.65, br.r * 0.65);
+      ctx.stroke();
+
+      // Cracks when damaged
+      if (dmgPct > 0.1) {
+        ctx.strokeStyle = '#fef3c7';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(-10, -12); ctx.lineTo(2, 0); ctx.lineTo(14, -6);
+        if (dmgPct > 0.45) {
+          ctx.moveTo(2, 0); ctx.lineTo(-8, 16);
+        }
+        ctx.stroke();
+        // Mini HP bar
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(-20, br.r + 6, 40, 4);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(-20, br.r + 6, 40 * (1 - dmgPct), 4);
+      }
+
+      ctx.font = '15px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🪵', 0, 1);
+      ctx.restore();
+    }
+  }
+
+  _drawCrown(ctx, crown) {
+    if (!crown || crown.holderId) return;
+    const bob = Math.sin(this.time * 4.5) * 4;
+    ctx.save();
+    ctx.translate(crown.x, crown.y + bob);
+    const g = ctx.createRadialGradient(0, 0, 6, 0, 0, 44);
+    g.addColorStop(0, 'rgba(255, 209, 102, 0.72)');
+    g.addColorStop(1, 'rgba(255, 209, 102, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, 44, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.arc(0, 0, 22 + Math.sin(this.time * 6) * 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(25, 16, 4, 0.88)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 19, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '22px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('👑', 0, 1);
+
+    ctx.fillStyle = '#ffd166';
+    ctx.font = '900 11px system-ui, sans-serif';
+    ctx.fillText('ALTIN TAÇ', 0, 32);
+    ctx.restore();
+  }
+
+  _drawLighthouse(ctx, lh) {
+    if (!lh) return;
+    ctx.save();
+    ctx.translate(lh.x, lh.y);
+    // Sweeping translucent golden light cone
+    const g = ctx.createRadialGradient(0, 0, 14, 0, 0, lh.range);
+    g.addColorStop(0, 'rgba(255, 240, 175, 0.42)');
+    g.addColorStop(0.55, 'rgba(255, 214, 102, 0.16)');
+    g.addColorStop(1, 'rgba(255, 214, 102, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, lh.range, lh.angle - lh.halfAngle, lh.angle + lh.halfAngle);
+    ctx.closePath();
+    ctx.fill();
+
+    // Beacon turret on center rock
+    ctx.fillStyle = 'rgba(255, 245, 200, 0.92)';
+    ctx.strokeStyle = '#ffb703';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🗼', 0, 1);
+    ctx.restore();
+  }
+
   _drawSinkEffects(ctx, effects) {
     for (const se of effects) {
       const prog = 1 - se.life / se.maxLife;
@@ -1476,14 +1662,38 @@ export class SeaRenderer {
       ctx.restore();
     }
 
+    // Breakables on minimap
+    for (const br of state.breakables || []) {
+      ctx.fillStyle = '#b45309';
+      ctx.beginPath();
+      ctx.arc(br.x * sx, br.y * sy, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Golden Crown on minimap
+    if (state.crown) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.fillStyle = '#ffd166';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(state.crown.x * sx, state.crown.y * sy, 5.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
     // Visible players
     for (const p of state.players || []) {
       if (!p.alive) continue;
       if (!this._canViewerSee(me, p, map)) continue;
-      ctx.fillStyle = p.id === me?.id ? '#ffffff' : p.role === 'hunter' ? '#ffb703' : p.role === 'ffa' ? '#ff6b6b' : '#06d6a0';
+      ctx.fillStyle = p.hasCrown ? '#ffd166' : (p.id === me?.id ? '#ffffff' : p.role === 'hunter' ? '#ffb703' : p.role === 'ffa' ? '#ff6b6b' : '#06d6a0');
       ctx.beginPath();
-      ctx.arc(p.x * sx, p.y * sy, p.id === me?.id ? 4.5 : 3.5, 0, Math.PI * 2);
+      ctx.arc(p.x * sx, p.y * sy, p.id === me?.id ? 4.5 : (p.bounty || p.hasCrown ? 4.4 : 3.5), 0, Math.PI * 2);
       ctx.fill();
+      if (p.bounty) {
+        ctx.strokeStyle = '#ffd166';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }

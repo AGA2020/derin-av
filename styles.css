@@ -1801,3 +1801,96 @@ kbd {
   background: rgba(76, 12, 30, 0.45);
   color: #fecdd3;
 }
+
+
+/* === v4.3: LOBBY QUICK HEARTS & BIG MARIO HEARTS HUD === */
+.quick-lives-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: -2px;
+  flex-wrap: wrap;
+}
+.qlives-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-right: 2px;
+}
+.qlives-btn {
+  flex: 1;
+  min-width: 82px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 77, 109, 0.25);
+  background: rgba(6, 22, 40, 0.72);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+.qlives-btn:hover:not(:disabled) {
+  border-color: rgba(255, 77, 109, 0.65);
+  color: #fff;
+}
+.qlives-btn.active {
+  background: linear-gradient(135deg, rgba(239, 71, 111, 0.34), rgba(185, 28, 28, 0.28));
+  border-color: #ff4d6d;
+  color: #fff;
+  box-shadow: 0 0 12px rgba(255, 77, 109, 0.32);
+}
+.qlives-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.hud-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.hud-hearts {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(8, 18, 34, 0.88);
+  border: 2px solid rgba(255, 77, 109, 0.7);
+  box-shadow: 0 4px 18px rgba(255, 77, 109, 0.28);
+  backdrop-filter: blur(8px);
+}
+.hud-hearts .m-heart {
+  font-size: 20px;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px rgba(255, 77, 109, 0.6));
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.hud-hearts .m-heart.lost {
+  opacity: 0.38;
+  filter: grayscale(0.9);
+  transform: scale(0.86);
+}
+.hud-hearts .m-heart-lbl {
+  font-size: 11px;
+  font-weight: 900;
+  color: #fda4af;
+  letter-spacing: 0.04em;
+  margin-right: 4px;
+}
+.hud-hearts.shake {
+  animation: heartShake 0.45s ease;
+}
+@keyframes heartShake {
+  0%, 100% { transform: translateX(0) scale(1); }
+  20% { transform: translateX(-6px) scale(1.1); }
+  45% { transform: translateX(6px) scale(1.06); }
+  70% { transform: translateX(-4px) scale(1.02); }
+}

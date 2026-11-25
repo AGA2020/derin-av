@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.2';
+export const GAME_VERSION = 'v4.3';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -65,6 +65,15 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.3',
+    notes: [
+      '👑 YENİ 4. OYUN MODU — ALTIN TAÇ: Haritanın ortasındaki Altın Tacı kap, 100 puana ilk ulaşan kazanır! Taç taşıyıcısı parlar, biraz yavaşlar ve su altına dalamaz.',
+      '💰 YENİ: Kelle Ödülü (Bounty)! Üst üste 2+ batırma yapanın üzerinde ödül parlar — onu durduran +40 Can, +35 Kalkan ve +1 Yetenek Puanı kazanır!',
+      '🗺️ YENİ HARİTA MEKANİKLERİ: Volkanik Resif’te Lav Gayzerleri 🌋, Korsan Enkazı & Hayalet Sis’te Dönen Deniz Feneri 🗼, Fırtına Boğazı & Akıntı Koyu’nda Kırılabilir Barikatlar 🪵!',
+      '❤️ MARİO KALP ARAYÜZÜ: Oyun içi büyük Mario Kalp çubuğu + lobide tek tıkla 1 / 2 / 3 Kalp seçicisi eklendi!'
+    ]
+  },
   {
     ver: 'v4.2',
     notes: [
@@ -756,12 +765,19 @@ export const SEA_MAPS = [
       { x: 800, y: 670 },
       { x: 460, y: 410 },
       { x: 1140, y: 590 }
+    ],
+    breakables: [
+      { x: 420, y: 500, r: 34 },
+      { x: 1180, y: 500, r: 34 },
+      { x: 800, y: 265, r: 32 },
+      { x: 800, y: 735, r: 32 }
     ]
   },
   {
     id: 'korsan_enkazi',
     name: 'Korsan Enkazı',
-    subtitle: 'Parçalanmış gemi gövdeleri, yoğun sis ve dikey kaçış akıntıları',
+    subtitle: 'Parçalanmış gemi gövdeleri, dönen deniz feneri ve dikey kaçış akıntıları',
+    lighthouse: { x: 800, y: 500, range: 580, halfAngle: 0.24, speed: 0.56 },
     theme: { deep: '#061922', mid: '#0c2f3b', foam: 'rgba(145, 240, 220, 0.13)' },
     hunterSpawns: [
       { x: 165, y: 220 },
@@ -863,6 +879,12 @@ export const SEA_MAPS = [
       { x: 960, y: 355 },
       { x: 640, y: 645 },
       { x: 420, y: 500 }
+    ],
+    breakables: [
+      { x: 350, y: 500, r: 34 },
+      { x: 1250, y: 500, r: 34 },
+      { x: 800, y: 390, r: 32 },
+      { x: 800, y: 610, r: 32 }
     ]
   },
   {
@@ -941,7 +963,8 @@ export const SEA_MAPS = [
   {
     id: 'volkanik_resif',
     name: 'Volkanik Resif',
-    subtitle: 'Lav parıltılı dar kayalık geçitler, bol barut fıçısı ve çapraz turbo akıntılar!',
+    subtitle: 'Su altı lav gayzerleri, bol barut fıçısı ve çapraz turbo akıntılar!',
+    geysers: true,
     theme: { deep: '#17080d', mid: '#2d111a', foam: 'rgba(255, 160, 110, 0.14)' },
     hunterSpawns: [
       { x: 155, y: 260 },
@@ -994,7 +1017,8 @@ export const SEA_MAPS = [
   {
     id: 'hayalet_sis',
     name: 'Hayalet Sis Denizi',
-    subtitle: 'Dev sis labirenti ve kırık gemi enkazları — gizlilik, sonar ve pusu cenneti!',
+    subtitle: 'Dev sis labirenti ve dönen deniz feneri — gizlilik, sonar ve pusu cenneti!',
+    lighthouse: { x: 800, y: 500, range: 600, halfAngle: 0.24, speed: 0.62 },
     theme: { deep: '#041414', mid: '#092929', foam: 'rgba(130, 245, 225, 0.13)' },
     hunterSpawns: [
       { x: 150, y: 340 },

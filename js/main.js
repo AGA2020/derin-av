@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.2';
-import { sfx } from './audio.js?v=4.2';
-import { NetClient, generateRoomCode, fetchCloudTelemetry } from './net.js?v=4.2';
-import { GameSim } from './sim.js?v=4.2';
-import { SeaRenderer } from './render.js?v=4.2';
+} from './data.js?v=4.3';
+import { sfx } from './audio.js?v=4.3';
+import { NetClient, generateRoomCode, fetchCloudTelemetry } from './net.js?v=4.3';
+import { GameSim } from './sim.js?v=4.3';
+import { SeaRenderer } from './render.js?v=4.3';
 
 const $ = (id) => document.getElementById(id);
 
@@ -146,7 +146,7 @@ function recordCareerMatch(st, awards) {
   if (!meStat) return;
   const c = loadCareer();
   c.matches += 1;
-  const iWon = st.mode === 'ffa' ? st.matchWinnerTeam === app.myId : meStat.team === st.matchWinnerTeam;
+  const iWon = (st.mode === 'ffa' || st.mode === 'crown') ? st.matchWinnerTeam === app.myId : meStat.team === st.matchWinnerTeam;
   if (iWon) c.wins += 1;
   c.sinks += meStat.sinks || 0;
   c.damage += meStat.damage || 0;
@@ -173,7 +173,7 @@ function recordRoundTelemetry(ev) {
   t.version = GAME_VERSION;
   t.updatedAt = new Date().toISOString();
   t.rounds += 1;
-  if (ev.mode === 'ffa') t.roles.ffaRounds += 1;
+  if (ev.mode === 'ffa' || ev.mode === 'crown') t.roles.ffaRounds += 1;
   else if (ev.winnerRole === 'hunter') t.roles.hunterWins += 1;
   else if (ev.winnerRole === 'prey') t.roles.preyWins += 1;
 
@@ -631,6 +631,7 @@ function stepClientPrediction(dt) {
   let maxSpd = ch.speed * (me.speedBoost ? 1.38 : 1) * (me.slowTimer ? 0.45 : 1);
   if (app.liveState.roundEvent === 'kasirga_hizi') maxSpd *= 1.25;
   if (me.role === 'hunter') maxSpd *= 1.03;
+  if (me.hasCrown) maxSpd *= 0.87;
   if (me.submerged) maxSpd *= 0.66;
   if (me.rootTimer || me.stunTimer) maxSpd = 0;
 
@@ -658,8 +659,16 @@ function stepClientPrediction(dt) {
   app.pred.x = clamp(app.pred.x + app.pred.vx * dt, 32, WORLD_W - 32);
   app.pred.y = clamp(app.pred.y + app.pred.vy * dt, minY, WORLD_H - 32);
 
-  // Local obstacle collision so prediction never walks through rocks
+  // Local obstacle collision so prediction never walks through rocks or live breakables
   const r = 20;
+  for (const br of app.liveState.breakables || []) {
+    const d = Math.hypot(app.pred.x - br.x, app.pred.y - br.y);
+    const minD = br.r + r;
+    if (d < minD && d > 0.01) {
+      app.pred.x = br.x + ((app.pred.x - br.x) / d) * minD;
+      app.pred.y = br.y + ((app.pred.y - br.y) / d) * minD;
+    }
+  }
   for (const obs of map.rocks) {
     if (obs.type === 'rock') {
       const d = Math.hypot(app.pred.x - obs.x, app.pred.y - obs.y);
@@ -752,19 +761,27 @@ function renderLobby() {
   }
 
   const mode = st.settings?.mode || '2v2';
-  const isFfa = mode === 'ffa';
+  const isFfa = mode === 'ffa' || mode === 'crown';
+  const isCrown = mode === 'crown';
   $('lobby-mode-kicker').textContent = mode === '1v1'
     ? 'DERİN AV · 1v1 DÜELLO LOBİSİ'
-    : isFfa
-      ? 'DERİN AV · HERKES TEK (DEATHMATCH)'
-      : 'DERİN AV · 2v2 TAKIM LOBİSİ';
+    : isCrown
+      ? 'DERİN AV · 👑 ALTIN TAÇ (HAZİNE KAPMACA)'
+      : isFfa
+        ? 'DERİN AV · HERKES TEK (DEATHMATCH)'
+        : 'DERİN AV · 2v2 TAKIM LOBİSİ';
   $('btn-switch-team').style.display = isFfa ? 'none' : '';
   $('team-a-title').textContent = isFfa ? 'OYUNCULAR (1-2)' : 'TAKIM A (ALTIN)';
-  $('team-a-role').textContent = isFfa ? '💀 Herkes Tek' : '1. Tur: Avcılar 🎯';
+  $('team-a-role').textContent = isCrown ? '👑 100 Puan Kazanır' : isFfa ? '💀 Herkes Tek' : '1. Tur: Avcılar 🎯';
   $('team-b-title').textContent = isFfa ? 'OYUNCULAR (3-4)' : 'TAKIM B (TURKUAZ)';
-  $('team-b-role').textContent = isFfa ? '💀 Son Kalan Kazanır' : '1. Tur: Avlar 🌊';
+  $('team-b-role').textContent = isCrown ? '👑 Tacı Kap & Koru!' : isFfa ? '💀 Son Kalan Kazanır' : '1. Tur: Avlar 🌊';
   document.querySelectorAll('[data-qmode]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.qmode === mode);
+    btn.disabled = !isHostLike;
+  });
+  const curLives = String(st.settings?.lives || 1);
+  document.querySelectorAll('[data-qlives]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.qlives === curLives);
     btn.disabled = !isHostLike;
   });
   renderLobbyRulesSummary(st);
@@ -889,7 +906,8 @@ function renderDraftUI() {
   const mySlot = st.slots.find(s => s.id === app.myId);
   if (!mySlot) return;
 
-  const isFfa = st.settings?.mode === 'ffa';
+  const isCrown = st.settings?.mode === 'crown';
+  const isFfa = st.settings?.mode === 'ffa' || isCrown;
   const teamAIsHunter = st.round % 2 === 1;
   const myRole = isFfa
     ? 'ffa'
@@ -904,11 +922,13 @@ function renderDraftUI() {
   const evHtml = ev ? `<div class="event-pill-inline" style="border-color:${ev.color};color:${ev.color}">🎲 TUR OLAYI: ${ev.icon} <b>${ev.name}</b> — ${ev.desc}</div>` : '';
   const roleBox = $('draft-role-banner');
   roleBox.className = `role-banner ${isFfa ? 'hunter' : myRole}`;
-  roleBox.innerHTML = (isFfa
-    ? `<strong>💀 HERKES TEK (DEATHMATCH)!</strong> — Herkes rakip! Ortak cephanelikten istediğin <b>2 itemi</b> seç, son ayakta kalan turu kazanır!`
-    : myRole === 'hunter'
-      ? `<strong>🎯 BU TUR AVCISIN!</strong> — Görevin: ${st.settings?.mode === '1v1' ? 'Avı' : 'İki Avı da'} <b>suya gömmek</b>! 2 item seç.`
-      : `<strong>🌊 BU TUR AVSIN!</strong> — Görevin: <b>Suya gömülmeden</b> süreyi tamamla veya ${st.settings?.mode === '1v1' ? 'Avcıyı' : 'Avcıları'} batır! 2 item seç.`) + evHtml;
+  roleBox.innerHTML = (isCrown
+    ? `<strong>👑 ALTIN TAÇ (HAZİNE KAPMACA)!</strong> — Haritanın ortasındaki Altın Tacı kap, <b>100 puana</b> ilk ulaşan turu kazanır! (Taçla dalınmaz!)`
+    : isFfa
+      ? `<strong>💀 HERKES TEK (DEATHMATCH)!</strong> — Herkes rakip! Ortak cephanelikten istediğin <b>2 itemi</b> seç, son ayakta kalan turu kazanır!`
+      : myRole === 'hunter'
+        ? `<strong>🎯 BU TUR AVCISIN!</strong> — Görevin: ${st.settings?.mode === '1v1' ? 'Avı' : 'İki Avı da'} <b>suya gömmek</b>! 2 item seç.`
+        : `<strong>🌊 BU TUR AVSIN!</strong> — Görevin: <b>Suya gömülmeden</b> süreyi tamamla veya ${st.settings?.mode === '1v1' ? 'Avcıyı' : 'Avcıları'} batır! 2 item seç.`) + evHtml;
 
   // 🌿 Yetenek Ağacı (Skill Tree) paneli — ayarda açıksa göster!
   const treeWrap = $('draft-skill-tree');
@@ -1082,7 +1102,8 @@ function updateHudFromState(st) {
       el.classList.remove('show');
     }
   });
-  const isFfa = st.mode === 'ffa';
+  const isCrown = st.mode === 'crown';
+  const isFfa = st.mode === 'ffa' || isCrown;
   setIfChanged('scoreMode', isFfa, () => {
     $('hud-score-badge-a').style.display = isFfa ? 'none' : '';
     $('hud-score-badge-b').style.display = isFfa ? 'none' : '';
@@ -1101,18 +1122,48 @@ function updateHudFromState(st) {
   const me = st.players?.find(p => p.id === app.myId);
   if (me) {
     const ch = CHAR_MAP[me.charId] || CHARACTERS[0];
-    const roleKey = `${me.role}_${me.alive}_${me.lives}_${me.respawnTimer}`;
+    const roleKey = `${st.mode}_${me.role}_${me.alive}_${me.lives}_${me.respawnTimer}_${me.hasCrown}`;
     setIfChanged('role', roleKey, () => {
       $('hud-role-pill').textContent = me.alive
-        ? (me.role === 'ffa'
-          ? '💀 HERKES TEK — SON KALAN KAZANIR!'
-          : me.role === 'hunter'
-            ? '🎯 AVCISIN — AVI SUYA GÖM!'
-            : '🌊 AVSIN — SU ÜSTÜNDE KAL!')
-        : (me.lives > 0
+        ? (isCrown
+          ? (me.hasCrown ? '👑 ALTIN TAÇ SENDE — KAÇ VE 100 PUANA ULAŞ!' : '👑 ALTIN TAÇ — TACI KAP, 100 PUANA ULAŞ!')
+          : me.role === 'ffa'
+            ? '💀 HERKES TEK — SON KALAN KAZANIR!'
+            : me.role === 'hunter'
+              ? '🎯 AVCISIN — AVI SUYA GÖM!'
+              : '🌊 AVSIN — SU ÜSTÜNDE KAL!')
+        : ((me.lives > 0 || isCrown)
           ? `❤️ YENİDEN DOĞUYOR... (${me.respawnTimer.toFixed(1)}s)`
           : '🌊 SUYA GÖMÜLDÜN (İZLEYİCİ)');
       $('hud-role-pill').className = `hud-role-pill ${me.role === 'ffa' ? 'hunter' : me.role} ${me.alive ? '' : 'dead'}`;
+    });
+
+    // ❤️ BÜYÜK MARİO KALP ÇUBUĞU (maxLives > 1 olduğunda daima net görünür!)
+    const maxL = me.maxLives || 1;
+    const curL = Math.max(0, me.lives ?? 1);
+    const heartsKey = `${curL}_${maxL}`;
+    setIfChanged('marioHearts', heartsKey, () => {
+      const hEl = $('hud-hearts');
+      if (!hEl) return;
+      if (maxL > 1) {
+        let html = '<span class="m-heart-lbl">CAN</span>';
+        for (let i = 0; i < maxL; i++) {
+          html += i < curL
+            ? '<span class="m-heart">❤️</span>'
+            : '<span class="m-heart lost">🖤</span>';
+        }
+        hEl.innerHTML = html;
+        hEl.style.display = 'inline-flex';
+        if (app.prevLives !== undefined && curL < app.prevLives) {
+          hEl.classList.remove('shake');
+          void hEl.offsetWidth;
+          hEl.classList.add('shake');
+        }
+        app.prevLives = curL;
+      } else {
+        hEl.style.display = 'none';
+        app.prevLives = undefined;
+      }
     });
 
     const hpKey = `${me.hp}_${me.maxHp}_${me.breath}_${me.maxBreath}_${me.breathRegen}_${me.shield || 0}_${me.lives}_${me.maxLives}`;
@@ -1123,17 +1174,16 @@ function updateHudFromState(st) {
       $('hud-breath-fill').style.width = `${bPct}%`;
       $('hud-breath-fill').classList.toggle('regen', Boolean(me.breathRegen));
       const shTxt = me.shield > 0 ? ` (+${me.shield} 🛡️)` : '';
-      const heartsTxt = (me.maxLives || 1) > 1
-        ? ` ${'❤️'.repeat(Math.max(0, me.lives || 0))}${'🖤'.repeat(Math.max(0, (me.maxLives || 1) - (me.lives || 0)))}`
-        : '';
       const bStatus = me.breath <= 0 ? ' (KESİLDİ!)' : (me.breathRegen ? ' ↑' : '');
       $('hud-breath-text').textContent = `🫁 Nefes: ${me.breath}/${me.maxBreath}${bStatus}`;
-      $('hud-hp-text').textContent = `${ch.icon} ${ch.name}${heartsTxt} · 🌊 ${me.hp}/${me.maxHp}${shTxt}`;
+      $('hud-hp-text').textContent = `${ch.icon} ${ch.name} · 🌊 ${me.hp}/${me.maxHp}${shTxt}`;
     });
 
     // Active Buff / Debuff Status Pills!
     const effList = [];
     if (me.alive) {
+      if (me.hasCrown) effList.push({ cls: 'buff', txt: `👑 TAÇ (${st.crownScores?.[me.id] || 0}/100)` });
+      if (me.bounty) effList.push({ cls: 'debuff', txt: '💰 KELLE ÖDÜLÜN VAR!' });
       if (me.mirrorTimer > 0) effList.push({ cls: 'shield', txt: `🪞 AYNA ${me.mirrorTimer.toFixed(1)}s` });
       if (me.inShallow) effList.push({ cls: 'buff', txt: '🏖️ SIĞ SU (DALIŞ YOK)' });
       if (me.submerged) effList.push({ cls: 'dive', txt: me.diveTime >= 1.0 ? '🦈 SÜRPRİZ HAZIR' : '🤿 SU ALTINDA' });
@@ -1220,19 +1270,23 @@ function updateHudFromState(st) {
     });
   }
 
-  const teamKey = (st.players || []).map(p => `${p.id}:${p.alive}:${p.lives}:${st.ffaScores?.[p.id] || 0}`).join('|') + `_${isFfa}`;
+  const teamKey = (st.players || []).map(p => `${p.id}:${p.alive}:${p.lives}:${p.hasCrown}:${p.bounty}:${st.ffaScores?.[p.id] || 0}:${st.crownScores?.[p.id] || 0}`).join('|') + `_${st.mode}`;
   setIfChanged('teams', teamKey, () => {
     const hIcons = (p) => (p.maxLives || 1) > 1 ? ` ${'❤️'.repeat(Math.max(0, p.lives || 0))}` : '';
-    const isOut = (p) => !p.alive && (p.lives || 0) <= 0;
-    if (isFfa) {
+    const isOut = (p) => !p.alive && (p.lives || 0) <= 0 && !isCrown;
+    if (isCrown) {
+      const all = (st.players || []).slice().sort((a, b) => (st.crownScores?.[b.id] || 0) - (st.crownScores?.[a.id] || 0));
+      $('hud-team-a').innerHTML = all.map(p => `<span class="mini-p ${p.hasCrown ? 'alive' : ''}">${p.hasCrown ? '👑' : '⚓'} ${p.name}${hIcons(p)}: <b>${st.crownScores?.[p.id] || 0}/100</b> (${st.ffaScores?.[p.id] || 0}🏆)</span>`).join('');
+      $('hud-team-b').innerHTML = '';
+    } else if (isFfa) {
       const all = (st.players || []).slice().sort((a, b) => (st.ffaScores?.[b.id] || 0) - (st.ffaScores?.[a.id] || 0));
-      $('hud-team-a').innerHTML = all.map(p => `<span class="mini-p ${isOut(p) ? 'sunk' : 'alive'}">💀 ${p.name}${hIcons(p)}: <b>${st.ffaScores?.[p.id] || 0}</b></span>`).join('');
+      $('hud-team-a').innerHTML = all.map(p => `<span class="mini-p ${isOut(p) ? 'sunk' : 'alive'}">${p.bounty ? '💰' : '💀'} ${p.name}${hIcons(p)}: <b>${st.ffaScores?.[p.id] || 0}</b></span>`).join('');
       $('hud-team-b').innerHTML = '';
     } else {
       const teamA = (st.players || []).filter(p => p.team === 'A');
       const teamB = (st.players || []).filter(p => p.team === 'B');
-      $('hud-team-a').innerHTML = teamA.map(p => `<span class="mini-p ${isOut(p) ? 'sunk' : 'alive'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}${hIcons(p)}</span>`).join('');
-      $('hud-team-b').innerHTML = teamB.map(p => `<span class="mini-p ${isOut(p) ? 'sunk' : 'alive'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}${hIcons(p)}</span>`).join('');
+      $('hud-team-a').innerHTML = teamA.map(p => `<span class="mini-p ${isOut(p) ? 'sunk' : 'alive'}" title="${p.name}">${p.bounty ? '💰' : (p.role === 'hunter' ? '🎯' : '🌊')} ${p.name}${hIcons(p)}</span>`).join('');
+      $('hud-team-b').innerHTML = teamB.map(p => `<span class="mini-p ${isOut(p) ? 'sunk' : 'alive'}" title="${p.name}">${p.bounty ? '💰' : (p.role === 'hunter' ? '🎯' : '🌊')} ${p.name}${hIcons(p)}</span>`).join('');
     }
   });
 
@@ -1277,10 +1331,10 @@ function renderIntroVS(st) {
     };
 
     const body = $('intro-vs-body');
-    if (st.mode === 'ffa') {
+    if (st.mode === 'ffa' || st.mode === 'crown') {
       body.className = 'vs-body ffa';
       body.innerHTML = `
-        <div class="vs-ffa-title">💀 HERKES TEK — SON AYAKTA KALAN KAZANIR!</div>
+        <div class="vs-ffa-title">${st.mode === 'crown' ? '👑 ALTIN TAÇ — 100 PUANA İLK ULAŞAN KAZANIR!' : '💀 HERKES TEK — SON AYAKTA KALAN KAZANIR!'}</div>
         <div class="vs-ffa-grid">${(st.players || []).map(renderCard).join('')}</div>
       `;
     } else {
@@ -1303,14 +1357,15 @@ function renderIntroVS(st) {
 }
 
 function renderRoundEnd(st) {
-  if (st.mode === 'ffa') {
-    $('round-end-title').textContent = `💀 ${st.roundWinnerName || 'TUR BİTTİ'} KAZANDI!`;
+  if (st.mode === 'ffa' || st.mode === 'crown') {
+    const ico = st.mode === 'crown' ? '👑' : '💀';
+    $('round-end-title').textContent = `${ico} ${st.roundWinnerName || 'TUR BİTTİ'} KAZANDI!`;
     $('round-end-reason').textContent = st.roundReason;
     const board = (st.players || [])
       .map(p => `${p.name}: ${st.ffaScores?.[p.id] || 0}`)
       .join('  ·  ');
     $('round-end-score').textContent = board;
-    $('round-end-next').textContent = `Yeni Deathmatch turu başlıyor! (${Math.max(0, Math.ceil(st.phaseTimer))}s)`;
+    $('round-end-next').textContent = `${st.mode === 'crown' ? 'Yeni Altın Taç turu' : 'Yeni Deathmatch turu'} başlıyor! (${Math.max(0, Math.ceil(st.phaseTimer))}s)`;
     return;
   }
   const winTeamLabel = st.roundWinnerTeam === 'A' ? 'TAKIM A (ALTIN)' : 'TAKIM B (TURKUAZ)';
@@ -1331,7 +1386,7 @@ function computeMatchAwards(st) {
 
   // Calculate MVP score for each player
   for (const s of list) {
-    const ffaBonus = st.mode === 'ffa' ? (st.ffaScores?.[s.id] || 0) * 140 : 0;
+    const ffaBonus = (st.mode === 'ffa' || st.mode === 'crown') ? (st.ffaScores?.[s.id] || 0) * 140 : 0;
     s.mvpScore = ffaBonus + s.sinks * 120 + s.rescues * 95 + s.ambushes * 55 + s.barrels * 40 + s.survived * 50 + s.powerups * 20 + Math.round(s.damage * 0.45);
   }
   list.sort((a, b) => b.mvpScore - a.mvpScore);
@@ -1367,9 +1422,10 @@ function computeMatchAwards(st) {
 }
 
 function renderMatchEnd(st) {
-  if (st.mode === 'ffa') {
+  const isSolo = st.mode === 'ffa' || st.mode === 'crown';
+  if (isSolo) {
     $('match-end-title').textContent = `🏆 ${st.matchWinnerName || 'ŞAMPİYON'} KAZANDI!`;
-    $('match-end-score').textContent = 'DEATHMATCH FİNAL SIRALAMASI';
+    $('match-end-score').textContent = st.mode === 'crown' ? 'ALTIN TAÇ FİNAL SIRALAMASI' : 'DEATHMATCH FİNAL SIRALAMASI';
   } else {
     const winTeamLabel = st.matchWinnerTeam === 'A' ? 'TAKIM A (ALTIN)' : 'TAKIM B (TURKUAZ)';
     $('match-end-title').textContent = `🏆 ${winTeamLabel} ŞAMPİYON!`;
@@ -1396,7 +1452,7 @@ function renderMatchEnd(st) {
 
   const rows = awards.map((s, idx) => {
     const ch = CHAR_MAP[s.charId] || CHARACTERS[0];
-    const teamTag = st.mode === 'ffa'
+    const teamTag = isSolo
       ? `🏆 ${st.ffaScores?.[s.id] || 0} Tur`
       : `Takım ${s.team}`;
     return `
@@ -1567,7 +1623,7 @@ function renderLobbyRulesSummary(st) {
     : (SEA_MAPS[Number(s.mapMode)]?.name || 'Harita');
   const hpLabel = `%${Math.round((s.hpMult || 1) * 100)} Can`;
   const gunLabel = s.firearmMode === 'long_cd' ? '⏳ Silah 30s CD' : '🔥 Tek Atım (Ağır)';
-  const modeLabel = s.mode === '1v1' ? '⚔️ 1v1 Düello' : s.mode === 'ffa' ? '💀 Herkes Tek (FFA)' : '👥 2v2 Takım';
+  const modeLabel = s.mode === '1v1' ? '⚔️ 1v1 Düello' : s.mode === 'crown' ? '👑 Altın Taç' : s.mode === 'ffa' ? '💀 Herkes Tek (FFA)' : '👥 2v2 Takım';
   const livesVal = s.lives || 1;
   const pills = [
     modeLabel,
@@ -1864,11 +1920,22 @@ function init() {
     };
   }
 
-  // Lobide 1-tıkla Hızlı Mod Seçici (2v2 / 1v1 / Herkes Tek)
+  // Lobide 1-tıkla Hızlı Mod Seçici (2v2 / 1v1 / Herkes Tek / Altın Taç)
   document.querySelectorAll('[data-qmode]').forEach(btn => {
     btn.onclick = () => {
       if (!app.sim) return;
       app.sim.updateSettings({ mode: btn.dataset.qmode });
+      broadcastLobby();
+      renderLobby();
+      sfx.play('ui');
+    };
+  });
+
+  // Lobide 1-tıkla Mario Kalp Seçici (❤️ 1 / ❤️❤️ 2 / ❤️❤️❤️ 3)
+  document.querySelectorAll('[data-qlives]').forEach(btn => {
+    btn.onclick = () => {
+      if (!app.sim) return;
+      app.sim.updateSettings({ lives: Number(btn.dataset.qlives) });
       broadcastLobby();
       renderLobby();
       sfx.play('ui');

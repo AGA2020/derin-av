@@ -21,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=4.2';
+} from './data.js?v=4.3';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -114,7 +114,12 @@ export class GameSim {
     this.roundEvent = null; // 🎲 Aktif rastgele tur olayı id
     this.banner = null; // 🔥 Seri / özel anons bannerı
     this.scores = { A: 0, B: 0 };
-    this.ffaScores = {}; // playerId -> round wins in FFA
+    this.ffaScores = {}; // playerId -> round wins in FFA / Crown
+    this.crown = null; // 👑 Altın Taç modu objesi { x, y, holderId, dropGrace }
+    this.crownScores = {}; // playerId -> 0..100 puan
+    this.breakables = []; // 🪵 Kırılabilir deniz barikatları
+    this.lighthouseAngle = 0; // 🗼 Dönen deniz feneri açısı
+    this.geyserTimer = 4.5; // 🌋 Lav gayzeri sayacı
     this.matchStats = {}; // playerId -> cumulative match stats across all rounds!
     this.phaseTimer = 0;
     this.roundWinnerRole = null;
@@ -157,18 +162,22 @@ export class GameSim {
     return SEA_MAPS[this.mapIndex % SEA_MAPS.length];
   }
 
+  isSoloMode() {
+    return this.settings.mode === 'ffa' || this.settings.mode === 'crown';
+  }
+
   getActiveSlots(forMatch = false) {
     if (this.settings.mode === '1v1') {
       return [this.slots[0], this.slots[2]];
     }
-    if (this.settings.mode === 'ffa' && forMatch) {
+    if (this.isSoloMode() && forMatch) {
       return this.slots.filter(s => Boolean(s.id));
     }
     return this.slots;
   }
 
   getTeamRole(team) {
-    if (this.settings.mode === 'ffa') return 'ffa';
+    if (this.isSoloMode()) return 'ffa';
     // HER TUR ROLLER DEĞİŞİR!
     // Tek turlar (1, 3, 5): Takım A = Avcı, Takım B = Av
     // Çift turlar (2, 4, 6): Takım B = Avcı, Takım A = Av
@@ -287,7 +296,7 @@ export class GameSim {
 
   updateSettings(patch) {
     if (this.phase !== 'lobby' || !patch) return;
-    if (['2v2', '1v1', 'ffa'].includes(String(patch.mode))) {
+    if (['2v2', '1v1', 'ffa', 'crown'].includes(String(patch.mode))) {
       this.settings.mode = String(patch.mode);
       if (this.settings.mode === '1v1') {
         // 1v1'e geçince 2. slotlardaki (idx 1,3) botları temizle, insan varsa boş 0/2 slotuna taşı
@@ -334,8 +343,8 @@ export class GameSim {
   }
 
   startMatch() {
-    if (this.settings.mode === 'ffa') {
-      // FFA'da 2-4 arkadaş botsuz direkt oynayabilir; sadece tek kişi varsa botlarla 4'e tamamla!
+    if (this.isSoloMode()) {
+      // FFA / Altın Taç'ta 2-4 arkadaş botsuz direkt oynayabilir; sadece tek kişi varsa botlarla 4'e tamamla!
       const occupied = this.slots.filter(s => Boolean(s.id)).length;
       if (occupied < 2) this.fillEmptyWithBots();
     } else {
@@ -547,6 +556,37 @@ export class GameSim {
     this.feed = [];
 
     const map = this.currentMap;
+    // 🪵 Harita kırılabilir barikatlarını başlat
+    this.breakables = (map.breakables || []).map(br => ({
+      id: this._nextEntityId++,
+      x: br.x,
+      y: br.y,
+      r: br.r || 34,
+      hp: 55,
+      maxHp: 55
+    }));
+    this.lighthouseAngle = 0;
+    this.geyserTimer = 4.2;
+
+    // 👑 Altın Taç Modu: Tacı merkezdeki en yakın açık suya yerleştir!
+    this.crownScores = {};
+    if (this.settings.mode === 'crown') {
+      let cx = WORLD_W / 2;
+      let cy = WORLD_H / 2;
+      const offsets = [[0, 0], [0, -110], [0, 110], [-110, 0], [110, 0], [0, -180]];
+      for (const [ox, oy] of offsets) {
+        if (!this._hitsObstacle(cx + ox, cy + oy, 26, map)) {
+          cx += ox;
+          cy += oy;
+          break;
+        }
+      }
+      this.crown = { x: cx, y: cy, holderId: null, dropGrace: 0 };
+      for (const s of activeSlots) this.crownScores[s.id] = 0;
+    } else {
+      this.crown = null;
+    }
+
     const ffaSpawns = [
       map.hunterSpawns[0],
       map.preySpawns[0],
@@ -558,7 +598,7 @@ export class GameSim {
     let fIdx = 0;
 
     this.players = activeSlots.map(s => {
-      const isFfa = this.settings.mode === 'ffa';
+      const isFfa = this.isSoloMode();
       const role = isFfa ? 'ffa' : this.getTeamRole(s.team);
       const teamId = isFfa ? `F${s.idx}` : s.team;
       const ch = CHAR_MAP[s.charId] || CHARACTERS[0];
@@ -648,6 +688,8 @@ export class GameSim {
         inStorm: false,
         wakeTimer: 0,
         sinks: 0,
+        streak: 0,
+        bounty: false,
         botState: {
           tx: WORLD_W / 2,
           ty: WORLD_H / 2,
@@ -1230,7 +1272,12 @@ export class GameSim {
       return;
     }
 
-    // Dalma şartları: sersem/çapalı değil, sığ suda değil, bekleme yok, en az 15 nefes var!
+    // Dalma şartları: taç taşımıyor, sersem/çapalı değil, sığ suda değil, bekleme yok, en az 15 nefes var!
+    if (this.crown && this.crown.holderId === p.id) {
+      this._addFloatText(p.x, p.y - 28, '👑 TAÇLA DALINMAZ!', '#ffd166');
+      this.onEvent({ type: 'sfx', name: 'empty', targetId: p.id });
+      return;
+    }
     if (p.inShallow) {
       this._addFloatText(p.x, p.y - 28, '🏖️ SIĞ SUDA DALINMAZ!', '#ffd166');
       this.onEvent({ type: 'sfx', name: 'empty', targetId: p.id });
@@ -1396,7 +1443,19 @@ export class GameSim {
       target.submerged = false;
       target.diveTime = 0;
       target.sinkingAnim = 1.0;
+      const hadBounty = Boolean(target.bounty);
+      target.streak = 0;
+      target.bounty = false;
       target.lives = Math.max(0, (target.lives || 1) - 1);
+      // 👑 Taç taşıyıcısı battıysa taç suya düşer!
+      if (this.crown && this.crown.holderId === target.id) {
+        this.crown.holderId = null;
+        this.crown.x = clamp(target.x, 70, WORLD_W - 70);
+        this.crown.y = clamp(target.y, this.currentMap.beach ? this.currentMap.beach.sandY + 45 : 70, WORLD_H - 70);
+        this.crown.dropGrace = 0.5;
+        this._addPulse(this.crown.x, this.crown.y, 130, 'flash', 'N');
+        this._pushFeed(`👑 ${target.name} battı — ALTIN TAÇ SUYA DÜŞTÜ!`, 'firearm');
+      }
       const tStat = this._stat(target.id);
       if (tStat) tStat.deaths += 1;
       const attacker = this.players.find(p => p.id === attackerId);
@@ -1405,9 +1464,27 @@ export class GameSim {
         const aStat = this._stat(attacker.id);
         if (aStat && attacker.id !== target.id) aStat.sinks += 1;
 
-        // 🔥 Seri & Özel Anons Bannerları!
         if (attacker.id !== target.id) {
-          if (attacker.sinks >= 3) {
+          attacker.streak = (attacker.streak || 0) + 1;
+          // 💰 KELLE ÖDÜLÜ AVLANDI!
+          if (hadBounty && attacker.alive) {
+            attacker.hp = Math.min(attacker.maxHp, attacker.hp + 40);
+            attacker.shield = Math.min(65, (attacker.shield || 0) + 35);
+            attacker.shieldTimer = Math.max(attacker.shieldTimer, 8.0);
+            if (this.settings.skillTree) {
+              const aSlot = this.slots.find(s => s.id === attacker.id);
+              if (aSlot) aSlot.skillPoints = (aSlot.skillPoints || 0) + 1;
+            }
+            this._addPulse(attacker.x, attacker.y, 130, 'heal', attacker.team);
+            this._addFloatText(attacker.x, attacker.y - 36, '💰 ÖDÜL KAPILDI! +40 CAN +35 KALKAN', '#ffd166');
+            this._triggerBanner('💰 ÖDÜL AVLANDI!', `${attacker.name}, ${target.name}'in kellesini aldı! (+1 Yetenek Puanı)`, '#ffd166');
+            this._pushFeed(`💰 ${attacker.name}, ${target.name} üzerindeki Kelle Ödülünü kaptı!`, 'firearm');
+          } else if (attacker.streak >= 2 && !attacker.bounty) {
+            // 💰 Yeni Kelle Ödülü Açıldı!
+            attacker.bounty = true;
+            this._triggerBanner('💰 KELLE ÖDÜLÜ!', `${attacker.name} seri yaptı — onu batıran büyük ödül alır!`, '#ffd166');
+            this._pushFeed(`💰 ${attacker.name} üzerinde Kelle Ödülü açıldı!`, 'firearm');
+          } else if (attacker.sinks >= 3) {
             this._triggerBanner('👑 DURDURULAMAZ!', `${attacker.name} (${attacker.sinks} Batırma!)`, '#ff4d6d');
           } else if (attacker.sinks === 2) {
             this._triggerBanner('🔥 ÇİFTE BATIRMA!', `${attacker.name} ortalığı süpürüyor!`, '#ffb703');
@@ -1417,8 +1494,8 @@ export class GameSim {
             this._triggerBanner('🦈 KÖPEKBALIĞI PUSUSU!', `${attacker.name} su altından bitirdi!`, '#38bdf8');
           }
         }
-        // 💀 Deathmatch Kill Ödülü: third-party dengesini korur!
-        if (this.settings.mode === 'ffa' && attacker.alive && attacker.id !== target.id) {
+        // 💀 Deathmatch / Altın Taç Kill Ödülü: third-party dengesini korur!
+        if (this.isSoloMode() && attacker.alive && attacker.id !== target.id && !hadBounty) {
           attacker.hp = Math.min(attacker.maxHp, attacker.hp + 40);
           attacker.breath = attacker.maxBreath;
           attacker.breathRegenDelay = 0;
@@ -1438,11 +1515,16 @@ export class GameSim {
       this.onEvent({ type: 'sfx', name: 'sink' });
       const byText = attacker ? `${attacker.name} tarafından` : (sourceLabel || 'Derin girdap');
 
-      // ❤️ MARIO KALP SİSTEMİ: Kalan kalbi varsa 2.6 sn sonra yeniden doğar!
-      if (target.lives > 0) {
+      // ❤️ MARIO KALP SİSTEMİ & 👑 ALTIN TAÇ YENİDEN DOĞMA!
+      if (target.lives > 0 || this.settings.mode === 'crown') {
         target.respawnTimer = 2.6;
-        const heartsTxt = '❤️'.repeat(target.lives) + '🖤'.repeat(Math.max(0, target.maxLives - target.lives));
-        this._pushFeed(`💔 ${target.name} 1 kalp kaybetti! (${heartsTxt} — 2.6s sonra doğacak)`, 'sink');
+        if (this.settings.mode === 'crown' && target.lives <= 0) {
+          target.lives = target.maxLives;
+        }
+        const heartsTxt = target.maxLives > 1
+          ? ` (${'❤️'.repeat(target.lives)}${'🖤'.repeat(Math.max(0, target.maxLives - target.lives))} — 2.6s)`
+          : ' (2.6s sonra yeniden doğacak)';
+        this._pushFeed(`💔 ${target.name} suya gömüldü!${heartsTxt}`, 'sink');
       } else {
         this._pushFeed(`🌊 ${target.name} SUYA GÖMÜLDÜ! (${byText})`, 'sink');
 
@@ -1525,10 +1607,98 @@ export class GameSim {
       if (this.feed[i].ttl <= 0) this.feed.splice(i, 1);
     }
 
-    // Update zones (ink clouds & flares)
+    // Update zones (ink clouds, flares, gravity, kelp & lava geyser warnings!)
     for (let i = this.zones.length - 1; i >= 0; i--) {
-      this.zones[i].life -= dt;
-      if (this.zones[i].life <= 0) this.zones.splice(i, 1);
+      const z = this.zones[i];
+      z.life -= dt;
+      if (z.life <= 0) {
+        this.zones.splice(i, 1);
+        if (z.kind === 'geyser_warn') {
+          this._eruptGeyser(z);
+        }
+      }
+    }
+
+    // 🗺️ HARİTA ÖZEL CANLI MEKANİKLERİ!
+    const curMap = this.currentMap;
+    // 1) 🗼 Dönen Deniz Feneri (Korsan Enkazı & Hayalet Sis)
+    if (curMap.lighthouse) {
+      const lh = curMap.lighthouse;
+      this.lighthouseAngle = (this.lighthouseAngle + lh.speed * dt) % (Math.PI * 2);
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        const d = dist(lh.x, lh.y, p.x, p.y);
+        if (d <= lh.range) {
+          let diff = Math.abs(angleBetween(lh.x, lh.y, p.x, p.y) - this.lighthouseAngle) % (Math.PI * 2);
+          if (diff > Math.PI) diff = Math.PI * 2 - diff;
+          if (diff <= lh.halfAngle) {
+            p.revealTimer = Math.max(p.revealTimer, 1.0);
+            p.inFog = false;
+          }
+        }
+      }
+    }
+    // 2) 🌋 Su Altı Lav Gayzerleri (Volkanik Resif)
+    if (curMap.geysers) {
+      this.geyserTimer -= dt;
+      if (this.geyserTimer <= 0) {
+        this.geyserTimer = 6.4;
+        const count = 2 + (Math.random() < 0.45 ? 1 : 0);
+        for (let g = 0; g < count; g++) {
+          for (let tries = 0; tries < 10; tries++) {
+            const gx = 200 + Math.random() * (WORLD_W - 400);
+            const gy = 170 + Math.random() * (WORLD_H - 340);
+            if (!this._hitsObstacle(gx, gy, 55, curMap)) {
+              this.zones.push({
+                id: this._nextEntityId++,
+                kind: 'geyser_warn',
+                team: 'N',
+                x: gx,
+                y: gy,
+                r: 68,
+                life: 1.6,
+                maxLife: 1.6
+              });
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 👑 ALTIN TAÇ MODU SİMÜLASYONU
+    if (this.crown) {
+      if (this.crown.dropGrace > 0) this.crown.dropGrace = Math.max(0, this.crown.dropGrace - dt);
+      if (this.crown.holderId) {
+        const holder = this.players.find(pl => pl.id === this.crown.holderId);
+        if (!holder || !holder.alive) {
+          this.crown.holderId = null;
+        } else {
+          this.crown.x = holder.x;
+          this.crown.y = holder.y;
+          holder.revealTimer = Math.max(holder.revealTimer, 0.4);
+          if (holder.submerged) this._surfacePlayer(holder, true);
+          this.crownScores[holder.id] = Math.min(100, (this.crownScores[holder.id] || 0) + 5.5 * dt);
+          if (this.crownScores[holder.id] >= 100) {
+            this.ffaScores[holder.id] = (this.ffaScores[holder.id] || 0) + 1;
+            this._endRound('crown', holder.id, `👑 ${holder.name} 100 Altın Taç puanına ulaştı!`, holder.name);
+            return;
+          }
+        }
+      } else if (this.crown.dropGrace <= 0) {
+        for (const p of this.players) {
+          if (!p.alive || p.submerged) continue;
+          if (dist(p.x, p.y, this.crown.x, this.crown.y) <= p.r + 24) {
+            this.crown.holderId = p.id;
+            this._addPulse(p.x, p.y, 130, 'heal', p.team);
+            this._addFloatText(p.x, p.y - 34, '👑 ALTIN TACI KAPTI!', '#ffd166');
+            this._triggerBanner('👑 TAÇ KAPILDI!', `${p.name} Altın Tacı aldı — 100 puana koşuyor!`, '#ffd166');
+            this._pushFeed(`👑 ${p.name} Altın Tacı kaptı!`, 'firearm');
+            this.onEvent({ type: 'sfx', name: 'boost' });
+            break;
+          }
+        }
+      }
     }
 
     // Update pulses
@@ -1751,6 +1921,7 @@ export class GameSim {
       const evSpd = this.roundEvent === 'kasirga_hizi' ? 1.25 : 1.0;
       let maxSpd = ch.speed * p.speedMult * p.slowFactor * pSk.speedMult * evSpd;
       if (p.role === 'hunter') maxSpd *= 1.03; // Hafif avcı takip hızı avantajı
+      if (this.crown && this.crown.holderId === p.id) maxSpd *= 0.87; // 👑 Taç taşıyıcısı %13 yavaşlar
       if (p.submerged) maxSpd *= 0.66 * pSk.subSpeedBonus; // Su altında yavaş gizlenme ve pusu hızı
       if (p.rootTimer > 0 || p.stunTimer > 0) maxSpd = 0;
 
@@ -1844,6 +2015,15 @@ export class GameSim {
 
       // Hunter & FFA Ram (Suya Bastırma) collision check
       if ((p.role === 'hunter' || p.role === 'ffa') && p.ramActive > 0) {
+        // 🪵 SPACE darbesiyle kırılabilir barikatları parçala!
+        for (let bi = this.breakables.length - 1; bi >= 0; bi--) {
+          const br = this.breakables[bi];
+          const bKey = `br_${br.id}`;
+          if (!p.ramHitIds.has(bKey) && dist(p.x, p.y, br.x, br.y) <= p.r + br.r + 14) {
+            p.ramHitIds.add(bKey);
+            this._damageBreakable(br, 38);
+          }
+        }
         for (const other of this.players) {
           if (!other.alive || other.submerged || other.team === p.team || p.ramHitIds.has(other.id)) continue;
           if (dist(p.x, p.y, other.x, other.y) <= p.r + other.r + 14) {
@@ -1991,6 +2171,18 @@ export class GameSim {
       const minPY = map.beach ? map.beach.sandY : 10;
       let dead = pr.traveled >= pr.maxDist || pr.x < 10 || pr.x > WORLD_W - 10 || pr.y < minPY || pr.y > WORLD_H - 10;
 
+      // 🪵 Breakable barricade hit -> damage & shatter!
+      if (!dead) {
+        for (let bi = this.breakables.length - 1; bi >= 0; bi--) {
+          const br = this.breakables[bi];
+          if (dist(pr.x, pr.y, br.x, br.y) <= pr.r + br.r) {
+            dead = true;
+            this._damageBreakable(br, Math.max(22, pr.damage || 28));
+            break;
+          }
+        }
+      }
+
       // Obstacle hit
       if (!dead && this._hitsObstacle(pr.x, pr.y, pr.r, map)) {
         dead = true;
@@ -2088,6 +2280,17 @@ export class GameSim {
 
     // Check Round Win Conditions (kalan kalbi > 0 olanlar hâlâ oyundadır!)
     const inRound = (p) => p.alive || (p.lives > 0);
+    if (this.settings.mode === 'crown') {
+      if (this.phaseTimer <= 0) {
+        const ranked = [...this.players].sort((a, b) => (this.crownScores[b.id] || 0) - (this.crownScores[a.id] || 0));
+        const win = ranked[0];
+        if (win) {
+          this.ffaScores[win.id] = (this.ffaScores[win.id] || 0) + 1;
+          this._endRound('crown', win.id, `Süre doldu — 👑 ${Math.round(this.crownScores[win.id] || 0)} puanla ${win.name} kazandı!`, win.name);
+        }
+      }
+      return;
+    }
     if (this.settings.mode === 'ffa') {
       const aliveAll = this.players.filter(inRound);
       if (aliveAll.length <= 1) {
@@ -2229,7 +2432,7 @@ export class GameSim {
         if (st) st.survived += 1;
       }
     }
-    if (winnerRole !== 'ffa' && (winnerTeam === 'A' || winnerTeam === 'B')) {
+    if (winnerRole !== 'ffa' && winnerRole !== 'crown' && (winnerTeam === 'A' || winnerTeam === 'B')) {
       this.scores[winnerTeam] += 1;
     }
     this.onEvent({ type: 'sfx', name: 'round_end' });
@@ -2242,7 +2445,7 @@ export class GameSim {
       humans: this.players.filter(p => !p.isBot).map(p => ({
         charId: p.charId,
         role: p.role,
-        won: winnerRole === 'ffa' ? p.id === winnerTeam : p.team === winnerTeam,
+        won: (winnerRole === 'ffa' || winnerRole === 'crown') ? p.id === winnerTeam : p.team === winnerTeam,
         items: p.items.map(i => i.id),
         skills: [...(p.skills || [])]
       }))
@@ -2250,8 +2453,36 @@ export class GameSim {
     this.onEvent({ type: 'phase', phase: 'round_end', round: this.round });
   }
 
+  _eruptGeyser(z) {
+    this._addPulse(z.x, z.y, z.r + 22, 'boom', 'N');
+    this._addFloatText(z.x, z.y - 16, '🌋 LAV!', '#ff6b35');
+    this.onEvent({ type: 'sfx', name: 'shot_heavy' });
+    for (const p of this.players) {
+      if (!p.alive) continue;
+      const d = dist(z.x, z.y, p.x, p.y);
+      if (d <= z.r + p.r) {
+        if (p.submerged) this._surfacePlayer(p, true);
+        const a = d > 1 ? angleBetween(z.x, z.y, p.x, p.y) : Math.random() * Math.PI * 2;
+        this._applyDamage(p, 36, null, Math.cos(a) * 360, Math.sin(a) * 360, 'Lav Gayzeri');
+      }
+    }
+  }
+
+  _damageBreakable(br, dmg) {
+    br.hp -= dmg;
+    this._addPulse(br.x, br.y, br.r + 18, 'splash', 'N');
+    this.onEvent({ type: 'sfx', name: 'hit' });
+    if (br.hp <= 0) {
+      const idx = this.breakables.indexOf(br);
+      if (idx >= 0) this.breakables.splice(idx, 1);
+      this._addPulse(br.x, br.y, br.r + 45, 'boom', 'N');
+      this._addFloatText(br.x, br.y - 18, '🪵 KIRILDI!', '#fde68a');
+      this.onEvent({ type: 'sfx', name: 'shot_heavy' });
+    }
+  }
+
   _advanceAfterRound() {
-    if (this.settings.mode === 'ffa') {
+    if (this.isSoloMode()) {
       if (this.round >= this.totalRounds) {
         const ranked = this.getActiveSlots(true)
           .map(s => ({ id: s.id, name: s.name, pts: this.ffaScores[s.id] || 0 }))
@@ -2296,10 +2527,28 @@ export class GameSim {
         if (dist(x, y, cx, cy) < r) return true;
       }
     }
+    for (const br of this.breakables) {
+      if (dist(x, y, br.x, br.y) < br.r + r) return true;
+    }
     return false;
   }
 
   _resolveObstacleCollision(ent, r, map, bounce = false) {
+    for (const br of this.breakables) {
+      const d = dist(ent.x, ent.y, br.x, br.y);
+      const minD = br.r + r;
+      if (d < minD && d > 0.001) {
+        const nx = (ent.x - br.x) / d;
+        const ny = (ent.y - br.y) / d;
+        ent.x = br.x + nx * minD;
+        ent.y = br.y + ny * minD;
+        if (bounce) {
+          const dot = ent.vx * nx + ent.vy * ny;
+          ent.vx -= 2 * dot * nx;
+          ent.vy -= 2 * dot * ny;
+        }
+      }
+    }
     for (const obs of map.rocks) {
       if (obs.type === 'rock') {
         const d = dist(ent.x, ent.y, obs.x, obs.y);
@@ -2386,6 +2635,21 @@ export class GameSim {
 
     let mx = 0;
     let my = 0;
+
+    // 👑 Altın Taç Modu: Bot düşen taca koşsun veya taçlıyı kovalasın!
+    if (this.crown && !this.crown.holderId) {
+      const a = angleBetween(bot.x, bot.y, this.crown.x, this.crown.y);
+      bot.aim = a;
+      this.inputs[bot.id] = { mx: Math.cos(a), my: Math.sin(a), aim: a };
+      return;
+    }
+    if (this.crown && this.crown.holderId && this.crown.holderId !== bot.id && !target) {
+      const holder = this.players.find(pl => pl.id === this.crown.holderId && pl.alive);
+      if (holder) {
+        target = holder;
+        bestD = dist(bot.x, bot.y, holder.x, holder.y);
+      }
+    }
 
     // Bot takım arkadaşının kurtarma şamandırasına koşsun (yakında tehdit yoksa!)
     const allyBuoy = this.rescueBuoys.find(rb => rb.team === bot.team);
@@ -2586,6 +2850,16 @@ export class GameSim {
       banner: this.banner ? { id: this.banner.id, text: this.banner.text, sub: this.banner.sub, color: this.banner.color } : null,
       scores: { ...this.scores },
       ffaScores: { ...this.ffaScores },
+      crown: this.crown ? { x: Math.round(this.crown.x), y: Math.round(this.crown.y), holderId: this.crown.holderId } : null,
+      crownScores: this.crown ? Object.fromEntries(Object.entries(this.crownScores).map(([k, v]) => [k, Math.round(v)])) : null,
+      breakables: this.breakables.map(br => ({ id: br.id, x: br.x, y: br.y, r: br.r, hp: Math.round(br.hp), maxHp: br.maxHp })),
+      lighthouse: this.currentMap.lighthouse ? {
+        x: this.currentMap.lighthouse.x,
+        y: this.currentMap.lighthouse.y,
+        range: this.currentMap.lighthouse.range,
+        halfAngle: this.currentMap.lighthouse.halfAngle,
+        angle: Number(this.lighthouseAngle.toFixed(2))
+      } : null,
       phaseTimer: Number(this.phaseTimer.toFixed(1)),
       roundWinnerRole: this.roundWinnerRole,
       roundWinnerTeam: this.roundWinnerTeam,
@@ -2652,6 +2926,9 @@ export class GameSim {
         inCurrent: p.inCurrent,
         inShallow: p.inShallow,
         inStorm: p.inStorm,
+        bounty: Boolean(p.bounty),
+        streak: p.streak || 0,
+        hasCrown: Boolean(this.crown && this.crown.holderId === p.id),
         sinks: p.sinks
       })),
       projectiles: this.projectiles.map(pr => ({
