@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.31';
+export const GAME_VERSION = 'v4.32';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -65,6 +65,12 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.32',
+    notes: [
+      '⏱️ Tur başı İtem & Yetenek Ağacı seçim süresi 22 sn → 45 sn’ye çıkarıldı (herkes onaylayınca yine anında başlar!).'
+    ]
+  },
   {
     ver: 'v4.31',
     notes: [
@@ -260,7 +266,7 @@ export const CHANGELOG = [
 export const WORLD_W = 1600;
 export const WORLD_H = 1000;
 export const ROUND_DURATION = 85; // dengeli taktiksel kovalamaca süresi (sn)
-export const DRAFT_DURATION = 22; // item seçme süresi (sn)
+export const DRAFT_DURATION = 45; // item & yetenek ağacı seçme süresi (sn)
 export const MAX_ITEMS = 2;
 
 export const POWERUP_TYPES = [
