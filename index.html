@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=4.3b" />
+  <link rel="stylesheet" href="./styles.css?v=4.3c" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -109,9 +109,11 @@
           </div>
 
           <div class="lobby-controls">
-            <button id="btn-switch-team" class="btn ghost">⇄ Takım Değiştir</button>
-            <button id="btn-fill-bots" class="btn ghost">🤖 Boş Yerleri Botla Doldur</button>
-            <button id="btn-open-settings" class="btn ghost">⚙️ Maç Ayarları</button>
+            <div class="lobby-ctrl-row">
+              <button id="btn-switch-team" class="btn ghost compact" title="Takım Değiştir">⇄ Takım</button>
+              <button id="btn-fill-bots" class="btn ghost compact" title="Boş Yerleri Botla Doldur">🤖 Bot Doldur</button>
+              <button id="btn-open-settings" class="btn ghost compact" title="Maç Ayarları">⚙️ Ayarlar</button>
+            </div>
             <button id="btn-start-match" class="btn primary big">🚀 Maçı Başlat</button>
             <div id="client-wait-msg" class="wait-msg" style="display:none">
               Oda kurucusunun maçı başlatması bekleniyor...
