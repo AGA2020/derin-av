@@ -14,7 +14,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=2.5';
+} from './data.js?v=2.6';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -113,6 +113,8 @@ export class GameSim {
     this.decoys = [];
     this.powerups = []; // denizde beliren power-up sandıkları!
     this.powerupSpawnTimer = 4.5;
+    this.barrels = []; // itilebilir & patlatılabilir barut fıçıları!
+    this.barrelSpawnTimer = 20;
     this.rescueBuoys = []; // suya gömülen takım arkadaşını kurtarma şamandıraları!
     this.storm = { active: false, cx: WORLD_W / 2, cy: WORLD_H / 2, r: 1000, announced: false };
     this.pulses = []; // sonar rings, sound pings, splash rings
@@ -320,6 +322,8 @@ export class GameSim {
     this.decoys = [];
     this.powerups = [];
     this.powerupSpawnTimer = 5.0;
+    this.barrels = [];
+    this.barrelSpawnTimer = 22.0;
     this.rescueBuoys = [];
     this.storm = {
       active: false,
@@ -407,9 +411,91 @@ export class GameSim {
 
     this._spawnPowerup();
     this._spawnPowerup();
-    this._pushFeed(`TUR ${this.round} BAŞLADI — ${map.name}! Deniz sandıklarını kap!`, 'info');
+    this._spawnInitialBarrels();
+    this._pushFeed(`TUR ${this.round} BAŞLADI — ${map.name}! Barut fıçıları ve sandıklar hazır!`, 'info');
     this.onEvent({ type: 'sfx', name: 'round_start' });
     this.onEvent({ type: 'phase', phase: 'playing', round: this.round });
+  }
+
+  _spawnInitialBarrels() {
+    const map = this.currentMap;
+    const spots = (map.barrelSpots || []).slice(0, 5);
+    for (const sp of spots) {
+      if (!this._hitsObstacle(sp.x, sp.y, 20, map)) {
+        this.barrels.push({
+          id: this._nextEntityId++,
+          x: sp.x,
+          y: sp.y,
+          vx: 0,
+          vy: 0,
+          r: 17,
+          fuse: 0,
+          lastTouchId: null,
+          lastTouchTeam: null
+        });
+      }
+    }
+  }
+
+  _spawnOneBarrel() {
+    const map = this.currentMap;
+    if (this.barrels.length >= 4) return;
+    const spots = (map.barrelSpots || []).filter(sp =>
+      !this.barrels.some(b => dist(b.x, b.y, sp.x, sp.y) < 100) &&
+      !this._hitsObstacle(sp.x, sp.y, 20, map)
+    );
+    if (spots.length === 0) return;
+    const sp = spots[Math.floor(Math.random() * spots.length)];
+    this.barrels.push({
+      id: this._nextEntityId++,
+      x: sp.x,
+      y: sp.y,
+      vx: 0,
+      vy: 0,
+      r: 17,
+      fuse: 0,
+      lastTouchId: null,
+      lastTouchTeam: null
+    });
+    this._addPulse(sp.x, sp.y, 70, 'splash', 'N');
+  }
+
+  _detonateBarrel(barrel, attackerId, attackerTeam) {
+    const idx = this.barrels.indexOf(barrel);
+    if (idx < 0) return;
+    this.barrels.splice(idx, 1);
+
+    const blastR = 160;
+    this._addPulse(barrel.x, barrel.y, blastR, 'boom', attackerTeam || 'N');
+    this._addFloatText(barrel.x, barrel.y - 18, '💥 BUM!', '#ff6b35');
+    this.onEvent({ type: 'sfx', name: 'shot_heavy' });
+
+    // Damage & knockback nearby players
+    for (const p of this.players) {
+      if (!p.alive) continue;
+      const d = dist(barrel.x, barrel.y, p.x, p.y);
+      if (d <= blastR + p.r) {
+        const falloff = clamp(1 - d / (blastR + p.r + 30), 0.45, 1);
+        const isFriendly = attackerTeam && p.team === attackerTeam;
+        const dmg = Math.round(78 * falloff * (isFriendly ? 0.35 : 1.0));
+        const a = d > 1 ? angleBetween(barrel.x, barrel.y, p.x, p.y) : Math.random() * Math.PI * 2;
+        const kb = (isFriendly ? 260 : 470) * falloff;
+        if (!isFriendly) {
+          p.slowTimer = Math.max(p.slowTimer, 0.9);
+          p.slowFactor = Math.min(p.slowFactor, 0.55);
+        }
+        this._applyDamage(p, dmg, attackerId, Math.cos(a) * kb, Math.sin(a) * kb, 'Barut Fıçısı');
+      }
+    }
+
+    // Chain-detonate nearby barrels with a juicy 0.18s domino fuse!
+    for (const other of this.barrels) {
+      if (other.fuse <= 0 && dist(barrel.x, barrel.y, other.x, other.y) <= blastR + 24) {
+        other.fuse = 0.18;
+        other.lastTouchId = attackerId || other.lastTouchId;
+        other.lastTouchTeam = attackerTeam || other.lastTouchTeam;
+      }
+    }
   }
 
   _spawnPowerup() {
@@ -1182,6 +1268,58 @@ export class GameSim {
       }
     }
 
+    // 🧨 Update Pushable & Chain-Exploding Sea Powder Barrels!
+    this.barrelSpawnTimer -= dt;
+    if (this.barrelSpawnTimer <= 0) {
+      this.barrelSpawnTimer = 22.0;
+      this._spawnOneBarrel();
+    }
+    for (let i = this.barrels.length - 1; i >= 0; i--) {
+      const b = this.barrels[i];
+      if (b.fuse > 0) {
+        b.fuse -= dt;
+        if (b.fuse <= 0) {
+          this._detonateBarrel(b, b.lastTouchId, b.lastTouchTeam);
+          continue;
+        }
+      }
+      // Drift with Turbo Sea Currents!
+      for (const cur of map.currents || []) {
+        if (b.x >= cur.x && b.x <= cur.x + cur.w && b.y >= cur.y && b.y <= cur.y + cur.h) {
+          b.vx += cur.dirX * 360 * dt;
+          b.vy += cur.dirY * 360 * dt;
+        }
+      }
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.vx *= Math.pow(0.22, dt);
+      b.vy *= Math.pow(0.22, dt);
+      if (b.x < 30 || b.x > WORLD_W - 30) { b.x = clamp(b.x, 30, WORLD_W - 30); b.vx *= -0.7; }
+      if (b.y < 30 || b.y > WORLD_H - 30) { b.y = clamp(b.y, 30, WORLD_H - 30); b.vy *= -0.7; }
+      this._resolveObstacleCollision(b, b.r, map, true);
+
+      // Player pushes / launches barrel with boat or SPACE ram!
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        const d = dist(p.x, p.y, b.x, b.y);
+        const minD = p.r + b.r;
+        if (d > 0.01 && d < minD) {
+          const nx = (b.x - p.x) / d;
+          const ny = (b.y - p.y) / d;
+          b.x = p.x + nx * (minD + 1);
+          b.y = p.y + ny * (minD + 1);
+          const launch = (p.ramActive > 0 || p.dashTimer > 0) ? 560 : Math.max(210, Math.hypot(p.vx, p.vy) * 1.35);
+          b.vx = nx * launch;
+          b.vy = ny * launch;
+          b.lastTouchId = p.id;
+          b.lastTouchTeam = p.team;
+          if (p.ramActive > 0) {
+            this.onEvent({ type: 'sfx', name: 'splash' });
+          }
+        }
+      }
+    }
+
     // Update traps (Anchor Trap & Sea Mine)
     for (let i = this.traps.length - 1; i >= 0; i--) {
       const tr = this.traps[i];
@@ -1207,6 +1345,14 @@ export class GameSim {
             this._applyDamage(p, tr.damage, tr.ownerId, Math.cos(pushA) * 380, Math.sin(pushA) * 380, 'Su Altı Mayını');
             this._addPulse(tr.x, tr.y, 145, 'flash', tr.team);
             this.onEvent({ type: 'sfx', name: 'shot_heavy' });
+            // Mayın yakındaki barut fıçısını da tetikler!
+            for (const b of this.barrels) {
+              if (b.fuse <= 0 && dist(tr.x, tr.y, b.x, b.y) <= 135) {
+                b.fuse = 0.14;
+                b.lastTouchId = tr.ownerId;
+                b.lastTouchTeam = tr.team;
+              }
+            }
           }
           break;
         }
@@ -1230,6 +1376,17 @@ export class GameSim {
       // Obstacle hit
       if (!dead && this._hitsObstacle(pr.x, pr.y, pr.r, map)) {
         dead = true;
+      }
+
+      // 🧨 Powder barrel hit -> instant explosion!
+      if (!dead) {
+        for (const b of this.barrels) {
+          if (dist(pr.x, pr.y, b.x, b.y) <= pr.r + b.r + 3) {
+            dead = true;
+            this._detonateBarrel(b, pr.ownerId, pr.team);
+            break;
+          }
+        }
       }
 
       // Player hit
@@ -1739,6 +1896,14 @@ export class GameSim {
         kind: pu.kind,
         x: Math.round(pu.x),
         y: Math.round(pu.y)
+      })),
+      barrels: this.barrels.map(b => ({
+        id: b.id,
+        x: Math.round(b.x),
+        y: Math.round(b.y),
+        vx: Math.round(b.vx),
+        vy: Math.round(b.vy),
+        hot: b.fuse > 0
       })),
       rescueBuoys: this.rescueBuoys.map(rb => ({
         id: rb.id,

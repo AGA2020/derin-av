@@ -1,8 +1,15 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v2.5';
+export const GAME_VERSION = 'v2.6';
 export const CHANGELOG = [
+  {
+    ver: 'v2.6',
+    notes: [
+      '🧨 YENİ MEKANİK: Haritalarda 5 adet itilebilir & patlatılabilir Korsan Barut Fıçısı yüzüyor!',
+      'Tekneyle veya SPACE hamlesiyle fıçıyı rakibe itip mermiyle patlatabilir, yakındaki fıçıları zincirleme patlatabilirsin!'
+    ]
+  },
   {
     ver: 'v2.5',
     notes: [
@@ -498,6 +505,14 @@ export const SEA_MAPS = [
     currents: [
       { x: 540, y: 295, w: 520, h: 68, dirX: 1, dirY: 0, boost: 1.55 },
       { x: 540, y: 637, w: 520, h: 68, dirX: -1, dirY: 0, boost: 1.55 }
+    ],
+    barrelSpots: [
+      { x: 640, y: 500 },
+      { x: 960, y: 500 },
+      { x: 800, y: 330 },
+      { x: 800, y: 670 },
+      { x: 460, y: 410 },
+      { x: 1140, y: 590 }
     ]
   },
   {
@@ -543,6 +558,14 @@ export const SEA_MAPS = [
     currents: [
       { x: 625, y: 205, w: 68, h: 590, dirX: 0, dirY: 1, boost: 1.55 },
       { x: 907, y: 205, w: 68, h: 590, dirX: 0, dirY: -1, boost: 1.55 }
+    ],
+    barrelSpots: [
+      { x: 660, y: 360 },
+      { x: 940, y: 640 },
+      { x: 660, y: 640 },
+      { x: 940, y: 360 },
+      { x: 480, y: 500 },
+      { x: 1120, y: 500 }
     ]
   },
   {
@@ -589,6 +612,14 @@ export const SEA_MAPS = [
       { x: 560, y: 462, w: 480, h: 76, dirX: 1, dirY: 0, boost: 1.62 },
       { x: 460, y: 325, w: 680, h: 64, dirX: -1, dirY: 0, boost: 1.55 },
       { x: 460, y: 611, w: 680, h: 64, dirX: -1, dirY: 0, boost: 1.55 }
+    ],
+    barrelSpots: [
+      { x: 800, y: 500 },
+      { x: 640, y: 355 },
+      { x: 960, y: 645 },
+      { x: 960, y: 355 },
+      { x: 640, y: 645 },
+      { x: 420, y: 500 }
     ]
   }
 ];

@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.5';
-import { hasLineOfSight } from './sim.js?v=2.5';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.6';
+import { hasLineOfSight } from './sim.js?v=2.6';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -160,6 +160,7 @@ export class SeaRenderer {
     this._drawPulses(ctx, state.pulses || [], me);
     this._drawTraps(ctx, state.traps || [], me);
     this._drawPowerups(ctx, state.powerups || []);
+    this._drawBarrels(ctx, state.barrels || []);
     this._drawRescueBuoys(ctx, state.rescueBuoys || [], me);
     this._drawRocksAndShips(ctx, map);
     this._drawSinkEffects(ctx, state.sinkEffects || []);
@@ -367,6 +368,13 @@ export class SeaRenderer {
         ctx.fill();
         ctx.strokeStyle = `rgba(255, 240, 150, ${pu.alpha * 0.85})`;
         ctx.lineWidth = 3;
+      } else if (pu.kind === 'boom') {
+        ctx.fillStyle = `rgba(255, 107, 53, ${pu.alpha * 0.42})`;
+        ctx.beginPath();
+        ctx.arc(pu.x, pu.y, pu.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255, 209, 102, ${pu.alpha * 0.95})`;
+        ctx.lineWidth = 4;
       } else if (pu.kind === 'heal') {
         ctx.strokeStyle = `rgba(6, 214, 160, ${pu.alpha * 0.85})`;
         ctx.lineWidth = 3;
@@ -804,6 +812,43 @@ export class SeaRenderer {
     }
   }
 
+  _drawBarrels(ctx, barrels) {
+    const t = this.time;
+    for (const b of barrels) {
+      const bob = Math.sin(t * 3.8 + b.id * 1.7) * 2.5;
+      ctx.save();
+      ctx.translate(b.x, b.y + bob);
+
+      // Foam ring around floating keg
+      ctx.strokeStyle = b.hot ? 'rgba(255, 77, 109, 0.9)' : 'rgba(255, 140, 66, 0.35)';
+      ctx.lineWidth = b.hot ? 3.5 : 1.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, b.hot ? 24 + Math.sin(t * 28) * 3 : 21, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Wooden barrel body + iron bands
+      ctx.fillStyle = b.hot ? '#ef4444' : '#7c2d12';
+      ctx.strokeStyle = b.hot ? '#fef08a' : '#29150b';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Inner red danger cap
+      ctx.fillStyle = b.hot ? '#fde047' : '#dc2626';
+      ctx.beginPath();
+      ctx.arc(0, 0, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = '14px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🧨', 0, 1);
+      ctx.restore();
+    }
+  }
+
   _drawRescueBuoys(ctx, buoys, me) {
     const t = this.time;
     for (const rb of buoys) {
@@ -1035,6 +1080,14 @@ export class SeaRenderer {
       } else {
         ctx.fillRect(obs.x * sx, obs.y * sy, obs.w * sx, obs.h * sy);
       }
+    }
+
+    // Powder barrels on minimap
+    for (const b of state.barrels || []) {
+      ctx.fillStyle = '#ff6b35';
+      ctx.beginPath();
+      ctx.arc(b.x * sx, b.y * sy, 2.8, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     // Power-ups on minimap
