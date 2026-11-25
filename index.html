@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 2v2 Denizde Av & Avcı</title>
-  <link rel="stylesheet" href="./styles.css?v=2" />
+  <link rel="stylesheet" href="./styles.css?v=2.1" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -202,7 +202,23 @@
     </div>
   </section>
 
+  <div id="version-mismatch" class="version-mismatch" style="display:none">
+    <span id="version-mismatch-text">⚠️ Sürüm uyuşmazlığı tespit edildi!</span>
+    <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
+  </div>
+
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v2.1</button>
+
+  <div id="overlay-changelog" class="overlay">
+    <div class="modal compact-modal changelog-modal">
+      <div class="draft-badge">DERİN AV · SÜRÜM BİLGİSİ</div>
+      <h2 id="changelog-title">Yama Notları</h2>
+      <div id="changelog-body" class="changelog-body"></div>
+      <button id="btn-close-changelog" class="btn primary">Kapat</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=2"></script>
+  <script type="module" src="./js/main.js?v=2.1"></script>
 </body>
 </html>

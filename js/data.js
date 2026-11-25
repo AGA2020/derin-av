@@ -1,6 +1,32 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
+export const GAME_VERSION = 'v2.1';
+export const CHANGELOG = [
+  {
+    ver: 'v2.1',
+    notes: [
+      'Sağ alt köşeye sürüm etiketi ve yama notları eklendi.',
+      'Host ile farklı sürümde olan oyuncular için otomatik yenileme uyarısı eklendi.'
+    ]
+  },
+  {
+    ver: 'v2.0',
+    notes: [
+      'Lag azaltma: istemci hareket tahmini (0ms tepki) ve 28Hz akıcı senkronizasyon.',
+      'Host Alt+Tab donma sorunu Web Worker zamanlayıcı ile tamamen çözüldü.',
+      'Haritaya 5 çeşit deniz Power-Up sandığı eklendi (Can, Kalkan, Hız, +1 Şarj, Radar).',
+      '6 çarın canları %65+ artırıldı ve hasarlar dengelendi (tur süresi 85 sn).'
+    ]
+  },
+  {
+    ver: 'v1.0',
+    notes: [
+      'İlk sürüm: 2v2 Denizde Av & Avcı, her tur değişen roller, 6 çar, 2 item ve tek kullanımlık ateşli silahlar.'
+    ]
+  }
+];
+
 export const WORLD_W = 1600;
 export const WORLD_H = 1000;
 export const ROUND_DURATION = 85; // dengeli taktiksel kovalamaca süresi (sn)

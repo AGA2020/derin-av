@@ -1,6 +1,7 @@
 // DERİN AV — Authoritative 60Hz Denizde Av-Avcı Simülasyon Motoru
 
 import {
+  GAME_VERSION,
   WORLD_W,
   WORLD_H,
   ROUND_DURATION,
@@ -1507,6 +1508,7 @@ export class GameSim {
 
   getLobbySnapshot() {
     return {
+      version: GAME_VERSION,
       phase: this.phase,
       totalRounds: this.totalRounds,
       round: this.round,

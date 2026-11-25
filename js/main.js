@@ -1,6 +1,8 @@
 // DERİN AV — Main Controller (Web Worker Host Loop for Alt-Tab Safety, Client-Side Prediction for Zero-Lag Feel)
 
 import {
+  GAME_VERSION,
+  CHANGELOG,
   WORLD_W,
   WORLD_H,
   CHARACTERS,
@@ -325,6 +327,7 @@ function handleClientReceive(msg) {
   switch (msg.type) {
     case 'lobby': {
       app.lobbyState = msg.data;
+      checkVersionMismatch(app.lobbyState?.version);
       syncPhaseScreens(app.lobbyState.phase);
       if (app.lobbyState.phase === 'lobby') renderLobby();
       else if (app.lobbyState.phase === 'draft') renderDraftUI();
@@ -889,8 +892,56 @@ function renderLoop(now) {
 // EVENT WIRING & INITIALIZATION
 // ============================================================
 
+function checkVersionMismatch(hostVersion) {
+  const banner = $('version-mismatch');
+  if (!banner) return;
+  if (hostVersion && hostVersion !== GAME_VERSION) {
+    $('version-mismatch-text').textContent = `⚠️ Sürüm farklı! Host: ${hostVersion} · Sende: ${GAME_VERSION}`;
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function initVersionUI() {
+  const btn = $('btn-version');
+  if (btn) {
+    btn.textContent = GAME_VERSION;
+    btn.onclick = () => {
+      $('changelog-title').textContent = `Yama Notları (${GAME_VERSION})`;
+      $('changelog-body').innerHTML = CHANGELOG.map(entry => `
+        <div class="cl-entry">
+          <div class="cl-ver">${entry.ver}</div>
+          <ul>${entry.notes.map(n => `<li>${n}</li>`).join('')}</ul>
+        </div>
+      `).join('');
+      $('overlay-changelog').classList.add('active');
+      sfx.play('ui');
+    };
+  }
+  const closeBtn = $('btn-close-changelog');
+  if (closeBtn) {
+    closeBtn.onclick = () => $('overlay-changelog').classList.remove('active');
+  }
+  const overlay = $('overlay-changelog');
+  if (overlay) {
+    overlay.onclick = (e) => {
+      if (e.target === overlay) overlay.classList.remove('active');
+    };
+  }
+  const reloadBtn = $('btn-reload-ver');
+  if (reloadBtn) {
+    reloadBtn.onclick = () => {
+      const u = new URL(window.location.href);
+      u.searchParams.set('_r', Date.now());
+      window.location.replace(u.toString());
+    };
+  }
+}
+
 function init() {
   app.renderer = new SeaRenderer($('game-canvas'));
+  initVersionUI();
 
   if (app.myName) $('input-name').value = app.myName;
 
