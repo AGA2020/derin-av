@@ -1,8 +1,16 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v2.7';
+export const GAME_VERSION = 'v2.8';
 export const CHANGELOG = [
+  {
+    ver: 'v2.8',
+    notes: [
+      '🔥 Ateşli silahlar güçlendirildi: Zıpkın Topu (112 + iz bırakma), Gemi Pompalısı (maks. 135), İşaret Tabancası (82 + 12s aydınlatma), Korsan Tabancası (85 + 2.0s sersemletme), Kısa Namlu Top (maks. 96 + dev itme)!',
+      '💥 Vuruş hissi: Ekranda -112 💥 hasar sayıları, parlak namlu alevi ve kalın mermi izleri eklendi.',
+      '⚙️ Lobi Ayarlarına "Ateşli Silah Modu" eklendi: Tek Atım (Ağır) veya 30 sn Uzun Bekleme!'
+    ]
+  },
   {
     ver: 'v2.7',
     notes: [
@@ -244,12 +252,13 @@ export const HUNTER_ITEMS = [
     firearm: true,
     uses: 1,
     cooldown: 0.5,
-    range: 740,
-    speed: 980,
-    damage: 78,
-    knockback: 250,
-    slowDur: 1.5,
-    desc: 'TEK KULLANIMLIK! Lazer nişangahlı uzun menzil zıpkın (78 Batırma Hasarı + yavaşlatma).'
+    range: 760,
+    speed: 1080,
+    damage: 112,
+    knockback: 320,
+    slowDur: 2.2,
+    revealHitDur: 3.5,
+    desc: 'TEK KULLANIMLIK! Lazerli ağır zıpkın: 112 Batırma Hasarı + 2.2 sn yavaşlatma + 3.5 sn iz bırakma!'
   },
   {
     id: 'blunderbuss',
@@ -259,13 +268,14 @@ export const HUNTER_ITEMS = [
     firearm: true,
     uses: 1,
     cooldown: 0.5,
-    range: 340,
-    speed: 760,
+    range: 350,
+    speed: 800,
     pellets: 5,
     spread: 0.34,
-    damage: 21, // 5 x 21 = 105 maks yakın hasar (tek atışta öldürmez ama fena batırır!)
-    knockback: 210,
-    desc: 'TEK KULLANIMLIK! Yakından 5 iri saçma fırlatır (maks. 105 Batırma Hasarı + sert dalga itmesi).'
+    damage: 27, // 5 x 27 = 135 maks yakın hasar!
+    knockback: 280,
+    slowDur: 0.65,
+    desc: 'TEK KULLANIMLIK! Yakından 5 iri saçma (maks. 135 Batırma Hasarı + dev dalga savurması).'
   },
   {
     id: 'flare_gun',
@@ -275,13 +285,14 @@ export const HUNTER_ITEMS = [
     firearm: true,
     uses: 1,
     cooldown: 0.5,
-    range: 620,
-    speed: 780,
-    damage: 58,
-    knockback: 180,
-    flareRadius: 265,
-    flareDur: 10.0,
-    desc: 'TEK KULLANIMLIK! 58 Batırma Hasarı verir ve düştüğü yeri 10 sn aydınlatıp sisleri dağıtır.'
+    range: 640,
+    speed: 830,
+    damage: 82,
+    knockback: 230,
+    revealHitDur: 3.5,
+    flareRadius: 285,
+    flareDur: 12.0,
+    desc: 'TEK KULLANIMLIK! 82 Batırma Hasarı + isabet edeni 3.5 sn işaretler ve bölgeyi 12 sn aydınlatır.'
   },
   {
     id: 'sonar',
@@ -360,12 +371,12 @@ export const PREY_ITEMS = [
     firearm: true,
     uses: 1,
     cooldown: 0.5,
-    range: 560,
-    speed: 840,
-    damage: 58,
-    knockback: 260,
-    stunDur: 1.35,
-    desc: 'TEK KULLANIMLIK! Savunma silahı: Avcıya 58 Batırma Hasarı verir ve 1.35 sn sersemletir.'
+    range: 580,
+    speed: 900,
+    damage: 85,
+    knockback: 330,
+    stunDur: 2.0,
+    desc: 'TEK KULLANIMLIK! Ağır savunma atışı: Avcıya 85 Batırma Hasarı verir ve 2.0 sn tam sersemletir!'
   },
   {
     id: 'hand_mortar',
@@ -375,13 +386,14 @@ export const PREY_ITEMS = [
     firearm: true,
     uses: 1,
     cooldown: 0.5,
-    range: 320,
-    speed: 700,
+    range: 335,
+    speed: 740,
     pellets: 3,
     spread: 0.36,
-    damage: 24,
-    knockback: 450,
-    desc: 'TEK KULLANIMLIK! Yakından patlayıcı 3 saçma atar ve Avcıyı şiddetli dalgayla geri savurur.'
+    damage: 32, // 3 x 32 = 96 maks hasar!
+    knockback: 540,
+    slowDur: 0.7,
+    desc: 'TEK KULLANIMLIK! 3 ağır patlayıcı saçma (maks. 96 hasar) + Avcıyı dev dalgayla geri fırlatır!'
   },
   {
     id: 'ink_cloud',

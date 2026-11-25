@@ -11,11 +11,11 @@ import {
   PREY_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=2.7';
-import { sfx } from './audio.js?v=2.7';
-import { NetClient, generateRoomCode } from './net.js?v=2.7';
-import { GameSim } from './sim.js?v=2.7';
-import { SeaRenderer } from './render.js?v=2.7';
+} from './data.js?v=2.8';
+import { sfx } from './audio.js?v=2.8';
+import { NetClient, generateRoomCode } from './net.js?v=2.8';
+import { GameSim } from './sim.js?v=2.8';
+import { SeaRenderer } from './render.js?v=2.8';
 
 const $ = (id) => document.getElementById(id);
 
@@ -740,11 +740,13 @@ function updateHudFromState(st) {
             <div class="slot-uses">
               ${depleted
                 ? '<span class="txt-spent">TÜKENDİ</span>'
-                : it.firearm
-                  ? `<span class="txt-firearm">${it.usesLeft}/1 TEK ATIM</span>`
-                  : onCd
-                    ? `<span>${it.cd.toFixed(1)}s</span>`
-                    : `<span>${it.usesLeft}/${it.maxUses} HAZIR</span>`}
+                : onCd
+                  ? `<span>${it.cd.toFixed(1)}s</span>`
+                  : it.longCd
+                    ? '<span class="txt-firearm">🔥 HAZIR (30s CD)</span>'
+                    : it.firearm
+                      ? `<span class="txt-firearm">${it.usesLeft}/1 TEK ATIM</span>`
+                      : `<span>${it.usesLeft}/${it.maxUses} HAZIR</span>`}
             </div>
           </div>
         `;
@@ -923,11 +925,13 @@ function renderLobbyRulesSummary(st) {
     ? '🔄 Dönüşümlü'
     : (SEA_MAPS[Number(s.mapMode)]?.name || 'Harita');
   const hpLabel = `%${Math.round((s.hpMult || 1) * 100)} Can`;
+  const gunLabel = s.firearmMode === 'long_cd' ? '⏳ Silah 30s CD' : '🔥 Tek Atım (Ağır)';
   const pills = [
     `🏁 ${s.totalRounds} Tur`,
     `⏱️ ${s.roundDuration}sn`,
     `❤️ ${hpLabel}`,
     `🗺️ ${mapLabel}`,
+    gunLabel,
     `📦 Sandık ${s.powerups ? '✓' : '✕'}`,
     `🧨 Fıçı ${s.barrels ? '✓' : '✕'}`,
     `🌪️ Fırtına ${s.storm ? '✓' : '✕'}`,
@@ -1069,7 +1073,7 @@ function init() {
   $('btn-preset-std').onclick = () => {
     if (!app.sim) return;
     app.sim.updateSettings({
-      totalRounds: 4, roundDuration: 85, hpMult: 1, mapMode: 'rotate',
+      totalRounds: 4, roundDuration: 85, hpMult: 1, mapMode: 'rotate', firearmMode: 'single',
       powerups: true, barrels: true, storm: true, rescue: true
     });
     broadcastLobby();
@@ -1081,7 +1085,7 @@ function init() {
   $('btn-preset-chaos').onclick = () => {
     if (!app.sim) return;
     app.sim.updateSettings({
-      totalRounds: 6, roundDuration: 60, hpMult: 0.75, mapMode: '2',
+      totalRounds: 6, roundDuration: 60, hpMult: 0.75, mapMode: '2', firearmMode: 'long_cd',
       powerups: true, barrels: true, storm: true, rescue: true
     });
     broadcastLobby();
@@ -1096,7 +1100,7 @@ function init() {
       btn.onclick = () => {
         if (!app.sim) return;
         const raw = btn.dataset.val;
-        const val = key === 'mapMode' ? raw : Number(raw);
+        const val = (key === 'mapMode' || key === 'firearmMode') ? raw : Number(raw);
         app.sim.updateSettings({ [key]: val });
         broadcastLobby();
         renderLobby();

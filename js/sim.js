@@ -14,7 +14,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=2.7';
+} from './data.js?v=2.8';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -91,6 +91,7 @@ export class GameSim {
       roundDuration: ROUND_DURATION,
       hpMult: 1.0,
       mapMode: 'rotate', // 'rotate' | '0' | '1' | '2'
+      firearmMode: 'single', // 'single' | 'long_cd'
       powerups: true,
       barrels: true,
       storm: true,
@@ -262,6 +263,9 @@ export class GameSim {
     if (['rotate', '0', '1', '2'].includes(String(patch.mapMode))) {
       this.settings.mapMode = String(patch.mapMode);
     }
+    if (['single', 'long_cd'].includes(String(patch.firearmMode))) {
+      this.settings.firearmMode = String(patch.firearmMode);
+    }
     for (const k of ['powerups', 'barrels', 'storm', 'rescue']) {
       if (typeof patch[k] === 'boolean') this.settings[k] = patch[k];
     }
@@ -382,11 +386,13 @@ export class GameSim {
       const sp = role === 'hunter' ? map.hunterSpawns[hIdx++ % 2] : map.preySpawns[pIdx++ % 2];
       const itemStates = s.items.map(itemId => {
         const def = ALL_ITEMS[itemId];
+        const longCdMode = def.firearm && this.settings.firearmMode === 'long_cd';
         return {
           id: def.id,
-          usesLeft: def.uses,
-          maxUses: def.uses,
+          usesLeft: longCdMode ? 99 : def.uses,
+          maxUses: longCdMode ? 99 : def.uses,
           firearm: def.firearm,
+          longCd: longCdMode,
           cd: 0
         };
       });
@@ -599,9 +605,17 @@ export class GameSim {
     const angle = Number.isFinite(aimAngle) ? aimAngle : p.aim;
     p.aim = angle;
 
-    // Tüketim: Ateşli silahlar KESİNLİKLE TEK KULLANIMLIK (uses: 1 -> 0)
-    itemState.usesLeft -= 1;
-    itemState.cd = def.cooldown * (ch.cdMult || 1);
+    // Tüketim: Varsayılan TEK KULLANIMLIK (uses: 1 -> 0); Lobi ayarı 'long_cd' ise 30 sn bekleme
+    if (def.firearm && itemState.longCd) {
+      itemState.cd = 30.0 * (ch.cdMult || 1);
+    } else {
+      itemState.usesLeft -= 1;
+      itemState.cd = def.cooldown * (ch.cdMult || 1);
+    }
+
+    if (def.firearm) {
+      this._addPulse(p.x + Math.cos(angle) * 26, p.y + Math.sin(angle) * 26, 68, 'muzzle', p.team);
+    }
 
     const trapBonus = ch.trapBonus || 1;
     const pSpeedMult = ch.projSpeedMult || 1;
@@ -610,21 +624,23 @@ export class GameSim {
       case 'harpoon_cannon': {
         this._spawnProjectile(p, {
           kind: 'harpoon',
+          firearm: true,
           x: p.x + Math.cos(angle) * 24,
           y: p.y + Math.sin(angle) * 24,
           vx: Math.cos(angle) * def.speed * pSpeedMult,
           vy: Math.sin(angle) * def.speed * pSpeedMult,
-          r: 7,
+          r: 8,
           maxDist: def.range,
           damage: def.damage,
           knockback: def.knockback,
           slowDur: def.slowDur,
-          slowFactor: 0.45,
+          slowFactor: 0.42,
+          revealHitDur: def.revealHitDur || 0,
           color: '#ffb703'
         });
-        this._addPulse(p.x, p.y, 460, 'sound', p.team);
+        this._addPulse(p.x, p.y, 480, 'sound', p.team);
         this.onEvent({ type: 'sfx', name: 'shot_heavy' });
-        this._pushFeed(`${p.name} Zıpkın Topu ateşledi! (Tek Atım Tükendi)`, 'firearm');
+        this._pushFeed(`${p.name} Zıpkın Topu ateşledi!${itemState.longCd ? ' (30s Bekleme)' : ' (Tek Atım Tükendi)'}`, 'firearm');
         break;
       }
       case 'blunderbuss': {
@@ -633,67 +649,7 @@ export class GameSim {
           const a = angle + t * def.spread + (Math.random() - 0.5) * 0.05;
           this._spawnProjectile(p, {
             kind: 'pellet',
-            x: p.x + Math.cos(a) * 22,
-            y: p.y + Math.sin(a) * 22,
-            vx: Math.cos(a) * def.speed * pSpeedMult,
-            vy: Math.sin(a) * def.speed * pSpeedMult,
-            r: 5,
-            maxDist: def.range,
-            damage: def.damage,
-            knockback: def.knockback,
-            color: '#fb8500'
-          });
-        }
-        this._addPulse(p.x, p.y, 490, 'sound', p.team);
-        this.onEvent({ type: 'sfx', name: 'shot_heavy' });
-        this._pushFeed(`${p.name} Gemi Pompalısını ateşledi! (Tek Atım Tükendi)`, 'firearm');
-        break;
-      }
-      case 'flare_gun': {
-        this._spawnProjectile(p, {
-          kind: 'flare',
-          x: p.x + Math.cos(angle) * 22,
-          y: p.y + Math.sin(angle) * 22,
-          vx: Math.cos(angle) * def.speed * pSpeedMult,
-          vy: Math.sin(angle) * def.speed * pSpeedMult,
-          r: 7,
-          maxDist: def.range,
-          damage: def.damage,
-          knockback: def.knockback,
-          flareRadius: def.flareRadius * trapBonus,
-          flareDur: def.flareDur,
-          color: '#ff4d6d'
-        });
-        this._addPulse(p.x, p.y, 450, 'sound', p.team);
-        this.onEvent({ type: 'sfx', name: 'shot_pistol' });
-        this._pushFeed(`${p.name} İşaret Tabancası ateşledi! (Tek Atım Tükendi)`, 'firearm');
-        break;
-      }
-      case 'flintlock': {
-        this._spawnProjectile(p, {
-          kind: 'bullet',
-          x: p.x + Math.cos(angle) * 22,
-          y: p.y + Math.sin(angle) * 22,
-          vx: Math.cos(angle) * def.speed * pSpeedMult,
-          vy: Math.sin(angle) * def.speed * pSpeedMult,
-          r: 6,
-          maxDist: def.range,
-          damage: def.damage,
-          knockback: def.knockback,
-          stunDur: def.stunDur,
-          color: '#4cc9f0'
-        });
-        this._addPulse(p.x, p.y, 440, 'sound', p.team);
-        this.onEvent({ type: 'sfx', name: 'shot_pistol' });
-        this._pushFeed(`${p.name} Korsan Tabancasını ateşledi! (Tek Atım Tükendi)`, 'firearm');
-        break;
-      }
-      case 'hand_mortar': {
-        for (let i = 0; i < def.pellets; i++) {
-          const t = (i / (def.pellets - 1)) - 0.5;
-          const a = angle + t * def.spread;
-          this._spawnProjectile(p, {
-            kind: 'pellet',
+            firearm: true,
             x: p.x + Math.cos(a) * 22,
             y: p.y + Math.sin(a) * 22,
             vx: Math.cos(a) * def.speed * pSpeedMult,
@@ -702,15 +658,83 @@ export class GameSim {
             maxDist: def.range,
             damage: def.damage,
             knockback: def.knockback,
+            slowDur: def.slowDur || 0,
+            slowFactor: 0.55,
+            color: '#fb8500'
+          });
+        }
+        this._addPulse(p.x, p.y, 500, 'sound', p.team);
+        this.onEvent({ type: 'sfx', name: 'shot_heavy' });
+        this._pushFeed(`${p.name} Gemi Pompalısını ateşledi!${itemState.longCd ? ' (30s Bekleme)' : ' (Tek Atım Tükendi)'}`, 'firearm');
+        break;
+      }
+      case 'flare_gun': {
+        this._spawnProjectile(p, {
+          kind: 'flare',
+          firearm: true,
+          x: p.x + Math.cos(angle) * 22,
+          y: p.y + Math.sin(angle) * 22,
+          vx: Math.cos(angle) * def.speed * pSpeedMult,
+          vy: Math.sin(angle) * def.speed * pSpeedMult,
+          r: 8,
+          maxDist: def.range,
+          damage: def.damage,
+          knockback: def.knockback,
+          revealHitDur: def.revealHitDur || 0,
+          flareRadius: def.flareRadius * trapBonus,
+          flareDur: def.flareDur,
+          color: '#ff4d6d'
+        });
+        this._addPulse(p.x, p.y, 460, 'sound', p.team);
+        this.onEvent({ type: 'sfx', name: 'shot_pistol' });
+        this._pushFeed(`${p.name} İşaret Tabancası ateşledi!${itemState.longCd ? ' (30s Bekleme)' : ' (Tek Atım Tükendi)'}`, 'firearm');
+        break;
+      }
+      case 'flintlock': {
+        this._spawnProjectile(p, {
+          kind: 'bullet',
+          firearm: true,
+          x: p.x + Math.cos(angle) * 22,
+          y: p.y + Math.sin(angle) * 22,
+          vx: Math.cos(angle) * def.speed * pSpeedMult,
+          vy: Math.sin(angle) * def.speed * pSpeedMult,
+          r: 7,
+          maxDist: def.range,
+          damage: def.damage,
+          knockback: def.knockback,
+          stunDur: def.stunDur,
+          color: '#4cc9f0'
+        });
+        this._addPulse(p.x, p.y, 450, 'sound', p.team);
+        this.onEvent({ type: 'sfx', name: 'shot_pistol' });
+        this._pushFeed(`${p.name} Korsan Tabancasını ateşledi!${itemState.longCd ? ' (30s Bekleme)' : ' (Tek Atım Tükendi)'}`, 'firearm');
+        break;
+      }
+      case 'hand_mortar': {
+        for (let i = 0; i < def.pellets; i++) {
+          const t = (i / (def.pellets - 1)) - 0.5;
+          const a = angle + t * def.spread;
+          this._spawnProjectile(p, {
+            kind: 'pellet',
+            firearm: true,
+            x: p.x + Math.cos(a) * 22,
+            y: p.y + Math.sin(a) * 22,
+            vx: Math.cos(a) * def.speed * pSpeedMult,
+            vy: Math.sin(a) * def.speed * pSpeedMult,
+            r: 7,
+            maxDist: def.range,
+            damage: def.damage,
+            knockback: def.knockback,
+            slowDur: def.slowDur || 0,
+            slowFactor: 0.55,
             color: '#06d6a0'
           });
         }
-        // Recoil propels Prey slightly backward!
-        p.vx -= Math.cos(angle) * 140;
-        p.vy -= Math.sin(angle) * 140;
-        this._addPulse(p.x, p.y, 460, 'sound', p.team);
+        p.vx -= Math.cos(angle) * 165;
+        p.vy -= Math.sin(angle) * 165;
+        this._addPulse(p.x, p.y, 480, 'sound', p.team);
         this.onEvent({ type: 'sfx', name: 'shot_heavy' });
-        this._pushFeed(`${p.name} Kısa Namlu Top ateşledi! (Tek Atım Tükendi)`, 'firearm');
+        this._pushFeed(`${p.name} Kısa Namlu Top ateşledi!${itemState.longCd ? ' (30s Bekleme)' : ' (Tek Atım Tükendi)'}`, 'firearm');
         break;
       }
       case 'sonar': {
@@ -935,7 +959,7 @@ export class GameSim {
     if (this.feed.length > 5) this.feed.pop();
   }
 
-  _applyDamage(target, amount, attackerId, knockVx = 0, knockVy = 0, sourceLabel = '') {
+  _applyDamage(target, amount, attackerId, knockVx = 0, knockVy = 0, sourceLabel = '', isHeavy = false) {
     if (!target.alive) return;
     let dmg = amount;
     if (target.firstHitAvail && dmg >= 5) {
@@ -943,6 +967,7 @@ export class GameSim {
       dmg = Math.round(dmg * (1 - (ch?.firstHitReduction || 0)));
       target.firstHitAvail = false;
     }
+    const rawShown = Math.round(dmg);
     // Çelik Gövde kalkanı önce hasarı emer!
     if (target.shield > 0 && dmg > 0) {
       const absorbed = Math.min(target.shield, dmg);
@@ -952,8 +977,16 @@ export class GameSim {
     target.hp = Math.max(0, target.hp - dmg);
     target.vx += knockVx;
     target.vy += knockVy;
-    this._addPulse(target.x, target.y, 65, 'splash', target.team);
-    this.onEvent({ type: 'sfx', name: 'hit' });
+    this._addPulse(target.x, target.y, isHeavy ? 105 : 65, isHeavy ? 'boom' : 'splash', target.team);
+    if (rawShown >= 15) {
+      this._addFloatText(
+        target.x + (Math.random() - 0.5) * 22,
+        target.y - 24,
+        isHeavy ? `-${rawShown} 💥` : `-${rawShown}`,
+        isHeavy ? '#ffd166' : '#f87171'
+      );
+    }
+    this.onEvent({ type: 'sfx', name: isHeavy ? 'shot_heavy' : 'hit' });
 
     if (target.hp <= 0) {
       target.alive = false;
@@ -1457,7 +1490,10 @@ export class GameSim {
             if (pr.stunDur) {
               p.stunTimer = Math.max(p.stunTimer, pr.stunDur);
             }
-            this._applyDamage(p, pr.damage || 0, pr.ownerId, kx, ky);
+            if (pr.revealHitDur) {
+              p.revealTimer = Math.max(p.revealTimer, pr.revealHitDur);
+            }
+            this._applyDamage(p, pr.damage || 0, pr.ownerId, kx, ky, '', Boolean(pr.firearm));
             break;
           }
         }
@@ -1880,6 +1916,7 @@ export class GameSim {
           usesLeft: it.usesLeft,
           maxUses: it.maxUses,
           firearm: it.firearm,
+          longCd: Boolean(it.longCd),
           cd: Number(it.cd.toFixed(1))
         })),
         spaceCd: Number(p.spaceCd.toFixed(1)),

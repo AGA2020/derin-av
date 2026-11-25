@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.7';
-import { hasLineOfSight } from './sim.js?v=2.7';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.8';
+import { hasLineOfSight } from './sim.js?v=2.8';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -367,6 +367,13 @@ export class SeaRenderer {
         ctx.arc(pu.x, pu.y, pu.r, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = `rgba(255, 240, 150, ${pu.alpha * 0.85})`;
+        ctx.lineWidth = 3;
+      } else if (pu.kind === 'muzzle') {
+        ctx.fillStyle = `rgba(255, 232, 120, ${pu.alpha * 0.65})`;
+        ctx.beginPath();
+        ctx.arc(pu.x, pu.y, pu.r * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255, 160, 40, ${pu.alpha * 0.9})`;
         ctx.lineWidth = 3;
       } else if (pu.kind === 'boom') {
         ctx.fillStyle = `rgba(255, 107, 53, ${pu.alpha * 0.42})`;
@@ -1004,10 +1011,19 @@ export class SeaRenderer {
         ctx.arc(0, 0, 8, -Math.PI * 0.7, Math.PI * 0.7);
         ctx.stroke();
       } else {
-        // Bullet / Pellet / Flare
-        ctx.fillStyle = pr.color || '#ffb703';
+        // Bullet / Pellet / Flare with glowing tracer tail!
+        ctx.strokeStyle = pr.color || '#ffb703';
+        ctx.globalAlpha = 0.55;
+        ctx.lineWidth = Math.max(3, pr.r * 0.9);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-24, 0);
+        ctx.lineTo(0, 0);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#fff9db';
         ctx.shadowColor = pr.color || '#ffb703';
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 14;
         ctx.beginPath();
         ctx.arc(0, 0, pr.r, 0, Math.PI * 2);
         ctx.fill();
