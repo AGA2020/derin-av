@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=3.4" />
+  <link rel="stylesheet" href="./styles.css?v=3.5" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -201,6 +201,17 @@
       </div>
     </div>
 
+    <!-- ⚔️ VS / KARŞILAŞMA EKRANI (TUR BAŞI 3.8 SN) -->
+    <div id="overlay-intro" class="overlay">
+      <div class="modal vs-modal">
+        <div class="vs-header">
+          <div id="intro-map-title" class="draft-badge">TUR 1/4 · FIRTINA BOĞAZI</div>
+          <div class="vs-countdown-wrap">DENİZE AÇILIŞ: <span id="intro-countdown" class="vs-countdown">3</span></div>
+        </div>
+        <div id="intro-vs-body" class="vs-body teams"></div>
+      </div>
+    </div>
+
     <!-- TUR SONU OVERLAY -->
     <div id="overlay-round" class="overlay">
       <div class="modal compact-modal">
@@ -232,7 +243,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.4</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.5</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -425,7 +436,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=3.4"></script>
+  <script type="module" src="./js/main.js?v=3.5"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

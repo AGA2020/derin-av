@@ -1,8 +1,15 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v3.4';
+export const GAME_VERSION = 'v3.5';
 export const CHANGELOG = [
+  {
+    ver: 'v3.5',
+    notes: [
+      '⚔️ YENİ: Her tur başında 3.8 saniyelik "VS / Karşılaşma Ekranı" eklendi!',
+      'İki tarafın (veya Herkes Tek’te tüm oyuncuların) seçtiği çarları ve 2 itemini tur başlamadan hemen önce tek bakışta görebilirsin.'
+    ]
+  },
   {
     ver: 'v3.4',
     notes: [

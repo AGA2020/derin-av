@@ -12,11 +12,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=3.4';
-import { sfx } from './audio.js?v=3.4';
-import { NetClient, generateRoomCode } from './net.js?v=3.4';
-import { GameSim } from './sim.js?v=3.4';
-import { SeaRenderer } from './render.js?v=3.4';
+} from './data.js?v=3.5';
+import { sfx } from './audio.js?v=3.5';
+import { NetClient, generateRoomCode } from './net.js?v=3.5';
+import { GameSim } from './sim.js?v=3.5';
+import { SeaRenderer } from './render.js?v=3.5';
 
 const $ = (id) => document.getElementById(id);
 
@@ -128,7 +128,7 @@ function startHostTicker() {
 
     app.sim.step(dt);
 
-    if (app.sim.phase === 'playing' || app.sim.phase === 'round_end' || app.sim.phase === 'match_end') {
+    if (app.sim.phase === 'playing' || app.sim.phase === 'intro' || app.sim.phase === 'round_end' || app.sim.phase === 'match_end') {
       // 28Hz (35ms) network broadcast -> düşük gecikme + akıcı hareket
       if (now - app.lastBroadcast >= 35) {
         app.lastBroadcast = now;
@@ -193,7 +193,7 @@ function createHostSim() {
       if (app.mode === 'host') app.net?.send({ type: 'sfx', name: ev.name, targetId: ev.targetId || null });
     } else if (ev.type === 'phase') {
       broadcastLobby();
-      if (ev.phase === 'playing') broadcastState();
+      if (ev.phase === 'playing' || ev.phase === 'intro') broadcastState();
     }
   });
   app.sim.addHuman(app.myId, app.myName);
@@ -473,11 +473,13 @@ function syncPhaseScreens(phase) {
   if (phase === 'lobby') {
     setScreen('lobby');
     $('overlay-draft').classList.remove('active');
+    $('overlay-intro').classList.remove('active');
     $('overlay-round').classList.remove('active');
     $('overlay-match').classList.remove('active');
   } else {
     setScreen('game');
     $('overlay-draft').classList.toggle('active', phase === 'draft');
+    $('overlay-intro').classList.toggle('active', phase === 'intro');
     $('overlay-round').classList.toggle('active', phase === 'round_end');
     $('overlay-match').classList.toggle('active', phase === 'match_end');
 
@@ -488,6 +490,8 @@ function syncPhaseScreens(phase) {
         app.draftPicks = [];
       }
       renderDraftUI();
+    } else if (phase === 'intro' && app.liveState) {
+      renderIntroVS(app.liveState);
     } else if (phase === 'round_end' && app.liveState) {
       renderRoundEnd(app.liveState);
     } else if (phase === 'match_end' && app.liveState) {
@@ -899,6 +903,65 @@ function updateHudFromState(st) {
   const feedKey = (st.feed || []).map(f => f.id).join(',');
   setIfChanged('feed', feedKey, () => {
     $('hud-feed').innerHTML = (st.feed || []).map(f => `<div class="feed-item ${f.kind}">${f.text}</div>`).join('');
+  });
+}
+
+function renderIntroVS(st) {
+  const map = SEA_MAPS[(st.mapIndex || 0) % SEA_MAPS.length];
+  const secs = Math.max(0, Math.ceil(st.phaseTimer));
+  setIfChanged('introTimer', secs, () => {
+    $('intro-countdown').textContent = secs > 0 ? String(secs) : 'BAŞLA!';
+  });
+
+  const rosterKey = `${st.round}_${st.mode}_${(st.players || []).map(p => p.id + ':' + (p.items || []).map(i => i.id).join(',')).join('|')}`;
+  setIfChanged('introRoster', rosterKey, () => {
+    $('intro-map-title').textContent = `TUR ${st.round}/${st.totalRounds} · ${map.name.toUpperCase()}`;
+
+    const renderCard = (p) => {
+      const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
+      const isMe = p.id === app.myId;
+      const itemChips = (p.items || []).map(it => {
+        const def = ALL_ITEMS[it.id];
+        if (!def) return '';
+        return `<span class="vs-item ${def.firearm ? 'firearm' : ''}">${def.icon} ${def.name}</span>`;
+      }).join('');
+      return `
+        <div class="vs-card ${isMe ? 'me' : ''}" style="--char-color:${ch.color}">
+          <div class="vs-card-top">
+            <div class="vs-avatar">${ch.icon}</div>
+            <div class="vs-meta">
+              <div class="vs-name">${p.name} ${isMe ? '<span class="tag-me">SEN</span>' : ''}</div>
+              <div class="vs-char">${ch.name} · ${ch.roleTag}</div>
+            </div>
+          </div>
+          <div class="vs-items">${itemChips}</div>
+        </div>
+      `;
+    };
+
+    const body = $('intro-vs-body');
+    if (st.mode === 'ffa') {
+      body.className = 'vs-body ffa';
+      body.innerHTML = `
+        <div class="vs-ffa-title">💀 HERKES TEK — SON AYAKTA KALAN KAZANIR!</div>
+        <div class="vs-ffa-grid">${(st.players || []).map(renderCard).join('')}</div>
+      `;
+    } else {
+      const hunters = (st.players || []).filter(p => p.role === 'hunter');
+      const prey = (st.players || []).filter(p => p.role === 'prey');
+      body.className = 'vs-body teams';
+      body.innerHTML = `
+        <div class="vs-side hunter">
+          <div class="vs-side-head">🎯 AVCILAR</div>
+          <div class="vs-side-cards">${hunters.map(renderCard).join('')}</div>
+        </div>
+        <div class="vs-center-emblem">VS</div>
+        <div class="vs-side prey">
+          <div class="vs-side-head">🌊 AVLAR</div>
+          <div class="vs-side-cards">${prey.map(renderCard).join('')}</div>
+        </div>
+      `;
+    }
   });
 }
 

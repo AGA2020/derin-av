@@ -15,7 +15,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=3.4';
+} from './data.js?v=3.5';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -86,7 +86,7 @@ export function hasLineOfSight(map, x1, y1, x2, y2) {
 export class GameSim {
   constructor(onEvent) {
     this.onEvent = onEvent || (() => {});
-    this.phase = 'lobby'; // lobby | draft | playing | round_end | match_end
+    this.phase = 'lobby'; // lobby | draft | intro | playing | round_end | match_end
     this.settings = {
       mode: '2v2', // '2v2' | '1v1' | 'ffa'
       totalRounds: 4,
@@ -385,7 +385,7 @@ export class GameSim {
     slot.items = cleaned;
     slot.readyItems = ready && cleaned.length === 2;
 
-    // Eğer tüm aktif oyuncular 2 itemini seçtiyse hemen turu başlat!
+    // Eğer tüm aktif oyuncular 2 itemini seçtiyse VS Karşılaşma ekranına geç!
     if (this.getActiveSlots(true).every(s => s.readyItems && s.items.length === 2)) {
       this.startRound();
     }
@@ -405,8 +405,9 @@ export class GameSim {
       s.readyItems = true;
     }
 
-    this.phase = 'playing';
-    this.phaseTimer = this.settings.roundDuration || ROUND_DURATION;
+    // ⚔️ Önce 3.8 sn VS / Karşılaşma Ekranı (herkesin çarı & 2 itemi görünür!)
+    this.phase = 'intro';
+    this.phaseTimer = 3.8;
     this.projectiles = [];
     this.traps = [];
     this.zones = [];
@@ -527,6 +528,14 @@ export class GameSim {
     if (this.settings.barrels) {
       this._spawnInitialBarrels();
     }
+    this.onEvent({ type: 'sfx', name: 'ui' });
+    this.onEvent({ type: 'phase', phase: 'intro', round: this.round });
+  }
+
+  _beginPlay() {
+    const map = this.currentMap;
+    this.phase = 'playing';
+    this.phaseTimer = this.settings.roundDuration || ROUND_DURATION;
     this._pushFeed(`TUR ${this.round} BAŞLADI — ${map.name}!`, 'info');
     this.onEvent({ type: 'sfx', name: 'round_start' });
     this.onEvent({ type: 'phase', phase: 'playing', round: this.round });
@@ -1211,6 +1220,14 @@ export class GameSim {
       this.phaseTimer -= dt;
       if (this.phaseTimer <= 0) {
         this.startRound();
+      }
+      return;
+    }
+
+    if (this.phase === 'intro') {
+      this.phaseTimer -= dt;
+      if (this.phaseTimer <= 0) {
+        this._beginPlay();
       }
       return;
     }
