@@ -14,7 +14,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=2.4';
+} from './data.js?v=2.5';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -391,7 +391,7 @@ export class GameSim {
         revealTimer: 0,
         inFog: false,
         inInk: false,
-        inWhirlpool: false,
+        inCurrent: false,
         inStorm: false,
         wakeTimer: 0,
         sinks: 0,
@@ -851,17 +851,8 @@ export class GameSim {
       // 🛟 Takım arkadaşı hâlâ hayattaysa ve oyuncu bu tur henüz kurtarılmadıysa Kurtarma Şamandırası bırak!
       const aliveAlly = this.players.find(o => o.alive && o.team === target.team && o.id !== target.id);
       if (aliveAlly && !target.rescuedOnce) {
-        let bx = clamp(target.x, 70, WORLD_W - 70);
-        let by = clamp(target.y, 70, WORLD_H - 70);
-        // Girdap içindeyse kenarına kaydır ki kurtaran oyuncu adil durabilsin
-        for (const wp of this.currentMap.whirlpools) {
-          const d = dist(bx, by, wp.x, wp.y);
-          if (d < wp.r + 30) {
-            const a = d > 1 ? angleBetween(wp.x, wp.y, bx, by) : 0;
-            bx = clamp(wp.x + Math.cos(a) * (wp.r + 38), 70, WORLD_W - 70);
-            by = clamp(wp.y + Math.sin(a) * (wp.r + 38), 70, WORLD_H - 70);
-          }
-        }
+        const bx = clamp(target.x, 70, WORLD_W - 70);
+        const by = clamp(target.y, 70, WORLD_H - 70);
         this.rescueBuoys.push({
           id: this._nextEntityId++,
           playerId: target.id,
@@ -1104,24 +1095,25 @@ export class GameSim {
         p.vy *= Math.pow(0.18, dt);
       }
 
-      // Whirlpools (Derin Girdaplar — içine çekip suya gömer!)
-      p.inWhirlpool = false;
-      for (const wp of map.whirlpools) {
-        const d = dist(p.x, p.y, wp.x, wp.y);
-        if (d < wp.r * 1.45) {
-          const pullStrength = (1 - d / (wp.r * 1.45)) * wp.pull * (1 - (ch.whirlpoolResist || 0));
-          const a = angleBetween(p.x, p.y, wp.x, wp.y);
-          // Spiral inward pull
-          p.vx += (Math.cos(a) * pullStrength + Math.cos(a + Math.PI / 2) * pullStrength * 0.45) * dt * 3.2;
-          p.vy += (Math.sin(a) * pullStrength + Math.sin(a + Math.PI / 2) * pullStrength * 0.45) * dt * 3.2;
-          if (d < wp.r * 0.72) {
-            p.inWhirlpool = true;
-            this._applyDamage(p, wp.dps * dt, null, 0, 0, 'Derin Girdap');
-            if (!p.alive) break;
+      // 🌊 Turbo Deniz Akıntıları (Yönlü Hız Koridorları — hasarsız saf hız taktiği!)
+      p.inCurrent = false;
+      for (const cur of map.currents || []) {
+        if (p.x >= cur.x && p.x <= cur.x + cur.w && p.y >= cur.y && p.y <= cur.y + cur.h) {
+          const dot = mx * cur.dirX + my * cur.dirY;
+          if (dot >= -0.15) {
+            // Akıntıyla aynı yönde veya nötr: turbo hızlanma!
+            p.inCurrent = true;
+            const bonus = ch.currentBonus ? 1.25 : 1.0;
+            const push = maxSpd * (cur.boost - 1.0) * bonus;
+            p.vx += (cur.dirX * push) * Math.min(1, 10 * dt);
+            p.vy += (cur.dirY * push) * Math.min(1, 10 * dt);
+          } else if (!ch.currentBonus) {
+            // Ters yönde hafif direnç (Dalga Binicisi etkilenmez, hasar yok!)
+            p.vx += cur.dirX * 55 * dt * 6;
+            p.vy += cur.dirY * 55 * dt * 6;
           }
         }
       }
-      if (!p.alive) continue;
 
       // Integrate position
       p.x = clamp(p.x + p.vx * dt, p.r + 12, WORLD_W - p.r - 12);
@@ -1616,15 +1608,7 @@ export class GameSim {
       }
     }
 
-    // Avoid whirlpools & stay inside storm circle!
-    for (const wp of map.whirlpools) {
-      const d = dist(bot.x, bot.y, wp.x, wp.y);
-      if (d < wp.r * 1.6) {
-        const away = angleBetween(wp.x, wp.y, bot.x, bot.y);
-        mx += Math.cos(away) * 1.4;
-        my += Math.sin(away) * 1.4;
-      }
-    }
+    // Stay inside storm circle!
     if (this.storm.active) {
       const dStorm = dist(bot.x, bot.y, this.storm.cx, this.storm.cy);
       if (dStorm > this.storm.r - 65) {
@@ -1706,7 +1690,7 @@ export class GameSim {
         revealTimer: p.revealTimer > 0,
         inFog: p.inFog,
         inInk: p.inInk,
-        inWhirlpool: p.inWhirlpool,
+        inCurrent: p.inCurrent,
         inStorm: p.inStorm,
         sinks: p.sinks
       })),

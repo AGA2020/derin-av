@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.4';
-import { hasLineOfSight } from './sim.js?v=2.4';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.5';
+import { hasLineOfSight } from './sim.js?v=2.5';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -155,7 +155,7 @@ export class SeaRenderer {
     );
 
     this._drawOcean(ctx, map);
-    this._drawWhirlpools(ctx, map);
+    this._drawCurrents(ctx, map);
     this._drawWakes(ctx);
     this._drawPulses(ctx, state.pulses || [], me);
     this._drawTraps(ctx, state.traps || [], me);
@@ -202,7 +202,7 @@ export class SeaRenderer {
       }
 
       // Low buoyancy / sinking / storm danger edge pulse
-      if (me.hp / me.maxHp < 0.38 || me.inWhirlpool || me.inStorm) {
+      if (me.hp / me.maxHp < 0.38 || me.inStorm) {
         const pulse = 0.16 + 0.12 * Math.sin(this.time * 8);
         const dg = ctx.createRadialGradient(
           this.viewW / 2, this.viewH / 2, Math.min(this.viewW, this.viewH) * 0.25,
@@ -269,45 +269,60 @@ export class SeaRenderer {
     }
   }
 
-  _drawWhirlpools(ctx, map) {
+  _drawCurrents(ctx, map) {
     const t = this.time;
-    for (const wp of map.whirlpools) {
+    for (const cur of map.currents || []) {
       ctx.save();
-      ctx.translate(wp.x, wp.y);
-
-      // Deep dark vortex pit
-      const g = ctx.createRadialGradient(0, 0, 6, 0, 0, wp.r * 1.3);
-      g.addColorStop(0, 'rgba(1, 7, 16, 0.94)');
-      g.addColorStop(0.5, 'rgba(6, 40, 72, 0.65)');
-      g.addColorStop(1, 'rgba(6, 40, 72, 0)');
-      ctx.fillStyle = g;
+      // Rounded glowing sea stream channel
       ctx.beginPath();
-      ctx.arc(0, 0, wp.r * 1.3, 0, Math.PI * 2);
+      ctx.roundRect(cur.x, cur.y, cur.w, cur.h, 24);
+      ctx.fillStyle = 'rgba(14, 165, 233, 0.16)';
       ctx.fill();
+      ctx.strokeStyle = 'rgba(103, 232, 249, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([12, 10]);
+      ctx.lineDashOffset = -t * 55;
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-      // Rotating foam spirals
-      ctx.rotate(t * 1.8);
-      for (let arm = 0; arm < 4; arm++) {
-        ctx.rotate(Math.PI / 2);
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(125, 211, 252, 0.34)';
-        ctx.lineWidth = 2.4;
-        for (let a = 0; a < 3.6; a += 0.25) {
-          const rad = (a / 3.6) * wp.r * 1.15;
-          const px = Math.cos(a * 1.3) * rad;
-          const py = Math.sin(a * 1.3) * rad;
-          if (a === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
+      // Clip interior for animated flowing chevrons
+      ctx.clip();
+      const horizontal = Math.abs(cur.dirX) >= Math.abs(cur.dirY);
+      const spacing = 54;
+      const offset = (t * 95) % spacing;
+
+      ctx.strokeStyle = 'rgba(165, 243, 252, 0.55)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (horizontal) {
+        const cy = cur.y + cur.h / 2;
+        const dir = cur.dirX >= 0 ? 1 : -1;
+        const start = dir > 0 ? cur.x - spacing + offset : cur.x + cur.w + spacing - offset;
+        const count = Math.ceil(cur.w / spacing) + 3;
+        for (let i = 0; i < count; i++) {
+          const cx = start + i * spacing * dir;
+          ctx.beginPath();
+          ctx.moveTo(cx - 10 * dir, cy - 12);
+          ctx.lineTo(cx + 6 * dir, cy);
+          ctx.lineTo(cx - 10 * dir, cy + 12);
+          ctx.stroke();
         }
-        ctx.stroke();
+      } else {
+        const cx = cur.x + cur.w / 2;
+        const dir = cur.dirY >= 0 ? 1 : -1;
+        const start = dir > 0 ? cur.y - spacing + offset : cur.y + cur.h + spacing - offset;
+        const count = Math.ceil(cur.h / spacing) + 3;
+        for (let i = 0; i < count; i++) {
+          const cy = start + i * spacing * dir;
+          ctx.beginPath();
+          ctx.moveTo(cx - 12, cy - 10 * dir);
+          ctx.lineTo(cx, cy + 6 * dir);
+          ctx.lineTo(cx + 12, cy - 10 * dir);
+          ctx.stroke();
+        }
       }
-
-      // Label
-      ctx.rotate(-t * 1.8);
-      ctx.fillStyle = 'rgba(147, 224, 255, 0.55)';
-      ctx.font = '700 11px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('GİRDAP', 0, wp.r + 14);
       ctx.restore();
     }
   }
@@ -722,10 +737,10 @@ export class SeaRenderer {
       ctx.fillStyle = '#ff4d6d';
       ctx.font = '700 11px system-ui, sans-serif';
       ctx.fillText('🌪️ FIRTINA!', 0, -40);
-    } else if (p.inWhirlpool) {
-      ctx.fillStyle = '#38bdf8';
+    } else if (p.inCurrent) {
+      ctx.fillStyle = '#67e8f9';
       ctx.font = '700 11px system-ui, sans-serif';
-      ctx.fillText('🌀 BATIYOR!', 0, -40);
+      ctx.fillText('⚡ AKINTI!', 0, -40);
     }
 
     // Name & Buoyancy bar ("Su Üstü Direnci")
@@ -1004,12 +1019,10 @@ export class SeaRenderer {
     ctx.fill();
     ctx.stroke();
 
-    // Whirlpools
-    for (const wp of map.whirlpools) {
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
-      ctx.beginPath();
-      ctx.arc(wp.x * sx, wp.y * sy, wp.r * sx, 0, Math.PI * 2);
-      ctx.fill();
+    // Turbo currents on minimap
+    for (const cur of map.currents || []) {
+      ctx.fillStyle = 'rgba(34, 211, 238, 0.34)';
+      ctx.fillRect(cur.x * sx, cur.y * sy, cur.w * sx, cur.h * sy);
     }
 
     // Rocks

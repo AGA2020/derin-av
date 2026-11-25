@@ -11,11 +11,11 @@ import {
   PREY_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=2.4';
-import { sfx } from './audio.js?v=2.4';
-import { NetClient, generateRoomCode } from './net.js?v=2.4';
-import { GameSim } from './sim.js?v=2.4';
-import { SeaRenderer } from './render.js?v=2.4';
+} from './data.js?v=2.5';
+import { sfx } from './audio.js?v=2.5';
+import { NetClient, generateRoomCode } from './net.js?v=2.5';
+import { GameSim } from './sim.js?v=2.5';
+import { SeaRenderer } from './render.js?v=2.5';
 
 const $ = (id) => document.getElementById(id);
 
@@ -402,11 +402,26 @@ function stepClientPrediction(dt) {
   app.pred.vx += (mx * maxSpd - app.pred.vx) * Math.min(1, accel * dt);
   app.pred.vy += (my * maxSpd - app.pred.vy) * Math.min(1, accel * dt);
 
+  const map = SEA_MAPS[(app.liveState.mapIndex || 0) % SEA_MAPS.length];
+  for (const cur of map.currents || []) {
+    if (app.pred.x >= cur.x && app.pred.x <= cur.x + cur.w && app.pred.y >= cur.y && app.pred.y <= cur.y + cur.h) {
+      const dot = mx * cur.dirX + my * cur.dirY;
+      if (dot >= -0.15) {
+        const bonus = ch.currentBonus ? 1.25 : 1.0;
+        const push = maxSpd * (cur.boost - 1.0) * bonus;
+        app.pred.vx += cur.dirX * push * Math.min(1, 10 * dt);
+        app.pred.vy += cur.dirY * push * Math.min(1, 10 * dt);
+      } else if (!ch.currentBonus) {
+        app.pred.vx += cur.dirX * 55 * dt * 6;
+        app.pred.vy += cur.dirY * 55 * dt * 6;
+      }
+    }
+  }
+
   app.pred.x = clamp(app.pred.x + app.pred.vx * dt, 32, WORLD_W - 32);
   app.pred.y = clamp(app.pred.y + app.pred.vy * dt, 32, WORLD_H - 32);
 
   // Local obstacle collision so prediction never walks through rocks
-  const map = SEA_MAPS[(app.liveState.mapIndex || 0) % SEA_MAPS.length];
   const r = 20;
   for (const obs of map.rocks) {
     if (obs.type === 'rock') {

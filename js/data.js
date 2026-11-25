@@ -1,8 +1,16 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v2.4';
+export const GAME_VERSION = 'v2.5';
 export const CHANGELOG = [
+  {
+    ver: 'v2.5',
+    notes: [
+      '🌊 Girdaplar tamamen kaldırıldı! Yerine yönlü Turbo Deniz Akıntıları (Hız Koridorları) eklendi.',
+      'Akıntı yönünde süzülürsen +%55 hız kazanırsın — pasif hasar yok, yapışma yok!',
+      'Dalga Binicisi pasifi akıntılardan ekstra hız alacak şekilde güncellendi; Girdap Koyu haritası Akıntı Koyu oldu.'
+    ]
+  },
   {
     ver: 'v2.4',
     notes: [
@@ -201,9 +209,9 @@ export const CHARACTERS = [
     wakeMult: 0.85,
     cdMult: 0.9,
     projSpeedMult: 1.0,
-    whirlpoolResist: 0.55,
+    currentBonus: true,
     turnBonus: true,
-    passive: 'Süper çevik manevra, girdap çekiminden %55 daha az etkilenir, SPACE beklemesi kısa.',
+    passive: 'Süper çevik manevra, turbo akıntılardan ekstra hız kazanır, ters akıntıdan hiç etkilenmez.',
     stats: { hp: 3, speed: 5, utility: 4 }
   }
 ];
@@ -441,12 +449,12 @@ export const ALL_ITEMS = Object.fromEntries(
   [...HUNTER_ITEMS, ...PREY_ITEMS].map(i => [i.id, i])
 );
 
-// 3 DÖNÜŞÜMLÜ DENİZ HARİTASI (Power-up noktaları dahil)
+// 3 DÖNÜŞÜMLÜ DENİZ HARİTASI (Turbo Deniz Akıntıları & Power-up noktaları)
 export const SEA_MAPS = [
   {
     id: 'firtina_bogazi',
     name: 'Fırtına Boğazı',
-    subtitle: 'Merkezde batık gemi, iki yanda derin girdaplar ve sis cepleri',
+    subtitle: 'Merkezde batık gemi, iki yanda hızlı deniz akıntıları ve sis cepleri',
     theme: { deep: '#051624', mid: '#09273d', foam: 'rgba(165, 228, 255, 0.14)' },
     hunterSpawns: [
       { x: 150, y: 380 },
@@ -457,7 +465,8 @@ export const SEA_MAPS = [
       { x: 1440, y: 680 }
     ],
     powerupSpots: [
-      { x: 800, y: 500 },
+      { x: 800, y: 310 },
+      { x: 800, y: 690 },
       { x: 520, y: 340 },
       { x: 1080, y: 660 },
       { x: 520, y: 660 },
@@ -486,15 +495,15 @@ export const SEA_MAPS = [
       { x: 960, y: 270, r: 80 },
       { x: 640, y: 730, r: 80 }
     ],
-    whirlpools: [
-      { x: 800, y: 310, r: 78, pull: 125, dps: 16 },
-      { x: 800, y: 690, r: 78, pull: 125, dps: 16 }
+    currents: [
+      { x: 540, y: 295, w: 520, h: 68, dirX: 1, dirY: 0, boost: 1.55 },
+      { x: 540, y: 637, w: 520, h: 68, dirX: -1, dirY: 0, boost: 1.55 }
     ]
   },
   {
     id: 'korsan_enkazi',
     name: 'Korsan Enkazı',
-    subtitle: 'Parçalanmış gemi gövdeleri, yoğun sis koridorları ve dar geçitler',
+    subtitle: 'Parçalanmış gemi gövdeleri, yoğun sis ve dikey kaçış akıntıları',
     theme: { deep: '#061922', mid: '#0c2f3b', foam: 'rgba(145, 240, 220, 0.13)' },
     hunterSpawns: [
       { x: 165, y: 220 },
@@ -531,15 +540,15 @@ export const SEA_MAPS = [
       { x: 1220, y: 170, r: 85 },
       { x: 380, y: 830, r: 85 }
     ],
-    whirlpools: [
-      { x: 560, y: 210, r: 70, pull: 118, dps: 15 },
-      { x: 1040, y: 790, r: 70, pull: 118, dps: 15 }
+    currents: [
+      { x: 625, y: 205, w: 68, h: 590, dirX: 0, dirY: 1, boost: 1.55 },
+      { x: 907, y: 205, w: 68, h: 590, dirX: 0, dirY: -1, boost: 1.55 }
     ]
   },
   {
-    id: 'girdap_koyu',
-    name: 'Girdap Koyu',
-    subtitle: 'Açık deniz kovalamacası ve üç ölümcül derin girdap!',
+    id: 'akinti_koyu',
+    name: 'Akıntı Koyu',
+    subtitle: 'Açık deniz kovalamacası ve üç süper hızlı turbo deniz akıntısı!',
     theme: { deep: '#041226', mid: '#0a2246', foam: 'rgba(160, 210, 255, 0.15)' },
     hunterSpawns: [
       { x: 170, y: 420 },
@@ -550,6 +559,7 @@ export const SEA_MAPS = [
       { x: 1430, y: 600 }
     ],
     powerupSpots: [
+      { x: 800, y: 500 },
       { x: 800, y: 355 },
       { x: 800, y: 645 },
       { x: 470, y: 250 },
@@ -575,10 +585,10 @@ export const SEA_MAPS = [
       { x: 1260, y: 290, r: 95 },
       { x: 1260, y: 710, r: 95 }
     ],
-    whirlpools: [
-      { x: 800, y: 500, r: 94, pull: 145, dps: 19 },
-      { x: 590, y: 390, r: 66, pull: 112, dps: 15 },
-      { x: 1010, y: 610, r: 66, pull: 112, dps: 15 }
+    currents: [
+      { x: 560, y: 462, w: 480, h: 76, dirX: 1, dirY: 0, boost: 1.62 },
+      { x: 460, y: 325, w: 680, h: 64, dirX: -1, dirY: 0, boost: 1.55 },
+      { x: 460, y: 611, w: 680, h: 64, dirX: -1, dirY: 0, boost: 1.55 }
     ]
   }
 ];
