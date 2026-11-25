@@ -1,9 +1,55 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v3.8';
+export const GAME_VERSION = 'v4.0';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
+
+// 🌿 3 DALLI MAÇ İÇİ YETENEK AĞACI (Her tur +1 Yetenek Puanı!)
+export const SKILL_TREE = [
+  {
+    branch: 'atk',
+    title: '⚔️ Saldırı',
+    color: '#ffb703',
+    nodes: [
+      { id: 'atk1', tier: 1, name: 'Keskin Barut', icon: '💥', desc: '+%12 tüm saldırı & fıçı hasarı' },
+      { id: 'atk2', tier: 2, name: 'Hızlı Hamle', icon: '🌊', desc: 'SPACE bekleme süresi -%22' },
+      { id: 'atk3', tier: 3, name: 'Ağır Namlu', icon: '🎯', desc: '+%20 mermi hızı ve +%25 itme' }
+    ]
+  },
+  {
+    branch: 'deep',
+    title: '🤿 Derinlik',
+    color: '#38bdf8',
+    nodes: [
+      { id: 'deep1', tier: 1, name: 'Geniş Ciğer', icon: '🫁', desc: '+22 Maksimum Nefes' },
+      { id: 'deep2', tier: 2, name: 'Yüzgeç Hızı', icon: '🦈', desc: 'Su altı hız +%14, nefes tüketimi -%15' },
+      { id: 'deep3', tier: 3, name: 'Jaws Çıkışı', icon: '⚡', desc: 'Sürpriz Çıkış +0.7s slow & +15 şok' }
+    ]
+  },
+  {
+    branch: 'def',
+    title: '🛡️ Dayanıklılık',
+    color: '#06d6a0',
+    nodes: [
+      { id: 'def1', tier: 1, name: 'Meşe Gövde', icon: '🛡️', desc: '+28 Maksimum Batma Direnci' },
+      { id: 'def2', tier: 2, name: 'Derin Soluk', icon: '💨', desc: 'Nefes %30 hızlı ve 0.7s erken dolar' },
+      { id: 'def3', tier: 3, name: 'Usta Denizci', icon: '⚓', desc: 'Yardımcı/Tuzak CD -%20 & +%6 hız' }
+    ]
+  }
+];
+
+export const SKILL_NODE_MAP = Object.fromEntries(
+  SKILL_TREE.flatMap(b => b.nodes.map((n, i) => [n.id, { ...n, branch: b.branch, prereq: i > 0 ? b.nodes[i - 1].id : null }]))
+);
+
 export const CHANGELOG = [
+  {
+    ver: 'v4.0',
+    notes: [
+      '❤️ YENİ: Mario Tarzı Can Hakkı (1 / 2 / 3 Kırmızı Kalp ❤️❤️❤️)! Lobi ayarlarından açılır; ölünce 1 kalp kırılır ve 2.6 sn sonra kalkanla yeniden doğarsın!',
+      '🌿 YENİ: 3 Dallı Maç İçi Yetenek Ağacı (Skill Tree)! Her turda herkese +1 Yetenek Puanı gelir — Saldırı, Derinlik veya Dayanıklılık dallarından kendi build’ini kur!'
+    ]
+  },
   {
     ver: 'v3.8',
     notes: [

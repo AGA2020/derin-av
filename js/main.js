@@ -3,6 +3,8 @@
 import {
   GAME_VERSION,
   CHANGELOG,
+  SKILL_TREE,
+  SKILL_NODE_MAP,
   WORLD_W,
   WORLD_H,
   CHARACTERS,
@@ -12,11 +14,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=3.8';
-import { sfx } from './audio.js?v=3.8';
-import { NetClient, generateRoomCode } from './net.js?v=3.8';
-import { GameSim } from './sim.js?v=3.8';
-import { SeaRenderer } from './render.js?v=3.8';
+} from './data.js?v=4.0';
+import { sfx } from './audio.js?v=4.0';
+import { NetClient, generateRoomCode } from './net.js?v=4.0';
+import { GameSim } from './sim.js?v=4.0';
+import { SeaRenderer } from './render.js?v=4.0';
 
 const $ = (id) => document.getElementById(id);
 
@@ -308,6 +310,13 @@ function handleHostReceive(msg) {
       app.sim.setPlayerItems(sender, msg.items, msg.ready);
       broadcastLobby();
       renderDraftUI();
+      break;
+    }
+    case 'unlockSkill': {
+      if (app.sim.unlockSkill(sender, msg.skillId)) {
+        broadcastLobby();
+        renderDraftUI();
+      }
       break;
     }
     case 'input': {
@@ -656,6 +665,59 @@ function renderDraftUI() {
       ? `<strong>🎯 BU TUR AVCISIN!</strong> — Görevin: ${st.settings?.mode === '1v1' ? 'Avı' : 'İki Avı da'} <b>suya gömmek</b>! 2 item seç (Ateşli silahlar <b>TEK KULLANIMLIKTIR</b>).`
       : `<strong>🌊 BU TUR AVSIN!</strong> — Görevin: <b>Suya gömülmeden</b> süreyi tamamla veya ${st.settings?.mode === '1v1' ? 'Avcıyı' : 'Avcıları'} batır! 2 item seç.`;
 
+  // 🌿 Yetenek Ağacı (Skill Tree) paneli — ayarda açıksa göster!
+  const treeWrap = $('draft-skill-tree');
+  if (treeWrap) {
+    if (st.settings?.skillTree) {
+      const mySkills = mySlot.skills || [];
+      const pts = mySlot.skillPoints || 0;
+      treeWrap.style.display = 'block';
+      treeWrap.innerHTML = `
+        <div class="skill-tree-head">
+          <span>🌿 <b>Yetenek Ağacı</b> — Her tur +1 puan kazanıp kalıcı build kur!</span>
+          <span class="skill-pts-pill ${pts > 0 ? 'has-pts' : ''}">${pts > 0 ? `✨ ${pts} Puan Hazır!` : 'Puan Kullanıldı ✓'}</span>
+        </div>
+        <div class="skill-branches">
+          ${SKILL_TREE.map(br => `
+            <div class="skill-branch" style="--br-col:${br.color}">
+              <div class="branch-title">${br.title}</div>
+              <div class="branch-nodes">
+                ${br.nodes.map((n, idx) => {
+                  const owned = mySkills.includes(n.id);
+                  const prereqOk = idx === 0 || mySkills.includes(br.nodes[idx - 1].id);
+                  const canBuy = !owned && prereqOk && pts > 0;
+                  return `
+                    <button class="skill-node ${owned ? 'owned' : canBuy ? 'avail' : 'locked'}"
+                      data-skill="${n.id}" ${canBuy ? '' : 'disabled'} title="${n.name}: ${n.desc}">
+                      <span class="sk-ico">${n.icon}</span>
+                      <span class="sk-txt"><b>${n.name}</b><small>${n.desc}</small></span>
+                      ${owned ? '<span class="sk-check">✓</span>' : ''}
+                    </button>
+                  `;
+                }).join('<span class="sk-arrow">→</span>')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      document.querySelectorAll('[data-skill]').forEach(btn => {
+        btn.onclick = () => {
+          const skillId = btn.dataset.skill;
+          if (app.sim) {
+            if (app.sim.unlockSkill(app.myId, skillId)) {
+              broadcastLobby();
+              renderDraftUI();
+            }
+          } else {
+            app.net?.send({ type: 'unlockSkill', skillId });
+          }
+        };
+      });
+    } else {
+      treeWrap.style.display = 'none';
+    }
+  }
+
   const locked = mySlot.readyItems && mySlot.items.length === 2;
   const picks = locked ? mySlot.items : app.draftPicks;
 
@@ -779,7 +841,7 @@ function updateHudFromState(st) {
   const me = st.players?.find(p => p.id === app.myId);
   if (me) {
     const ch = CHAR_MAP[me.charId] || CHARACTERS[0];
-    const roleKey = `${me.role}_${me.alive}`;
+    const roleKey = `${me.role}_${me.alive}_${me.lives}_${me.respawnTimer}`;
     setIfChanged('role', roleKey, () => {
       $('hud-role-pill').textContent = me.alive
         ? (me.role === 'ffa'
@@ -787,11 +849,13 @@ function updateHudFromState(st) {
           : me.role === 'hunter'
             ? '🎯 AVCISIN — AVI SUYA GÖM!'
             : '🌊 AVSIN — SU ÜSTÜNDE KAL!')
-        : '🌊 SUYA GÖMÜLDÜN (İZLEYİCİ)';
+        : (me.lives > 0
+          ? `❤️ YENİDEN DOĞUYOR... (${me.respawnTimer.toFixed(1)}s)`
+          : '🌊 SUYA GÖMÜLDÜN (İZLEYİCİ)');
       $('hud-role-pill').className = `hud-role-pill ${me.role === 'ffa' ? 'hunter' : me.role} ${me.alive ? '' : 'dead'}`;
     });
 
-    const hpKey = `${me.hp}_${me.maxHp}_${me.breath}_${me.maxBreath}_${me.breathRegen}_${me.shield || 0}`;
+    const hpKey = `${me.hp}_${me.maxHp}_${me.breath}_${me.maxBreath}_${me.breathRegen}_${me.shield || 0}_${me.lives}_${me.maxLives}`;
     setIfChanged('hp', hpKey, () => {
       const pct = Math.max(0, Math.round((me.hp / me.maxHp) * 100));
       const bPct = Math.max(0, Math.round(((me.breath || 0) / (me.maxBreath || 70)) * 100));
@@ -799,9 +863,12 @@ function updateHudFromState(st) {
       $('hud-breath-fill').style.width = `${bPct}%`;
       $('hud-breath-fill').classList.toggle('regen', Boolean(me.breathRegen));
       const shTxt = me.shield > 0 ? ` (+${me.shield} 🛡️)` : '';
+      const heartsTxt = (me.maxLives || 1) > 1
+        ? ` ${'❤️'.repeat(Math.max(0, me.lives || 0))}${'🖤'.repeat(Math.max(0, (me.maxLives || 1) - (me.lives || 0)))}`
+        : '';
       const bStatus = me.breath <= 0 ? ' (KESİLDİ!)' : (me.breathRegen ? ' ↑' : '');
       $('hud-breath-text').textContent = `🫁 Nefes: ${me.breath}/${me.maxBreath}${bStatus}`;
-      $('hud-hp-text').textContent = `${ch.icon} ${ch.name} · 🌊 Batma Direnci: ${me.hp}/${me.maxHp}${shTxt}`;
+      $('hud-hp-text').textContent = `${ch.icon} ${ch.name}${heartsTxt} · 🌊 ${me.hp}/${me.maxHp}${shTxt}`;
     });
 
     // Active Buff / Debuff Status Pills!
@@ -892,17 +959,19 @@ function updateHudFromState(st) {
     });
   }
 
-  const teamKey = (st.players || []).map(p => `${p.id}:${p.alive}:${st.ffaScores?.[p.id] || 0}`).join('|') + `_${isFfa}`;
+  const teamKey = (st.players || []).map(p => `${p.id}:${p.alive}:${p.lives}:${st.ffaScores?.[p.id] || 0}`).join('|') + `_${isFfa}`;
   setIfChanged('teams', teamKey, () => {
+    const hIcons = (p) => (p.maxLives || 1) > 1 ? ` ${'❤️'.repeat(Math.max(0, p.lives || 0))}` : '';
+    const isOut = (p) => !p.alive && (p.lives || 0) <= 0;
     if (isFfa) {
       const all = (st.players || []).slice().sort((a, b) => (st.ffaScores?.[b.id] || 0) - (st.ffaScores?.[a.id] || 0));
-      $('hud-team-a').innerHTML = all.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}">💀 ${p.name}: <b>${st.ffaScores?.[p.id] || 0}</b></span>`).join('');
+      $('hud-team-a').innerHTML = all.map(p => `<span class="mini-p ${isOut(p) ? 'sunk' : 'alive'}">💀 ${p.name}${hIcons(p)}: <b>${st.ffaScores?.[p.id] || 0}</b></span>`).join('');
       $('hud-team-b').innerHTML = '';
     } else {
       const teamA = (st.players || []).filter(p => p.team === 'A');
       const teamB = (st.players || []).filter(p => p.team === 'B');
-      $('hud-team-a').innerHTML = teamA.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}</span>`).join('');
-      $('hud-team-b').innerHTML = teamB.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}</span>`).join('');
+      $('hud-team-a').innerHTML = teamA.map(p => `<span class="mini-p ${isOut(p) ? 'sunk' : 'alive'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}${hIcons(p)}</span>`).join('');
+      $('hud-team-b').innerHTML = teamB.map(p => `<span class="mini-p ${isOut(p) ? 'sunk' : 'alive'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}${hIcons(p)}</span>`).join('');
     }
   });
 
@@ -1236,13 +1305,16 @@ function renderLobbyRulesSummary(st) {
   const hpLabel = `%${Math.round((s.hpMult || 1) * 100)} Can`;
   const gunLabel = s.firearmMode === 'long_cd' ? '⏳ Silah 30s CD' : '🔥 Tek Atım (Ağır)';
   const modeLabel = s.mode === '1v1' ? '⚔️ 1v1 Düello' : s.mode === 'ffa' ? '💀 Herkes Tek (FFA)' : '👥 2v2 Takım';
+  const livesVal = s.lives || 1;
   const pills = [
     modeLabel,
     `🏁 ${s.totalRounds} Tur`,
     `⏱️ ${s.roundDuration}sn`,
-    `❤️ ${hpLabel}`,
+    `${'❤️'.repeat(livesVal)} ${livesVal} Kalp`,
+    `🛡️ ${hpLabel}`,
     `🗺️ ${mapLabel}`,
     gunLabel,
+    `🌿 Ağaç ${s.skillTree !== false ? '✓' : '✕'}`,
     `📦 Sandık ${s.powerups ? '✓' : '✕'}`,
     `🧨 Fıçı ${s.barrels ? '✓' : '✕'}`,
     `🌪️ Fırtına ${s.storm ? '✓' : '✕'}`,
@@ -1384,8 +1456,8 @@ function init() {
   $('btn-preset-std').onclick = () => {
     if (!app.sim) return;
     app.sim.updateSettings({
-      mode: app.sim.settings.mode, totalRounds: 4, roundDuration: 85, hpMult: 1, mapMode: 'rotate', firearmMode: 'single',
-      powerups: true, barrels: true, storm: true, rescue: true
+      mode: app.sim.settings.mode, totalRounds: 4, roundDuration: 85, hpMult: 1, lives: 1, skillTree: true,
+      mapMode: 'rotate', firearmMode: 'single', powerups: true, barrels: true, storm: true, rescue: true
     });
     broadcastLobby();
     renderLobby();
@@ -1396,8 +1468,8 @@ function init() {
   $('btn-preset-chaos').onclick = () => {
     if (!app.sim) return;
     app.sim.updateSettings({
-      mode: app.sim.settings.mode, totalRounds: 6, roundDuration: 60, hpMult: 0.75, mapMode: '2', firearmMode: 'long_cd',
-      powerups: true, barrels: true, storm: true, rescue: true
+      mode: 'ffa', totalRounds: 4, roundDuration: 85, hpMult: 1, lives: 3, skillTree: true,
+      mapMode: '4', firearmMode: 'long_cd', powerups: true, barrels: true, storm: true, rescue: true
     });
     broadcastLobby();
     renderLobby();

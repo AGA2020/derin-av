@@ -3,6 +3,8 @@
 import {
   GAME_VERSION,
   EMOTES,
+  SKILL_TREE,
+  SKILL_NODE_MAP,
   WORLD_W,
   WORLD_H,
   ROUND_DURATION,
@@ -16,7 +18,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=3.8';
+} from './data.js?v=4.0';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -93,7 +95,9 @@ export class GameSim {
       totalRounds: 4,
       roundDuration: ROUND_DURATION,
       hpMult: 1.0,
-      mapMode: 'rotate', // 'rotate' | '0' | '1' | '2'
+      lives: 1, // 1 | 2 | 3 (Mario Kalp Sistemi ❤️❤️❤️)
+      skillTree: true, // 🌿 Maç içi 3 dallı yetenek ağacı
+      mapMode: 'rotate', // 'rotate' | '0'..'5'
       firearmMode: 'single', // 'single' | 'long_cd'
       powerups: true,
       barrels: true,
@@ -117,10 +121,10 @@ export class GameSim {
 
     // 4 Lobby Slots: 0,1 = Takım A | 2,3 = Takım B
     this.slots = [
-      { idx: 0, team: 'A', id: null, name: '', isBot: false, charId: 'kaptan', items: [], readyItems: false },
-      { idx: 1, team: 'A', id: null, name: '', isBot: false, charId: 'kopekbaligi', items: [], readyItems: false },
-      { idx: 2, team: 'B', id: null, name: '', isBot: false, charId: 'hayalet', items: [], readyItems: false },
-      { idx: 3, team: 'B', id: null, name: '', isBot: false, charId: 'fenerci', items: [], readyItems: false }
+      { idx: 0, team: 'A', id: null, name: '', isBot: false, charId: 'kaptan', items: [], readyItems: false, skills: [], skillPoints: 0 },
+      { idx: 1, team: 'A', id: null, name: '', isBot: false, charId: 'kopekbaligi', items: [], readyItems: false, skills: [], skillPoints: 0 },
+      { idx: 2, team: 'B', id: null, name: '', isBot: false, charId: 'hayalet', items: [], readyItems: false, skills: [], skillPoints: 0 },
+      { idx: 3, team: 'B', id: null, name: '', isBot: false, charId: 'fenerci', items: [], readyItems: false, skills: [], skillPoints: 0 }
     ];
 
     // Live match entities
@@ -301,13 +305,16 @@ export class GameSim {
     if ([0.75, 1, 1.4].includes(Number(patch.hpMult))) {
       this.settings.hpMult = Number(patch.hpMult);
     }
+    if ([1, 2, 3].includes(Number(patch.lives))) {
+      this.settings.lives = Number(patch.lives);
+    }
     if (['rotate', '0', '1', '2', '3', '4', '5'].includes(String(patch.mapMode))) {
       this.settings.mapMode = String(patch.mapMode);
     }
     if (['single', 'long_cd'].includes(String(patch.firearmMode))) {
       this.settings.firearmMode = String(patch.firearmMode);
     }
-    for (const k of ['powerups', 'barrels', 'storm', 'rescue']) {
+    for (const k of ['powerups', 'barrels', 'storm', 'rescue', 'skillTree']) {
       if (typeof patch[k] === 'boolean') this.settings[k] = patch[k];
     }
   }
@@ -326,6 +333,8 @@ export class GameSim {
     this.ffaScores = {};
     this.matchStats = {};
     for (const s of this.getActiveSlots(true)) {
+      s.skills = [];
+      s.skillPoints = 0;
       if (s.id) {
         this.ffaScores[s.id] = 0;
         this.matchStats[s.id] = this._blankStat(s);
@@ -386,7 +395,12 @@ export class GameSim {
 
     for (const s of this.getActiveSlots(true)) {
       const role = this.getTeamRole(s.team);
+      // 🌿 Her tur başında herkese eşit +1 Yetenek Puanı!
+      if (this.settings.skillTree) {
+        s.skillPoints = (s.skillPoints || 0) + 1;
+      }
       if (s.isBot) {
+        if (this.settings.skillTree) this._botSpendSkills(s);
         s.items = this._botPickItems(role);
         s.readyItems = true;
       } else {
@@ -395,6 +409,52 @@ export class GameSim {
       }
     }
     this.onEvent({ type: 'phase', phase: 'draft', round: this.round });
+  }
+
+  _botSpendSkills(slot) {
+    while ((slot.skillPoints || 0) > 0) {
+      const avail = Object.values(SKILL_NODE_MAP).filter(n =>
+        !slot.skills.includes(n.id) && (!n.prereq || slot.skills.includes(n.prereq))
+      );
+      if (avail.length === 0) break;
+      const pick = avail[Math.floor(Math.random() * avail.length)];
+      slot.skills.push(pick.id);
+      slot.skillPoints -= 1;
+    }
+  }
+
+  unlockSkill(playerId, skillId) {
+    if (!this.settings.skillTree) return false;
+    const slot = this.slots.find(s => s.id === playerId);
+    const node = SKILL_NODE_MAP[skillId];
+    if (!slot || !node) return false;
+    if ((slot.skillPoints || 0) <= 0) return false;
+    if (slot.skills.includes(skillId)) return false;
+    if (node.prereq && !slot.skills.includes(node.prereq)) return false;
+    slot.skills.push(skillId);
+    slot.skillPoints -= 1;
+    this.onEvent({ type: 'sfx', name: 'boost', targetId: playerId });
+    return true;
+  }
+
+  _computeSkillBonuses(skills = []) {
+    const has = (id) => skills.includes(id);
+    return {
+      dmgMult: has('atk1') ? 1.12 : 1.0,
+      spaceCdMult: has('atk2') ? 0.78 : 1.0,
+      projSpeedMult: has('atk3') ? 1.2 : 1.0,
+      kbMult: has('atk3') ? 1.25 : 1.0,
+      bonusBreath: has('deep1') ? 22 : 0,
+      subSpeedBonus: has('deep2') ? 1.14 : 1.0,
+      breathDrainMult: has('deep2') ? 0.85 : 1.0,
+      ambushExtraSlow: has('deep3') ? 0.7 : 0,
+      ambushExtraDmg: has('deep3') ? 15 : 0,
+      bonusHp: has('def1') ? 28 : 0,
+      regenSpeedMult: has('def2') ? 1.3 : 1.0,
+      regenDelayReduce: has('def2') ? 0.7 : 0,
+      utilCdMult: has('def3') ? 0.8 : 1.0,
+      speedMult: has('def3') ? 1.06 : 1.0
+    };
   }
 
   _botPickItems(role) {
@@ -494,6 +554,11 @@ export class GameSim {
         };
       });
 
+      const sk = this._computeSkillBonuses(this.settings.skillTree ? (s.skills || []) : []);
+      const maxBreath = Math.round(((ch.breath || 70) + sk.bonusBreath) * (this.settings.hpMult || 1));
+      const maxHp = Math.round((ch.hp + sk.bonusHp) * (this.settings.hpMult || 1));
+      const startLives = this.settings.lives || 1;
+
       return {
         id: s.id,
         slotIdx: s.idx,
@@ -502,17 +567,22 @@ export class GameSim {
         role,
         isBot: s.isBot,
         charId: ch.id,
+        skills: [...(s.skills || [])],
+        sk,
         x: sp.x,
         y: sp.y,
         vx: 0,
         vy: 0,
         aim: role === 'hunter' ? 0 : Math.PI,
         r: 20,
-        breath: Math.round((ch.breath || 70) * (this.settings.hpMult || 1)),
-        maxBreath: Math.round((ch.breath || 70) * (this.settings.hpMult || 1)),
+        breath: maxBreath,
+        maxBreath,
         breathRegenDelay: 0,
-        hp: Math.round(ch.hp * (this.settings.hpMult || 1)),
-        maxHp: Math.round(ch.hp * (this.settings.hpMult || 1)),
+        hp: maxHp,
+        maxHp,
+        lives: startLives,
+        maxLives: startLives,
+        respawnTimer: 0,
         shield: 0,
         shieldTimer: 0,
         alive: true,
@@ -729,11 +799,13 @@ export class GameSim {
     p.aim = angle;
 
     // Tüketim: Varsayılan TEK KULLANIMLIK (uses: 1 -> 0); Lobi ayarı 'long_cd' ise 30 sn bekleme
+    const sk = p.sk || this._computeSkillBonuses([]);
     if (def.firearm && itemState.longCd) {
       itemState.cd = 30.0 * (ch.cdMult || 1);
     } else {
       itemState.usesLeft -= 1;
-      itemState.cd = def.cooldown * (ch.cdMult || 1);
+      const utilMult = def.firearm ? 1.0 : sk.utilCdMult;
+      itemState.cd = def.cooldown * (ch.cdMult || 1) * utilMult;
     }
 
     if (def.firearm) {
@@ -741,7 +813,9 @@ export class GameSim {
     }
 
     const trapBonus = ch.trapBonus || 1;
-    const pSpeedMult = ch.projSpeedMult || 1;
+    const pSpeedMult = (ch.projSpeedMult || 1) * (def.firearm ? sk.projSpeedMult : 1.0);
+    const dmgMult = sk.dmgMult;
+    const kbMult = def.firearm ? sk.kbMult : 1.0;
 
     switch (def.id) {
       case 'harpoon_cannon': {
@@ -1031,13 +1105,14 @@ export class GameSim {
     }
 
     const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
+    const sk = p.sk || this._computeSkillBonuses([]);
     const angle = Number.isFinite(aimAngle) ? aimAngle : p.aim;
     p.aim = angle;
     const boost = ch.dashBoost || 1.0;
 
     if (p.role === 'hunter' || p.role === 'ffa') {
       // AVCI / DEATHMATCH: DALGA HAMLESİ / SUYA BASTIRMA (Ram & Submerge)
-      p.spaceCd = 2.3 * (ch.turnBonus ? 0.8 : 1);
+      p.spaceCd = 2.3 * (ch.turnBonus ? 0.8 : 1) * sk.spaceCdMult;
       p.ramActive = 0.28;
       p.ramHitIds = new Set();
       const power = (530 + (p.speedBoost > 0 ? 105 : 0)) * boost;
@@ -1047,7 +1122,7 @@ export class GameSim {
       this.onEvent({ type: 'sfx', name: 'splash' });
     } else {
       // AV: DALGA SIÇRAMASI / KAÇIŞ (Wave Dash)
-      p.spaceCd = 4.4 * (ch.turnBonus ? 0.78 : 1);
+      p.spaceCd = 4.4 * (ch.turnBonus ? 0.78 : 1) * sk.spaceCdMult;
       p.dashTimer = 0.24;
       const power = 620 * boost;
       p.vx = Math.cos(angle) * power;
@@ -1111,6 +1186,7 @@ export class GameSim {
 
     // 🦈 SÜRPRİZ ÇIKIŞ (en az 1 sn su altında kalıp düşmanın dibinde 70px'te çıkınca!)
     if (wasDeepEnough && !forced) {
+      const sk = p.sk || this._computeSkillBonuses([]);
       let ambushHits = 0;
       for (const other of this.players) {
         if (!other.alive || other.team === p.team || other.submerged) continue;
@@ -1118,9 +1194,9 @@ export class GameSim {
         if (d <= 70) {
           ambushHits++;
           const a = d > 1 ? angleBetween(p.x, p.y, other.x, other.y) : Math.random() * Math.PI * 2;
-          other.slowTimer = Math.max(other.slowTimer, 2.0);
+          other.slowTimer = Math.max(other.slowTimer, 2.0 + sk.ambushExtraSlow);
           other.slowFactor = Math.min(other.slowFactor, 0.35); // %65 slow!
-          this._applyDamage(other, 15, p.id, Math.cos(a) * 185, Math.sin(a) * 185, 'Sürpriz Çıkış');
+          this._applyDamage(other, 15 + sk.ambushExtraDmg, p.id, Math.cos(a) * 185, Math.sin(a) * 185, 'Sürpriz Çıkış');
         }
       }
       if (ambushHits > 0) {
@@ -1165,10 +1241,16 @@ export class GameSim {
 
   _applyDamage(target, amount, attackerId, knockVx = 0, knockVy = 0, sourceLabel = '', isHeavy = false) {
     if (!target.alive) return;
-    let dmg = amount;
+    const attackerObj = attackerId ? this.players.find(pl => pl.id === attackerId) : null;
+    const atkDmgMult = (attackerObj && attackerObj.id !== target.id && attackerObj.sk) ? attackerObj.sk.dmgMult : 1.0;
+    const atkKbMult = (attackerObj && attackerObj.id !== target.id && attackerObj.sk && isHeavy) ? attackerObj.sk.kbMult : 1.0;
+    let dmg = amount * atkDmgMult;
+    knockVx *= atkKbMult;
+    knockVy *= atkKbMult;
     if (dmg > 0) {
-      // Hasar alınca nefes yenilenmesi 3.6 sn durur!
-      target.breathRegenDelay = 3.6;
+      // Hasar alınca nefes yenilenmesi 3.6 sn durur (Derin Soluk ile 2.9 sn!)
+      const tSk = target.sk || this._computeSkillBonuses([]);
+      target.breathRegenDelay = Math.max(1.5, 3.6 - tSk.regenDelayReduce);
     }
     if (target.firstHitAvail && dmg >= 5) {
       const ch = CHAR_MAP[target.charId];
@@ -1226,6 +1308,7 @@ export class GameSim {
       target.submerged = false;
       target.diveTime = 0;
       target.sinkingAnim = 1.0;
+      target.lives = Math.max(0, (target.lives || 1) - 1);
       const tStat = this._stat(target.id);
       if (tStat) tStat.deaths += 1;
       const attacker = this.players.find(p => p.id === attackerId);
@@ -1253,28 +1336,36 @@ export class GameSim {
       });
       this.onEvent({ type: 'sfx', name: 'sink' });
       const byText = attacker ? `${attacker.name} tarafından` : (sourceLabel || 'Derin girdap');
-      this._pushFeed(`🌊 ${target.name} SUYA GÖMÜLDÜ! (${byText})`, 'sink');
 
-      // 🛟 Takım arkadaşı hâlâ hayattaysa ve oyuncu bu tur henüz kurtarılmadıysa Kurtarma Şamandırası bırak!
-      const aliveAlly = this.players.find(o => o.alive && o.team === target.team && o.id !== target.id);
-      if (this.settings.rescue && aliveAlly && !target.rescuedOnce) {
-        const bx = clamp(target.x, 70, WORLD_W - 70);
-        const by = clamp(target.y, 70, WORLD_H - 70);
-        this.rescueBuoys.push({
-          id: this._nextEntityId++,
-          playerId: target.id,
-          name: target.name,
-          team: target.team,
-          role: target.role,
-          x: bx,
-          y: by,
-          r: 76,
-          progress: 0,
-          duration: 3.0,
-          life: 15.0,
-          maxLife: 15.0
-        });
-        this._pushFeed(`🛟 ${target.name} için Kurtarma Şamandırası açıldı (15 sn)!`, 'info');
+      // ❤️ MARIO KALP SİSTEMİ: Kalan kalbi varsa 2.6 sn sonra yeniden doğar!
+      if (target.lives > 0) {
+        target.respawnTimer = 2.6;
+        const heartsTxt = '❤️'.repeat(target.lives) + '🖤'.repeat(Math.max(0, target.maxLives - target.lives));
+        this._pushFeed(`💔 ${target.name} 1 kalp kaybetti! (${heartsTxt} — 2.6s sonra doğacak)`, 'sink');
+      } else {
+        this._pushFeed(`🌊 ${target.name} SUYA GÖMÜLDÜ! (${byText})`, 'sink');
+
+        // 🛟 Takım arkadaşı hâlâ hayattaysa ve oyuncu bu tur henüz kurtarılmadıysa Kurtarma Şamandırası bırak!
+        const aliveAlly = this.players.find(o => (o.alive || o.lives > 0) && o.team === target.team && o.id !== target.id);
+        if (this.settings.rescue && aliveAlly && !target.rescuedOnce) {
+          const bx = clamp(target.x, 70, WORLD_W - 70);
+          const by = clamp(target.y, 70, WORLD_H - 70);
+          this.rescueBuoys.push({
+            id: this._nextEntityId++,
+            playerId: target.id,
+            name: target.name,
+            team: target.team,
+            role: target.role,
+            x: bx,
+            y: by,
+            r: 76,
+            progress: 0,
+            duration: 3.0,
+            life: 15.0,
+            maxLife: 15.0
+          });
+          this._pushFeed(`🛟 ${target.name} için Kurtarma Şamandırası açıldı (15 sn)!`, 'info');
+        }
       }
     }
   }
@@ -1404,6 +1495,7 @@ export class GameSim {
           const rStat = this._stat(rescuer.id);
           if (rStat) rStat.rescues += 1;
           fallen.alive = true;
+          fallen.lives = Math.max(1, fallen.lives);
           fallen.submerged = false;
           fallen.diveTime = 0;
           fallen.diveCd = 0;
@@ -1450,6 +1542,13 @@ export class GameSim {
     for (const p of this.players) {
       if (!p.alive) {
         if (p.sinkingAnim > 0) p.sinkingAnim = Math.max(0, p.sinkingAnim - dt * 0.65);
+        // ❤️ Mario Kalp Yeniden Doğma Sayacı!
+        if (p.lives > 0 && p.respawnTimer > 0) {
+          p.respawnTimer -= dt;
+          if (p.respawnTimer <= 0) {
+            this._respawnPlayer(p, map);
+          }
+        }
         continue;
       }
 
@@ -1467,10 +1566,11 @@ export class GameSim {
       if (p.shieldTimer <= 0) p.shield = 0;
 
       // 🤿 Su altı nefes tüketimi vs 🫁 Yüzeyde nefes yenilenmesi!
+      const pSk = p.sk || this._computeSkillBonuses([]);
       if (p.submerged) {
         p.diveTime += dt;
-        p.breath = Math.max(0, p.breath - 22 * dt);
-        p.breathRegenDelay = 2.2;
+        p.breath = Math.max(0, p.breath - (22 * pSk.breathDrainMult) * dt);
+        p.breathRegenDelay = Math.max(1.2, 2.2 - pSk.regenDelayReduce * 0.5);
         if (p.breath <= 0) {
           this._addFloatText(p.x, p.y - 30, '🫁 NEFES BİTTİ!', '#38bdf8');
           this._surfacePlayer(p, true);
@@ -1478,7 +1578,7 @@ export class GameSim {
       } else if (p.breathRegenDelay > 0) {
         p.breathRegenDelay = Math.max(0, p.breathRegenDelay - dt);
       } else if (p.breath < p.maxBreath) {
-        p.breath = Math.min(p.maxBreath, p.breath + 20 * dt);
+        p.breath = Math.min(p.maxBreath, p.breath + (20 * pSk.regenSpeedMult) * dt);
       }
       p.speedBoost = Math.max(0, p.speedBoost - dt);
       if (p.speedBoost <= 0) p.speedMult = 1;
@@ -1524,9 +1624,9 @@ export class GameSim {
         my /= mlen;
       }
 
-      let maxSpd = ch.speed * p.speedMult * p.slowFactor;
+      let maxSpd = ch.speed * p.speedMult * p.slowFactor * pSk.speedMult;
       if (p.role === 'hunter') maxSpd *= 1.03; // Hafif avcı takip hızı avantajı
-      if (p.submerged) maxSpd *= 0.66; // Su altında yavaş gizlenme ve pusu hızı
+      if (p.submerged) maxSpd *= 0.66 * pSk.subSpeedBonus; // Su altında yavaş gizlenme ve pusu hızı
       if (p.rootTimer > 0 || p.stunTimer > 0) maxSpd = 0;
 
       // Smooth sea-gliding physics (su üstünde akıcı kayma + çarpışma/itme koruma)
@@ -1814,9 +1914,10 @@ export class GameSim {
       }
     }
 
-    // Check Round Win Conditions
+    // Check Round Win Conditions (kalan kalbi > 0 olanlar hâlâ oyundadır!)
+    const inRound = (p) => p.alive || (p.lives > 0);
     if (this.settings.mode === 'ffa') {
-      const aliveAll = this.players.filter(p => p.alive);
+      const aliveAll = this.players.filter(inRound);
       if (aliveAll.length <= 1) {
         const win = aliveAll[0] || null;
         if (win) {
@@ -1826,7 +1927,7 @@ export class GameSim {
           this._endRound('ffa', null, 'Herkes aynı anda suya gömüldü — Berabere!', 'Berabere');
         }
       } else if (this.phaseTimer <= 0) {
-        aliveAll.sort((a, b) => (b.hp + b.breath) - (a.hp + a.breath));
+        aliveAll.sort((a, b) => (b.lives * 500 + b.hp + b.breath) - (a.lives * 500 + a.hp + a.breath));
         const win = aliveAll[0];
         this.ffaScores[win.id] = (this.ffaScores[win.id] || 0) + 1;
         this._endRound('ffa', win.id, `Süre doldu — en sağlam kalan ${win.name} kazandı!`, win.name);
@@ -1834,8 +1935,8 @@ export class GameSim {
       return;
     }
 
-    const aliveHunters = this.players.filter(p => p.role === 'hunter' && p.alive);
-    const alivePrey = this.players.filter(p => p.role === 'prey' && p.alive);
+    const aliveHunters = this.players.filter(p => p.role === 'hunter' && inRound(p));
+    const alivePrey = this.players.filter(p => p.role === 'prey' && inRound(p));
 
     if (alivePrey.length === 0) {
       const hunterTeam = this.players.find(p => p.role === 'hunter').team;
@@ -1847,6 +1948,51 @@ export class GameSim {
       const preyTeam = this.players.find(p => p.role === 'prey').team;
       this._endRound('prey', preyTeam, 'Süre doldu — Avlar su üstünde kaldı!');
     }
+  }
+
+  _respawnPlayer(p, map) {
+    // Düşmanlardan en uzak güvenli başlangıç noktasını seç!
+    const candidates = [...map.hunterSpawns, ...map.preySpawns];
+    const enemies = this.players.filter(o => o.alive && o.team !== p.team);
+    let bestSp = candidates[0];
+    let bestScore = -1;
+    for (const sp of candidates) {
+      let minD = 9999;
+      for (const e of enemies) minD = Math.min(minD, dist(sp.x, sp.y, e.x, e.y));
+      // Fırtına aktifse merkeze yakın spawn da dene
+      if (this.storm.active && dist(sp.x, sp.y, this.storm.cx, this.storm.cy) > this.storm.r - 40) {
+        minD *= 0.2;
+      }
+      if (minD > bestScore) { bestScore = minD; bestSp = sp; }
+    }
+    p.x = bestSp.x;
+    p.y = bestSp.y;
+    if (this.storm.active && dist(p.x, p.y, this.storm.cx, this.storm.cy) > this.storm.r - 50) {
+      p.x = this.storm.cx + (Math.random() - 0.5) * 140;
+      p.y = Math.max(map.beach ? map.beach.sandY + 40 : 80, this.storm.cy + (Math.random() - 0.5) * 140);
+    }
+    p.vx = 0;
+    p.vy = 0;
+    p.alive = true;
+    p.hp = p.maxHp;
+    p.breath = p.maxBreath;
+    p.breathRegenDelay = 0;
+    p.shield = 40;
+    p.shieldTimer = 3.0;
+    p.stunTimer = 0;
+    p.rootTimer = 0;
+    p.slowTimer = 0;
+    p.blindTimer = 0;
+    p.submerged = false;
+    p.diveCd = 0;
+    // Yeni kalp = taze 2 item şarjı!
+    for (const it of p.items) {
+      it.usesLeft = it.maxUses;
+      it.cd = 0;
+    }
+    this._addPulse(p.x, p.y, 120, 'heal', p.team);
+    this._addFloatText(p.x, p.y - 30, `❤️ YENİDEN DOĞDU!`, '#ff8fa3');
+    this.onEvent({ type: 'sfx', name: 'boost' });
   }
 
   _grantPowerup(p, pu) {
@@ -2233,7 +2379,9 @@ export class GameSim {
         isBot: s.isBot,
         charId: s.charId,
         items: [...s.items],
-        readyItems: s.readyItems
+        readyItems: s.readyItems,
+        skills: [...(s.skills || [])],
+        skillPoints: s.skillPoints || 0
       }))
     };
   }
@@ -2270,6 +2418,9 @@ export class GameSim {
         aim: Number(p.aim.toFixed(2)),
         hp: Math.round(p.hp),
         maxHp: p.maxHp,
+        lives: p.lives ?? 1,
+        maxLives: p.maxLives ?? 1,
+        respawnTimer: Number((p.respawnTimer || 0).toFixed(1)),
         breath: Math.round(p.breath || 0),
         maxBreath: p.maxBreath || 70,
         breathRegen: p.breathRegenDelay <= 0 && p.breath < p.maxBreath,

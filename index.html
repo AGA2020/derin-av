@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=3.8" />
+  <link rel="stylesheet" href="./styles.css?v=4.0" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -193,6 +193,7 @@
           <div id="draft-timer" class="draft-timer">22s</div>
         </div>
         <div id="draft-role-banner" class="role-banner hunter"></div>
+        <div id="draft-skill-tree" class="draft-skill-tree" style="display:none"></div>
         <div class="draft-toolbar">
           <div class="draft-filters">
             <button class="dfilter-btn active" data-dfilter="all">Tümü</button>
@@ -252,7 +253,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.8</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.0</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -298,6 +299,15 @@
         </div>
 
         <div class="setting-row">
+          <div class="setting-label">Can Hakkı (Mario Kalp Sistemi)</div>
+          <div class="seg-group" data-setting="lives">
+            <button class="seg-btn" data-val="1">❤️ 1 Kalp (Klasik)</button>
+            <button class="seg-btn" data-val="2">❤️❤️ 2 Kalp</button>
+            <button class="seg-btn" data-val="3">❤️❤️❤️ 3 Kalp (Mario)</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
           <div class="setting-label">Can (Su Üstü Direnci)</div>
           <div class="seg-group" data-setting="hpMult">
             <button class="seg-btn" data-val="0.75">%75 (Sert)</button>
@@ -330,6 +340,7 @@
         <div class="setting-row">
           <div class="setting-label">Harita Olayları &amp; Mekanikler</div>
           <div class="toggle-grid">
+            <button class="toggle-chip" data-toggle="skillTree">🌿 Yetenek Ağacı (Skill Tree)</button>
             <button class="toggle-chip" data-toggle="powerups">📦 Power-Up Sandıkları</button>
             <button class="toggle-chip" data-toggle="barrels">🧨 Barut Fıçıları</button>
             <button class="toggle-chip" data-toggle="storm">🌪️ Son 25s Dev Fırtına</button>
@@ -449,7 +460,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=3.8"></script>
+  <script type="module" src="./js/main.js?v=4.0"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

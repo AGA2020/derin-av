@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=3.8';
-import { hasLineOfSight } from './sim.js?v=3.8';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=4.0';
+import { hasLineOfSight } from './sim.js?v=4.0';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -983,11 +983,16 @@ export class SeaRenderer {
       ctx.fillText('⚡ AKINTI!', 0, -40);
     }
 
-    // Name & Buoyancy bar ("Su Üstü Direnci")
+    // Name & ❤️ Mario Hearts (eğer 1'den fazla kalp seçiliyse!)
     ctx.fillStyle = p.role === 'hunter' ? '#ffd166' : p.role === 'ffa' ? ch.accent : '#80ffdb';
     ctx.font = '700 12px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(p.name || '', 0, -28);
+    if ((p.maxLives || 1) > 1) {
+      const hStr = '❤️'.repeat(Math.max(0, p.lives || 0)) + '🖤'.repeat(Math.max(0, (p.maxLives || 1) - (p.lives || 0)));
+      ctx.font = '11px system-ui, sans-serif';
+      ctx.fillText(hStr, 0, -42);
+    }
 
     const bw = 48;
     const bh = 4.5;
