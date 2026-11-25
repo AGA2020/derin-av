@@ -139,6 +139,13 @@ export class NetClient {
     } catch (_) {}
   }
 
+  publishRetained(topic, data) {
+    if (!this.client || !this.connected) return;
+    try {
+      this.client.publish(topic, JSON.stringify(data), { qos: 0, retain: true });
+    } catch (_) {}
+  }
+
   disconnect() {
     this._closing = true;
     this.connected = false;
@@ -147,4 +154,49 @@ export class NetClient {
       this.client = null;
     }
   }
+}
+
+export function fetchCloudTelemetry(topicPrefix, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || typeof window.mqtt === 'undefined') {
+      resolve([]);
+      return;
+    }
+    const collected = new Map();
+    let done = false;
+    let cli = null;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      try { cli?.end(true); } catch (_) {}
+      resolve([...collected.values()]);
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    try {
+      cli = window.mqtt.connect(BROKERS[0], {
+        clientId: `derinav_adm_${Math.random().toString(36).slice(2, 8)}`,
+        clean: true,
+        connectTimeout: 2500,
+        reconnectPeriod: 0
+      });
+      cli.on('connect', () => {
+        cli.subscribe(`${topicPrefix}/#`, { qos: 0 });
+      });
+      cli.on('message', (topic, payload) => {
+        try {
+          const obj = JSON.parse(payload.toString());
+          if (obj && typeof obj === 'object' && obj.items) {
+            collected.set(topic, obj);
+          }
+        } catch (_) {}
+      });
+      cli.on('error', () => {
+        clearTimeout(timer);
+        finish();
+      });
+    } catch (_) {
+      clearTimeout(timer);
+      finish();
+    }
+  });
 }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=4.1" />
+  <link rel="stylesheet" href="./styles.css?v=4.2" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -34,7 +34,10 @@
         <div class="home-actions">
           <button id="btn-host" class="btn primary big">⚓ Online Oda Kur (1v1 / 2v2)</button>
           <button id="btn-quick-solo" class="btn ghost big">🤖 Botlarla Hemen Test Et</button>
-          <button id="btn-guide-home" class="btn ghost">📖 Nasıl Oynanır? (Rehber)</button>
+          <div class="home-sub-actions">
+            <button id="btn-guide-home" class="btn ghost">📖 Nasıl Oynanır?</button>
+            <button id="btn-career-home" class="btn ghost">📊 İstatistiklerim</button>
+          </div>
         </div>
 
         <div class="divider"><span>veya arkadaşının odasına katıl</span></div>
@@ -261,7 +264,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.1</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.2</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -459,6 +462,36 @@
     </div>
   </div>
 
+  <!-- 📊 KİŞİSEL KARİYER & REKOR DEFTERİ -->
+  <div id="overlay-career" class="overlay">
+    <div class="modal compact-modal">
+      <div class="draft-badge">DENİZCİ PROFİLİN (TARAYICIDA KAYITLI)</div>
+      <h2>📊 İstatistiklerim</h2>
+      <div id="career-body"></div>
+      <div class="modal-actions" style="margin-top:16px">
+        <button id="btn-close-career" class="btn primary">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🔒 GİZLİ DENGE & TELEMETRİ RAPORU (?admin=1 veya sürüm rozetine 5 tık) -->
+  <div id="overlay-admin" class="overlay">
+    <div class="modal guide-modal">
+      <div class="draft-header">
+        <div>
+          <div class="draft-badge">GİZLİ DENGE LOGU (CLOUD SYNC)</div>
+          <h2>🔒 Telemetri &amp; Denge Raporu</h2>
+        </div>
+        <div class="preset-btns">
+          <button id="btn-copy-telem" class="btn-mini primary">📋 JSON Kopyala</button>
+          <button id="btn-reset-telem" class="btn-mini danger">🗑️ Sıfırla</button>
+          <button id="btn-close-admin" class="btn-mini">✕</button>
+        </div>
+      </div>
+      <div id="admin-telem-body"></div>
+    </div>
+  </div>
+
   <div id="overlay-changelog" class="overlay">
     <div class="modal compact-modal changelog-modal">
       <div class="draft-badge">DERİN AV · SÜRÜM BİLGİSİ</div>
@@ -469,7 +502,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=4.1"></script>
+  <script type="module" src="./js/main.js?v=4.2"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

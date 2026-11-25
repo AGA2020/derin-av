@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.1';
-import { hasLineOfSight } from './sim.js?v=4.1';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.2';
+import { hasLineOfSight } from './sim.js?v=4.2';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -720,6 +720,34 @@ export class SeaRenderer {
         ctx.beginPath();
         ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
         ctx.fill();
+      } else if (z.kind === 'gravity') {
+        ctx.save();
+        ctx.translate(z.x, z.y);
+        const g = ctx.createRadialGradient(0, 0, 8, 0, 0, z.r);
+        g.addColorStop(0, `rgba(124, 58, 237, ${0.42 * fade})`);
+        g.addColorStop(0.65, `rgba(56, 189, 248, ${0.18 * fade})`);
+        g.addColorStop(1, 'rgba(56, 189, 248, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, z.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.rotate(-this.time * 4.5);
+        ctx.strokeStyle = `rgba(192, 132, 252, ${0.75 * fade})`;
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([12, 10]);
+        ctx.beginPath();
+        ctx.arc(0, 0, z.r * 0.72, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      } else if (z.kind === 'kelp') {
+        ctx.fillStyle = `rgba(16, 185, 129, ${0.28 * fade})`;
+        ctx.strokeStyle = `rgba(52, 211, 153, ${0.48 * fade})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
       } else if (z.kind === 'flare') {
         const g = ctx.createRadialGradient(z.x, z.y, 6, z.x, z.y, z.r);
         g.addColorStop(0, `rgba(255, 110, 130, ${0.42 * fade})`);
@@ -904,6 +932,17 @@ export class SeaRenderer {
       ctx.beginPath();
       ctx.arc(0, 0, 32, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // 🪞 Ayna Kalkanı parlayan yansıtıcı halka!
+    if (p.mirrorTimer > 0) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.fillStyle = 'rgba(224, 242, 254, 0.25)';
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 29 + Math.sin(this.time * 14) * 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     }
 
     // Shield barrier ring
@@ -1281,6 +1320,16 @@ export class SeaRenderer {
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(0, 0, pr.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else if (pr.kind === 'shock') {
+        ctx.fillStyle = '#e0f2fe';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.arc(0, 0, pr.r * 0.75, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       } else if (pr.kind === 'hook') {

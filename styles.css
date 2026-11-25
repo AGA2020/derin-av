@@ -1734,3 +1734,70 @@ kbd {
   color: #e0f2fe;
   margin-top: 2px;
 }
+
+/* 📊 KARİYER & 🔒 TELEMETRİ MODALI */
+.home-sub-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.career-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.career-box {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(4, 15, 28, 0.85);
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.career-box span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.career-box b {
+  font-size: 18px;
+  color: var(--hunter);
+  font-weight: 900;
+}
+
+.telem-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: rgba(4, 15, 28, 0.85);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  margin-bottom: 12px;
+}
+.telem-h {
+  margin: 10px 0 6px;
+  font-size: 13px;
+  color: #7dd3fc;
+}
+.telem-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px;
+}
+.telem-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgba(4, 15, 28, 0.8);
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  font-size: 11.5px;
+}
+.telem-row.zero {
+  border-color: rgba(239, 71, 111, 0.65);
+  background: rgba(76, 12, 30, 0.45);
+  color: #fecdd3;
+}

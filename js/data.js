@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.1';
+export const GAME_VERSION = 'v4.2';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -65,6 +65,14 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.2',
+    notes: [
+      '🎯 4 YENİ EGZOTİK İTEM (Toplam 20 İtem): ⚡ Elektrik Ağı (zincirleme sıçrama), 🌪️ Çekim Bombası, 🪞 Ayna Kalkanı (mermiyi geri sektirir!), 🌿 Yosun İzi!',
+      '📊 YENİ: Ana menüde kalıcı Kişisel Kariyer & Rekor Defteri (İstatistiklerim) eklendi.',
+      '⚖️ Arka plan denge telemetrisi eklendi (gelecek buff/nerf yamaları için).'
+    ]
+  },
   {
     ver: 'v4.1',
     notes: [
@@ -518,6 +526,35 @@ export const HUNTER_ITEMS = [
     speed: 800,
     damage: 24,
     desc: 'İsabet ettiği Avı direkt sana doğru çeker ve 24 Batırma Hasarı verir.'
+  },
+  {
+    id: 'electric_net',
+    name: 'Elektrik Ağı',
+    icon: '⚡',
+    category: 'KONTROL',
+    firearm: false,
+    uses: 2,
+    cooldown: 9.5,
+    range: 480,
+    speed: 680,
+    damage: 32,
+    chainDamage: 28,
+    chainRange: 230,
+    slowDur: 1.4,
+    desc: 'İsabet ettiği rakibe 32 hasar + yavaşlatma vurur ve 230px içindeki başka bir düşmana elektrik sıçratır!'
+  },
+  {
+    id: 'gravity_bomb',
+    name: 'Çekim Bombası',
+    icon: '🌀',
+    category: 'TUZAK',
+    firearm: false,
+    uses: 2,
+    cooldown: 11,
+    range: 340,
+    radius: 175,
+    dur: 3.3,
+    desc: 'Atıldığı bölgede 3.3 sn boyunca yakındaki rakipleri merkeze doğru çeker — barut fıçısıyla efsane kombo!'
   }
 ];
 
@@ -630,6 +667,29 @@ export const PREY_ITEMS = [
     healAlly: 42,
     allyRadius: 240,
     desc: 'Suya batmanı önler! +78 Su Üstü Direnci yeniler (yakındaki dostuna da +42 kazandırır).'
+  },
+  {
+    id: 'mirror_shield',
+    name: 'Ayna Kalkanı',
+    icon: '🪞',
+    category: 'SAVUNMA',
+    firearm: false,
+    uses: 2,
+    cooldown: 11,
+    dur: 1.8,
+    desc: '1.8 sn boyunca sana gelen ilk mermi, zıpkın veya ağı aynen rakibe GERİ SEKTİRİR!'
+  },
+  {
+    id: 'kelp_trail',
+    name: 'Yosun İzi',
+    icon: '🌿',
+    category: 'KAÇIŞ',
+    firearm: false,
+    uses: 2,
+    cooldown: 10,
+    dur: 4.0,
+    speedMult: 1.18,
+    desc: '4 sn boyunca +%18 hızlanıp arkanda yosun şeridi bırakırsın; basan rakipler %60 yavaşlar!'
   }
 ];
 

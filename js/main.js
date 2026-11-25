@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.1';
-import { sfx } from './audio.js?v=4.1';
-import { NetClient, generateRoomCode } from './net.js?v=4.1';
-import { GameSim } from './sim.js?v=4.1';
-import { SeaRenderer } from './render.js?v=4.1';
+} from './data.js?v=4.2';
+import { sfx } from './audio.js?v=4.2';
+import { NetClient, generateRoomCode, fetchCloudTelemetry } from './net.js?v=4.2';
+import { GameSim } from './sim.js?v=4.2';
+import { SeaRenderer } from './render.js?v=4.2';
 
 const $ = (id) => document.getElementById(id);
 
@@ -76,8 +76,210 @@ const app = {
   lastInputSend: 0,
   lastLobbyPing: 0,
   hudCache: {},
+  matchRecordedKey: '',
+  verClicks: 0,
+  verClickTimer: null,
   touchMove: { mx: 0, my: 0 }
 };
+
+// ============================================================
+// 📊 KİŞİSEL KARİYER & 🔒 GİZLİ DENGE TELEMETRİ LOGU
+// ============================================================
+
+const CAREER_KEY = 'derinav_career_v1';
+const TELEM_KEY = 'derinav_telemetry_v1';
+const HOST_UID_KEY = 'derinav_uid_v1';
+const TELEM_PREFIX = 'derinav2v2/telemetry/aga2020/v4';
+
+function getHostUid() {
+  let uid = localStorage.getItem(HOST_UID_KEY);
+  if (!uid) {
+    uid = 'u_' + Math.random().toString(36).slice(2, 10);
+    try { localStorage.setItem(HOST_UID_KEY, uid); } catch (_) {}
+  }
+  return uid;
+}
+
+function mergeTelemetryList(list) {
+  const out = { version: GAME_VERSION, updatedAt: '', rounds: 0, roles: { hunterWins: 0, preyWins: 0, ffaRounds: 0 }, items: {}, chars: {}, maps: {}, skills: {} };
+  for (const t of list) {
+    if (!t || !t.items) continue;
+    out.rounds += t.rounds || 0;
+    if ((t.updatedAt || '') > out.updatedAt) out.updatedAt = t.updatedAt;
+    out.roles.hunterWins += t.roles?.hunterWins || 0;
+    out.roles.preyWins += t.roles?.preyWins || 0;
+    out.roles.ffaRounds += t.roles?.ffaRounds || 0;
+    for (const [k, v] of Object.entries(t.items || {})) {
+      if (!out.items[k]) out.items[k] = { picks: 0, wins: 0 };
+      out.items[k].picks += v.picks || 0;
+      out.items[k].wins += v.wins || 0;
+    }
+    for (const [k, v] of Object.entries(t.chars || {})) {
+      if (!out.chars[k]) out.chars[k] = { picks: 0, wins: 0 };
+      out.chars[k].picks += v.picks || 0;
+      out.chars[k].wins += v.wins || 0;
+    }
+    for (const [k, v] of Object.entries(t.maps || {})) {
+      out.maps[k] = (out.maps[k] || 0) + (v || 0);
+    }
+    for (const [k, v] of Object.entries(t.skills || {})) {
+      out.skills[k] = (out.skills[k] || 0) + (v || 0);
+    }
+  }
+  return out;
+}
+
+function loadCareer() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CAREER_KEY) || 'null');
+    if (raw && typeof raw === 'object') return raw;
+  } catch (_) {}
+  return { matches: 0, wins: 0, sinks: 0, damage: 0, bestDmg: 0, mvps: 0, ambushes: 0, rescues: 0, chars: {} };
+}
+
+function recordCareerMatch(st, awards) {
+  const key = `${app.roomCode}_${st.round}_${st.scores?.A}_${st.scores?.B}_${st.matchWinnerTeam}`;
+  if (app.matchRecordedKey === key) return;
+  app.matchRecordedKey = key;
+
+  const meStat = awards.find(a => a.id === app.myId);
+  if (!meStat) return;
+  const c = loadCareer();
+  c.matches += 1;
+  const iWon = st.mode === 'ffa' ? st.matchWinnerTeam === app.myId : meStat.team === st.matchWinnerTeam;
+  if (iWon) c.wins += 1;
+  c.sinks += meStat.sinks || 0;
+  c.damage += meStat.damage || 0;
+  c.bestDmg = Math.max(c.bestDmg || 0, meStat.damage || 0);
+  if (awards[0]?.id === app.myId) c.mvps += 1;
+  c.ambushes += meStat.ambushes || 0;
+  c.rescues += meStat.rescues || 0;
+  c.chars = c.chars || {};
+  c.chars[meStat.charId] = (c.chars[meStat.charId] || 0) + 1;
+  try { localStorage.setItem(CAREER_KEY, JSON.stringify(c)); } catch (_) {}
+}
+
+function loadTelemetry() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TELEM_KEY) || 'null');
+    if (raw && raw.items) return raw;
+  } catch (_) {}
+  return { version: GAME_VERSION, updatedAt: '', rounds: 0, roles: { hunterWins: 0, preyWins: 0, ffaRounds: 0 }, items: {}, chars: {}, maps: {}, skills: {} };
+}
+
+function recordRoundTelemetry(ev) {
+  if (!ev || !ev.humans || ev.humans.length === 0) return;
+  const t = loadTelemetry();
+  t.version = GAME_VERSION;
+  t.updatedAt = new Date().toISOString();
+  t.rounds += 1;
+  if (ev.mode === 'ffa') t.roles.ffaRounds += 1;
+  else if (ev.winnerRole === 'hunter') t.roles.hunterWins += 1;
+  else if (ev.winnerRole === 'prey') t.roles.preyWins += 1;
+
+  t.maps[ev.mapId] = (t.maps[ev.mapId] || 0) + 1;
+  for (const h of ev.humans) {
+    if (!t.chars[h.charId]) t.chars[h.charId] = { picks: 0, wins: 0 };
+    t.chars[h.charId].picks += 1;
+    if (h.won) t.chars[h.charId].wins += 1;
+
+    for (const itemId of h.items || []) {
+      if (!t.items[itemId]) t.items[itemId] = { picks: 0, wins: 0 };
+      t.items[itemId].picks += 1;
+      if (h.won) t.items[itemId].wins += 1;
+    }
+    for (const skId of h.skills || []) {
+      t.skills[skId] = (t.skills[skId] || 0) + 1;
+    }
+  }
+  try { localStorage.setItem(TELEM_KEY, JSON.stringify(t)); } catch (_) {}
+  // Cloud retained MQTT sync (host başına ayrı kanal, kimse başkasının verisini ezmez!)
+  app.net?.publishRetained(`${TELEM_PREFIX}/${getHostUid()}`, t);
+}
+
+function openCareerModal() {
+  const c = loadCareer();
+  const wr = c.matches > 0 ? Math.round((c.wins / c.matches) * 100) : 0;
+  let favChar = '—';
+  let favMax = 0;
+  for (const [cid, cnt] of Object.entries(c.chars || {})) {
+    if (cnt > favMax) { favMax = cnt; favChar = CHAR_MAP[cid]?.name || cid; }
+  }
+  $('career-body').innerHTML = `
+    <div class="career-grid">
+      <div class="career-box"><span>Oynanan Maç</span><b>${c.matches}</b></div>
+      <div class="career-box"><span>Galibiyet</span><b>${c.wins} (%${wr})</b></div>
+      <div class="career-box"><span>👑 MVP Sayısı</span><b>${c.mvps}</b></div>
+      <div class="career-box"><span>🌊 Toplam Batırma</span><b>${c.sinks}</b></div>
+      <div class="career-box"><span>💥 En Yüksek Hasar</span><b>${c.bestDmg}</b></div>
+      <div class="career-box"><span>🦈 Sürpriz Çıkış</span><b>${c.ambushes}</b></div>
+      <div class="career-box"><span>🛟 Kurtarma</span><b>${c.rescues}</b></div>
+      <div class="career-box"><span>⚓ Favori Çar</span><b>${favChar}</b></div>
+    </div>
+  `;
+  $('overlay-career').classList.add('active');
+  sfx.play('ui');
+}
+
+function renderTelemetryBody(t, cloudStatus) {
+  const hW = t.roles.hunterWins || 0;
+  const pW = t.roles.preyWins || 0;
+  const totHP = hW + pW;
+  const hPct = totHP > 0 ? Math.round((hW / totHP) * 100) : 0;
+
+  const itemRows = FFA_ITEMS.map(it => {
+    const d = t.items[it.id] || { picks: 0, wins: 0 };
+    const wr = d.picks > 0 ? Math.round((d.wins / d.picks) * 100) : 0;
+    return { name: `${it.icon} ${it.name}`, picks: d.picks, wins: d.wins, wr };
+  }).sort((a, b) => a.picks - b.picks);
+
+  const charRows = CHARACTERS.map(c => {
+    const d = t.chars[c.id] || { picks: 0, wins: 0 };
+    const wr = d.picks > 0 ? Math.round((d.wins / d.picks) * 100) : 0;
+    return { name: `${c.icon} ${c.name}`, picks: d.picks, wins: d.wins, wr };
+  }).sort((a, b) => b.picks - a.picks);
+
+  $('admin-telem-body').innerHTML = `
+    <div class="telem-summary">
+      <span>Kaynak: <b>${cloudStatus}</b></span>
+      <span>Toplam İnsan Turu: <b>${t.rounds}</b></span>
+      <span>Avcı Kazanma: <b>${hW} (%${hPct})</b></span>
+      <span>Av Kazanma: <b>${pW} (%${totHP > 0 ? 100 - hPct : 0})</b></span>
+      <span>FFA Turu: <b>${t.roles.ffaRounds || 0}</b></span>
+    </div>
+    <h4 class="telem-h">📦 İtem Seçilme Sıralaması (En Az Seçilenler Üstte!)</h4>
+    <div class="telem-list">
+      ${itemRows.map(r => `<div class="telem-row ${r.picks === 0 ? 'zero' : ''}"><span>${r.name}</span><span>${r.picks} seçim · %${r.wr} WR</span></div>`).join('')}
+    </div>
+    <h4 class="telem-h">⚓ 6 Çar İstatistikleri</h4>
+    <div class="telem-list">
+      ${charRows.map(r => `<div class="telem-row ${r.picks === 0 ? 'zero' : ''}"><span>${r.name}</span><span>${r.picks} seçim · %${r.wr} WR</span></div>`).join('')}
+    </div>
+  `;
+}
+
+let lastDisplayedTelem = null;
+
+function openTelemetryAdmin() {
+  const local = loadTelemetry();
+  lastDisplayedTelem = local;
+  renderTelemetryBody(local, 'Yerel (Bulut yükleniyor...)');
+  $('overlay-admin').classList.add('active');
+
+  fetchCloudTelemetry(TELEM_PREFIX, 1600).then((cloudList) => {
+    if (!$('overlay-admin').classList.contains('active')) return;
+    if (cloudList.length > 0) {
+      const merged = mergeTelemetryList(cloudList);
+      // Eğer yerel tur sayısı buluttan büyükse (ör. çevrimdışı oynandıysa) local'i göster
+      if (merged.rounds >= local.rounds) {
+        lastDisplayedTelem = merged;
+        renderTelemetryBody(merged, `☁️ Bulut (${cloudList.length} host)`);
+        return;
+      }
+    }
+    renderTelemetryBody(local, '💻 Yerel Tarayıcı');
+  });
+}
 
 function showToast(msg) {
   const el = $('toast');
@@ -196,6 +398,8 @@ function createHostSim() {
     if (ev.type === 'sfx') {
       if (!ev.targetId || ev.targetId === app.myId) sfx.play(ev.name);
       if (app.mode === 'host') app.net?.send({ type: 'sfx', name: ev.name, targetId: ev.targetId || null });
+    } else if (ev.type === 'round_telemetry') {
+      recordRoundTelemetry(ev);
     } else if (ev.type === 'phase') {
       broadcastLobby();
       if (ev.phase === 'playing' || ev.phase === 'intro') broadcastState();
@@ -930,6 +1134,7 @@ function updateHudFromState(st) {
     // Active Buff / Debuff Status Pills!
     const effList = [];
     if (me.alive) {
+      if (me.mirrorTimer > 0) effList.push({ cls: 'shield', txt: `🪞 AYNA ${me.mirrorTimer.toFixed(1)}s` });
       if (me.inShallow) effList.push({ cls: 'buff', txt: '🏖️ SIĞ SU (DALIŞ YOK)' });
       if (me.submerged) effList.push({ cls: 'dive', txt: me.diveTime >= 1.0 ? '🦈 SÜRPRİZ HAZIR' : '🤿 SU ALTINDA' });
       if (me.shield > 0) effList.push({ cls: 'shield', txt: `🛡️ KALKAN ${me.shield}` });
@@ -1172,6 +1377,7 @@ function renderMatchEnd(st) {
   }
 
   const awards = computeMatchAwards(st);
+  recordCareerMatch(st, awards);
   const mvp = awards[0];
   if (mvp) {
     const mch = CHAR_MAP[mvp.charId] || CHARACTERS[0];
@@ -1414,6 +1620,16 @@ function initVersionUI() {
   if (btn) {
     btn.textContent = GAME_VERSION;
     btn.onclick = () => {
+      // 🔒 Gizli 5 tıkla Denge Telemetri Panelini aç (normal 1 tık Yama Notları açar!)
+      app.verClicks += 1;
+      clearTimeout(app.verClickTimer);
+      app.verClickTimer = setTimeout(() => { app.verClicks = 0; }, 1200);
+      if (app.verClicks >= 5) {
+        app.verClicks = 0;
+        $('overlay-changelog').classList.remove('active');
+        openTelemetryAdmin();
+        return;
+      }
       $('changelog-title').textContent = `Yama Notları (${GAME_VERSION})`;
       $('changelog-body').innerHTML = CHANGELOG.map(entry => `
         <div class="cl-entry">
@@ -1424,6 +1640,10 @@ function initVersionUI() {
       $('overlay-changelog').classList.add('active');
       sfx.play('ui');
     };
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('admin') === '1') {
+    setTimeout(openTelemetryAdmin, 250);
   }
   const closeBtn = $('btn-close-changelog');
   if (closeBtn) {
@@ -1464,6 +1684,22 @@ function init() {
   $('btn-join').onclick = () => joinOnlineRoom();
   $('btn-quick-solo').onclick = startQuickSolo;
   $('btn-invite-go').onclick = () => joinOnlineRoom(urlRoom);
+  $('btn-career-home').onclick = openCareerModal;
+  $('btn-close-career').onclick = () => $('overlay-career').classList.remove('active');
+  $('overlay-career').onclick = (e) => { if (e.target === $('overlay-career')) $('overlay-career').classList.remove('active'); };
+
+  $('btn-close-admin').onclick = () => $('overlay-admin').classList.remove('active');
+  $('overlay-admin').onclick = (e) => { if (e.target === $('overlay-admin')) $('overlay-admin').classList.remove('active'); };
+  $('btn-copy-telem').onclick = async () => {
+    const json = JSON.stringify(lastDisplayedTelem || loadTelemetry(), null, 2);
+    try { await navigator.clipboard.writeText(json); showToast('Telemetri JSON kopyalandı!'); }
+    catch (_) { prompt('Telemetri JSON:', json); }
+  };
+  $('btn-reset-telem').onclick = () => {
+    localStorage.removeItem(TELEM_KEY);
+    openTelemetryAdmin();
+    showToast('Yerel telemetri sıfırlandı');
+  };
 
   $('btn-copy-link').onclick = async () => {
     const link = getInviteUrl();

@@ -21,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=4.1';
+} from './data.js?v=4.2';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -629,6 +629,9 @@ export class GameSim {
         emoteTimer: 0,
         emoteCd: 0,
         // Status effects
+        mirrorTimer: 0,
+        kelpTimer: 0,
+        kelpDropCd: 0,
         speedBoost: 0,
         speedMult: 1,
         stealthBoost: 0,
@@ -1034,6 +1037,43 @@ export class GameSim {
         this.onEvent({ type: 'sfx', name: 'trap' });
         break;
       }
+      case 'electric_net': {
+        this._spawnProjectile(p, {
+          kind: 'shock',
+          x: p.x + Math.cos(angle) * 24,
+          y: p.y + Math.sin(angle) * 24,
+          vx: Math.cos(angle) * def.speed,
+          vy: Math.sin(angle) * def.speed,
+          r: 12 * trapBonus,
+          maxDist: def.range * trapBonus,
+          damage: def.damage,
+          chainDamage: def.chainDamage,
+          chainRange: def.chainRange * trapBonus,
+          slowDur: def.slowDur,
+          slowFactor: 0.45,
+          color: '#38bdf8'
+        });
+        this.onEvent({ type: 'sfx', name: 'flash' });
+        break;
+      }
+      case 'gravity_bomb': {
+        const tx = clamp(p.x + Math.cos(angle) * Math.min(280, def.range), 50, WORLD_W - 50);
+        const ty = clamp(p.y + Math.sin(angle) * Math.min(280, def.range), this.currentMap.beach ? this.currentMap.beach.sandY + 45 : 50, WORLD_H - 50);
+        this.zones.push({
+          id: this._nextEntityId++,
+          kind: 'gravity',
+          team: p.team,
+          ownerId: p.id,
+          x: tx,
+          y: ty,
+          r: def.radius * trapBonus,
+          life: def.dur,
+          maxLife: def.dur
+        });
+        this._addPulse(tx, ty, def.radius * trapBonus, 'sonar', p.team);
+        this.onEvent({ type: 'sfx', name: 'sonar' });
+        break;
+      }
       case 'ink_cloud': {
         this.zones.push({
           id: this._nextEntityId++,
@@ -1122,6 +1162,22 @@ export class GameSim {
           }
         }
         this.onEvent({ type: 'sfx', name: 'boost' });
+        break;
+      }
+      case 'mirror_shield': {
+        p.mirrorTimer = Math.max(p.mirrorTimer, def.dur);
+        this._addPulse(p.x, p.y, 75, 'heal', p.team);
+        this._addFloatText(p.x, p.y - 28, '🪞 AYNA KALKANI!', '#e0f2fe');
+        this.onEvent({ type: 'sfx', name: 'boost' });
+        break;
+      }
+      case 'kelp_trail': {
+        p.kelpTimer = Math.max(p.kelpTimer, def.dur);
+        p.kelpDropCd = 0;
+        p.speedBoost = Math.max(p.speedBoost, def.dur);
+        p.speedMult = Math.max(p.speedMult, def.speedMult);
+        this._addPulse(p.x, p.y, 90, 'splash', p.team);
+        this.onEvent({ type: 'sfx', name: 'splash' });
         break;
       }
     }
@@ -1613,6 +1669,24 @@ export class GameSim {
       p.ramActive = Math.max(0, p.ramActive - dt);
       p.shieldTimer = Math.max(0, p.shieldTimer - dt);
       if (p.shieldTimer <= 0) p.shield = 0;
+      p.mirrorTimer = Math.max(0, p.mirrorTimer - dt);
+      if (p.kelpTimer > 0) {
+        p.kelpTimer = Math.max(0, p.kelpTimer - dt);
+        p.kelpDropCd -= dt;
+        if (p.kelpDropCd <= 0) {
+          p.kelpDropCd = 0.28;
+          this.zones.push({
+            id: this._nextEntityId++,
+            kind: 'kelp',
+            team: p.team,
+            x: p.x,
+            y: p.y,
+            r: 42,
+            life: 4.5,
+            maxLife: 4.5
+          });
+        }
+      }
 
       // 🤿 Su altı nefes tüketimi vs 🫁 Yüzeyde nefes yenilenmesi!
       const pSk = p.sk || this._computeSkillBonuses([]);
@@ -1691,6 +1765,24 @@ export class GameSim {
         // Friction during dash/ram
         p.vx *= Math.pow(0.18, dt);
         p.vy *= Math.pow(0.18, dt);
+      }
+
+      // 🌪️ Çekim Bombası & 🌿 Yosun İzi bölge etkileri!
+      for (const z of this.zones) {
+        if (z.kind === 'gravity' && z.team !== p.team) {
+          const dz = dist(p.x, p.y, z.x, z.y);
+          if (dz < z.r && dz > 8) {
+            const a = angleBetween(p.x, p.y, z.x, z.y);
+            const pull = (1 - dz / z.r) * 360 + 110;
+            p.vx += Math.cos(a) * pull * dt * 4.2;
+            p.vy += Math.sin(a) * pull * dt * 4.2;
+          }
+        } else if (z.kind === 'kelp' && z.team !== p.team) {
+          if (dist(p.x, p.y, z.x, z.y) <= z.r + p.r * 0.4) {
+            p.slowTimer = Math.max(p.slowTimer, 0.45);
+            p.slowFactor = Math.min(p.slowFactor, 0.4);
+          }
+        }
       }
 
       // 🌊 Turbo Deniz Akıntıları (Yönlü Hız Koridorları — hasarsız saf hız taktiği!)
@@ -1920,6 +2012,21 @@ export class GameSim {
         for (const p of this.players) {
           if (!p.alive || p.submerged || p.team === pr.team) continue;
           if (dist(pr.x, pr.y, p.x, p.y) <= pr.r + p.r) {
+            // 🪞 AYNA KALKANI: Gelen mermiyi %100 engelleyip aynen GERİ SEKTİRİR!
+            if (p.mirrorTimer > 0) {
+              p.mirrorTimer = 0;
+              pr.ownerId = p.id;
+              pr.team = p.team;
+              pr.vx = -pr.vx * 1.15;
+              pr.vy = -pr.vy * 1.15;
+              pr.traveled = 0;
+              pr.color = '#e0f2fe';
+              this._addPulse(p.x, p.y, 90, 'flash', p.team);
+              this._addFloatText(p.x, p.y - 30, '🪞 YANSITILDI!', '#e0f2fe');
+              this._pushFeed(`🪞 ${p.name} Ayna Kalkanı ile mermiyi geri sektirdi!`, 'firearm');
+              this.onEvent({ type: 'sfx', name: 'flash' });
+              break;
+            }
             dead = true;
             const a = Math.atan2(pr.vy, pr.vx);
             let kx = Math.cos(a) * (pr.knockback || 0);
@@ -1943,6 +2050,20 @@ export class GameSim {
               p.revealTimer = Math.max(p.revealTimer, pr.revealHitDur);
             }
             this._applyDamage(p, pr.damage || 0, pr.ownerId, kx, ky, '', Boolean(pr.firearm));
+            // ⚡ Elektrik Ağı: Yakındaki başka bir düşmana zincirleme elektrik sıçrat!
+            if (pr.kind === 'shock' && pr.chainRange) {
+              for (const other of this.players) {
+                if (!other.alive || other.id === p.id || other.team === pr.team) continue;
+                if (dist(p.x, p.y, other.x, other.y) <= pr.chainRange) {
+                  other.slowTimer = Math.max(other.slowTimer, pr.slowDur || 1.3);
+                  other.slowFactor = Math.min(other.slowFactor, 0.45);
+                  this._applyDamage(other, pr.chainDamage || 26, pr.ownerId, 0, 0, 'Elektrik Ağı');
+                  this._addPulse(other.x, other.y, 75, 'flash', pr.team);
+                  this._addFloatText(other.x, other.y - 26, '⚡ ZİNCİR ŞOK!', '#38bdf8');
+                  break;
+                }
+              }
+            }
             break;
           }
         }
@@ -2112,6 +2233,20 @@ export class GameSim {
       this.scores[winnerTeam] += 1;
     }
     this.onEvent({ type: 'sfx', name: 'round_end' });
+    this.onEvent({
+      type: 'round_telemetry',
+      mode: this.settings.mode,
+      mapId: this.currentMap.id,
+      winnerRole,
+      winnerTeam,
+      humans: this.players.filter(p => !p.isBot).map(p => ({
+        charId: p.charId,
+        role: p.role,
+        won: winnerRole === 'ffa' ? p.id === winnerTeam : p.team === winnerTeam,
+        items: p.items.map(i => i.id),
+        skills: [...(p.skills || [])]
+      }))
+    });
     this.onEvent({ type: 'phase', phase: 'round_end', round: this.round });
   }
 
@@ -2500,6 +2635,7 @@ export class GameSim {
         diveCd: Number(p.diveCd.toFixed(1)),
         emote: p.emote || null,
         emoteTimer: p.emote ? Number(p.emoteTimer.toFixed(2)) : 0,
+        mirrorTimer: Number((p.mirrorTimer || 0).toFixed(1)),
         ramActive: p.ramActive > 0,
         speedBoost: p.speedBoost > 0,
         speedBoostSec: Number(p.speedBoost.toFixed(1)),
