@@ -1,8 +1,15 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v2.2';
+export const GAME_VERSION = 'v2.3';
 export const CHANGELOG = [
+  {
+    ver: 'v2.3',
+    notes: [
+      '🛟 YENİ MEKANİK: Suya gömülen takım arkadaşının yerinde 15 sn boyunca Kurtarma Şamandırası kalır!',
+      'Hayattaki takım arkadaşı şamandıra halkasında 3 sn durursa arkadaşını %55 canla sudan geri çıkarır (tur başı 1 kez).'
+    ]
+  },
   {
     ver: 'v2.2',
     notes: [

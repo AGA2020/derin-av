@@ -11,11 +11,11 @@ import {
   PREY_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=2.2';
-import { sfx } from './audio.js?v=2.2';
-import { NetClient, generateRoomCode } from './net.js?v=2.2';
-import { GameSim } from './sim.js?v=2.2';
-import { SeaRenderer } from './render.js?v=2.2';
+} from './data.js?v=2.3';
+import { sfx } from './audio.js?v=2.3';
+import { NetClient, generateRoomCode } from './net.js?v=2.3';
+import { GameSim } from './sim.js?v=2.3';
+import { SeaRenderer } from './render.js?v=2.3';
 
 const $ = (id) => document.getElementById(id);
 

@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.2';
-import { hasLineOfSight } from './sim.js?v=2.2';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.3';
+import { hasLineOfSight } from './sim.js?v=2.3';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -160,6 +160,7 @@ export class SeaRenderer {
     this._drawPulses(ctx, state.pulses || [], me);
     this._drawTraps(ctx, state.traps || [], me);
     this._drawPowerups(ctx, state.powerups || []);
+    this._drawRescueBuoys(ctx, state.rescueBuoys || [], me);
     this._drawRocksAndShips(ctx, map);
     this._drawSinkEffects(ctx, state.sinkEffects || []);
     this._drawDecoys(ctx, state.decoys || [], me, map);
@@ -774,6 +775,68 @@ export class SeaRenderer {
     }
   }
 
+  _drawRescueBuoys(ctx, buoys, me) {
+    const t = this.time;
+    for (const rb of buoys) {
+      const isAlly = me && me.team === rb.team;
+      const col = rb.role === 'hunter' ? '#ffb703' : '#06d6a0';
+      const bob = Math.sin(t * 4.5 + rb.id) * 3;
+
+      ctx.save();
+      ctx.translate(rb.x, rb.y);
+
+      // Rescue zone circle (76px)
+      ctx.fillStyle = rb.pct > 0 ? 'rgba(6, 214, 160, 0.16)' : 'rgba(56, 189, 248, 0.08)';
+      ctx.strokeStyle = col;
+      ctx.lineWidth = rb.pct > 0 ? 3 : 2;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.arc(0, 0, rb.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Circular rescue progress arc!
+      if (rb.pct > 0) {
+        ctx.strokeStyle = '#80ffdb';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(0, 0, rb.r - 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * rb.pct);
+        ctx.stroke();
+      }
+
+      // Floating life buoy icon in center
+      ctx.translate(0, bob);
+      ctx.fillStyle = 'rgba(4, 18, 34, 0.92)';
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = '20px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🛟', 0, 1);
+
+      // Label & timer
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '800 12px system-ui, sans-serif';
+      const statusTxt = rb.pct > 0
+        ? `KURTARILIYOR %${Math.round(rb.pct * 100)}`
+        : (isAlly ? `KURTAR: ${rb.name} (${rb.life}s)` : `BATIK: ${rb.name} (${rb.life}s)`);
+      ctx.fillText(statusTxt, 0, -30);
+
+      if (isAlly && rb.pct === 0) {
+        ctx.fillStyle = '#80ffdb';
+        ctx.font = '700 11px system-ui, sans-serif';
+        ctx.fillText('Halkada 3 sn dur!', 0, 32);
+      }
+      ctx.restore();
+    }
+  }
+
   _drawFloatTexts(ctx, floatTexts) {
     for (const ft of floatTexts) {
       ctx.save();
@@ -924,6 +987,17 @@ export class SeaRenderer {
       ctx.beginPath();
       ctx.arc(pu.x * sx, pu.y * sy, 3.2, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // Rescue buoys on minimap (pulsing white/green beacon!)
+    for (const rb of state.rescueBuoys || []) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.fillStyle = rb.role === 'hunter' ? '#ffb703' : '#06d6a0';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(rb.x * sx, rb.y * sy, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     }
 
     // Visible players

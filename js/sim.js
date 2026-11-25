@@ -14,7 +14,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=2.2';
+} from './data.js?v=2.3';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -113,6 +113,7 @@ export class GameSim {
     this.decoys = [];
     this.powerups = []; // denizde beliren power-up sandıkları!
     this.powerupSpawnTimer = 4.5;
+    this.rescueBuoys = []; // suya gömülen takım arkadaşını kurtarma şamandıraları!
     this.pulses = []; // sonar rings, sound pings, splash rings
     this.sinkEffects = []; // dramatic "SUYA GÖMÜLDÜ" vortexes
     this.floatTexts = []; // power-up / kalkan / batma metinleri
@@ -318,6 +319,7 @@ export class GameSim {
     this.decoys = [];
     this.powerups = [];
     this.powerupSpawnTimer = 5.0;
+    this.rescueBuoys = [];
     this.pulses = [];
     this.sinkEffects = [];
     this.floatTexts = [];
@@ -361,6 +363,7 @@ export class GameSim {
         shield: 0,
         shieldTimer: 0,
         alive: true,
+        rescuedOnce: false,
         sinkingAnim: 0,
         firstHitAvail: Boolean(ch.firstHitReduction),
         items: itemStates,
@@ -835,6 +838,37 @@ export class GameSim {
       this.onEvent({ type: 'sfx', name: 'sink' });
       const byText = attacker ? `${attacker.name} tarafından` : (sourceLabel || 'Derin girdap');
       this._pushFeed(`🌊 ${target.name} SUYA GÖMÜLDÜ! (${byText})`, 'sink');
+
+      // 🛟 Takım arkadaşı hâlâ hayattaysa ve oyuncu bu tur henüz kurtarılmadıysa Kurtarma Şamandırası bırak!
+      const aliveAlly = this.players.find(o => o.alive && o.team === target.team && o.id !== target.id);
+      if (aliveAlly && !target.rescuedOnce) {
+        let bx = clamp(target.x, 70, WORLD_W - 70);
+        let by = clamp(target.y, 70, WORLD_H - 70);
+        // Girdap içindeyse kenarına kaydır ki kurtaran oyuncu adil durabilsin
+        for (const wp of this.currentMap.whirlpools) {
+          const d = dist(bx, by, wp.x, wp.y);
+          if (d < wp.r + 30) {
+            const a = d > 1 ? angleBetween(wp.x, wp.y, bx, by) : 0;
+            bx = clamp(wp.x + Math.cos(a) * (wp.r + 38), 70, WORLD_W - 70);
+            by = clamp(wp.y + Math.sin(a) * (wp.r + 38), 70, WORLD_H - 70);
+          }
+        }
+        this.rescueBuoys.push({
+          id: this._nextEntityId++,
+          playerId: target.id,
+          name: target.name,
+          team: target.team,
+          role: target.role,
+          x: bx,
+          y: by,
+          r: 76,
+          progress: 0,
+          duration: 3.0,
+          life: 15.0,
+          maxLife: 15.0
+        });
+        this._pushFeed(`🛟 ${target.name} için Kurtarma Şamandırası açıldı (15 sn)!`, 'info');
+      }
     }
   }
 
@@ -915,6 +949,49 @@ export class GameSim {
         this.powerups.splice(i, 1);
       } else if (pu.life <= 0) {
         this.powerups.splice(i, 1);
+      }
+    }
+
+    // Update Rescue Buoys (Takım Arkadaşını Sudan Kurtarma!)
+    for (let i = this.rescueBuoys.length - 1; i >= 0; i--) {
+      const rb = this.rescueBuoys[i];
+      rb.life -= dt;
+      const fallen = this.players.find(p => p.id === rb.playerId);
+      const rescuer = this.players.find(p => p.alive && p.team === rb.team && p.id !== rb.playerId);
+
+      if (!fallen || fallen.alive || !rescuer || rb.life <= 0) {
+        this.rescueBuoys.splice(i, 1);
+        continue;
+      }
+
+      const d = dist(rescuer.x, rescuer.y, rb.x, rb.y);
+      if (d <= rb.r && rescuer.stunTimer <= 0) {
+        rb.progress = Math.min(rb.duration, rb.progress + dt);
+        // Kurtarma sürerken süre donar ki son saniye heyecanı bozulmasın!
+        rb.life = Math.min(rb.maxLife, rb.life + dt * 0.65);
+        if (rb.progress >= rb.duration) {
+          // KURTARMA TAMAMLANDI!
+          fallen.alive = true;
+          fallen.rescuedOnce = true;
+          fallen.hp = Math.round(fallen.maxHp * 0.55);
+          fallen.shield = 30;
+          fallen.shieldTimer = 3.0;
+          fallen.x = rb.x;
+          fallen.y = rb.y;
+          fallen.vx = 0;
+          fallen.vy = 0;
+          fallen.stunTimer = 0;
+          fallen.rootTimer = 0;
+          fallen.slowTimer = 0;
+          fallen.blindTimer = 0;
+          this._addPulse(rb.x, rb.y, 145, 'heal', rb.team);
+          this._addFloatText(rb.x, rb.y - 28, `🛟 ${fallen.name} KURTARILDI!`, '#06d6a0');
+          this._pushFeed(`🛟 ${rescuer.name}, ${fallen.name}'i sudan kurtardı!`, 'sink');
+          this.onEvent({ type: 'sfx', name: 'boost' });
+          this.rescueBuoys.splice(i, 1);
+        }
+      } else {
+        rb.progress = Math.max(0, rb.progress - dt * 0.75);
       }
     }
 
@@ -1366,6 +1443,20 @@ export class GameSim {
     let mx = 0;
     let my = 0;
 
+    // Bot takım arkadaşının kurtarma şamandırasına koşsun (yakında tehdit yoksa!)
+    const allyBuoy = this.rescueBuoys.find(rb => rb.team === bot.team);
+    if (allyBuoy && (!target || bestD > 260)) {
+      const dBuoy = dist(bot.x, bot.y, allyBuoy.x, allyBuoy.y);
+      if (dBuoy > 26) {
+        const a = angleBetween(bot.x, bot.y, allyBuoy.x, allyBuoy.y);
+        bot.aim = a;
+        mx = Math.cos(a);
+        my = Math.sin(a);
+      }
+      this.inputs[bot.id] = { mx: clamp(mx, -1, 1), my: clamp(my, -1, 1), aim: bot.aim };
+      return;
+    }
+
     if (bot.role === 'hunter') {
       if (target) {
         const a = angleBetween(bot.x, bot.y, target.x, target.y);
@@ -1623,6 +1714,17 @@ export class GameSim {
         kind: pu.kind,
         x: Math.round(pu.x),
         y: Math.round(pu.y)
+      })),
+      rescueBuoys: this.rescueBuoys.map(rb => ({
+        id: rb.id,
+        name: rb.name,
+        team: rb.team,
+        role: rb.role,
+        x: Math.round(rb.x),
+        y: Math.round(rb.y),
+        r: rb.r,
+        pct: Number(clamp(rb.progress / rb.duration, 0, 1).toFixed(2)),
+        life: Math.ceil(rb.life)
       })),
       floatTexts: this.floatTexts.map(ft => ({
         id: ft.id,
