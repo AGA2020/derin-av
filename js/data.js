@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.3';
+export const GAME_VERSION = 'v4.31';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -65,6 +65,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.31',
+    notes: [
+      '✨ Lobi & Draft Ekranı Cila: 4 mod ve 1/2/3 Kalp seçicisi tek satıra alındı, Maçı Başlat butonu kaydırmasız tek ekrana sığdırıldı.',
+      '🎯 Draft Ekranı: 5×2 kompakt item dizilimi, altta sabit Onayla çubuğu ve koyu okyanus temalı ince kaydırma çubuğu eklendi.'
+    ]
+  },
   {
     ver: 'v4.3',
     notes: [
