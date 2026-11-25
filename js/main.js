@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.41';
-import { sfx } from './audio.js?v=4.41';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.41';
-import { GameSim } from './sim.js?v=4.41';
-import { SeaRenderer } from './render.js?v=4.41';
+} from './data.js?v=4.5';
+import { sfx } from './audio.js?v=4.5';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.5';
+import { GameSim } from './sim.js?v=4.5';
+import { SeaRenderer } from './render.js?v=4.5';
 
 const $ = (id) => document.getElementById(id);
 
@@ -861,7 +861,7 @@ function renderLobby() {
       <div class="slot-card ${isMe ? 'me' : ''}">
         <div class="slot-avatar" style="background:${ch.color}22;border-color:${ch.color}">${ch.icon}</div>
         <div class="slot-info">
-          <div class="slot-name">${s.name} ${isMe ? '<span class="tag-me">SEN</span>' : ''} ${s.isBot ? '<span class="tag-bot">BOT</span>' : ''}</div>
+          <div class="slot-name">${s.name} ${isMe ? '<span class="tag-me">SEN</span>' : ''} ${s.isBot ? '<span class="tag-bot">BOT</span>' : ''} ${(s.wins || 0) > 0 ? `<span class="tag-wins" title="Bu akşamki maç galibiyeti">🏆 ${s.wins}</span>` : ''}</div>
           <div class="slot-char">${ch.name} · ${ch.roleTag}</div>
         </div>
         ${isHostLike && s.isBot ? `<button class="btn-mini danger" data-del-bot="${s.idx}">Çıkar</button>` : ''}

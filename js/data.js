@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.41';
+export const GAME_VERSION = 'v4.5';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -65,6 +65,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.5',
+    notes: [
+      '💥 SAVAŞ HİSSİ (GAME JUICE) CİLASI: İsabet anında beyaz parlama (hit-flash) + hafif ekran sarsılması, barut fıçısında alev kıvılcımları, barikat kırılınca uçuşan tahta parçaları ve batırma anında su köpüğü patlaması eklendi!',
+      '🏆 LOBİ OTURUM KUPASI: Aynı odada arka arkaya oynarken lobide her oyuncunun yanında bu akşam kaç maç kazandığı (🏆 X) görünür.'
+    ]
+  },
   {
     ver: 'v4.41',
     notes: [

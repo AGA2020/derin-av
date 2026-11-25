@@ -21,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=4.41';
+} from './data.js?v=4.5';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -115,6 +115,7 @@ export class GameSim {
     this.banner = null; // 🔥 Seri / özel anons bannerı
     this.scores = { A: 0, B: 0 };
     this.ffaScores = {}; // playerId -> round wins in FFA / Crown
+    this.sessionWins = {}; // 🏆 Bu akşamki oda içi maç galibiyetleri (playerId -> count)
     this.crown = null; // 👑 Altın Taç modu objesi { x, y, holderId, dropGrace }
     this.crownScores = {}; // playerId -> 0..100 puan
     this.breakables = []; // 🪵 Kırılabilir deniz barikatları
@@ -2493,6 +2494,9 @@ export class GameSim {
           this.phase = 'match_end';
           this.matchWinnerTeam = ranked[0]?.id || null;
           this.matchWinnerName = ranked[0]?.name || 'Şampiyon';
+          if (this.matchWinnerTeam) {
+            this.sessionWins[this.matchWinnerTeam] = (this.sessionWins[this.matchWinnerTeam] || 0) + 1;
+          }
           this.onEvent({ type: 'phase', phase: 'match_end', round: this.round });
           return;
         }
@@ -2507,6 +2511,11 @@ export class GameSim {
       if (this.scores.A !== this.scores.B) {
         this.phase = 'match_end';
         this.matchWinnerTeam = this.scores.A > this.scores.B ? 'A' : 'B';
+        for (const s of this.getActiveSlots(true)) {
+          if (s.id && s.team === this.matchWinnerTeam) {
+            this.sessionWins[s.id] = (this.sessionWins[s.id] || 0) + 1;
+          }
+        }
         this.onEvent({ type: 'phase', phase: 'match_end', round: this.round });
         return;
       }
@@ -2834,7 +2843,8 @@ export class GameSim {
         items: [...s.items],
         readyItems: s.readyItems,
         skills: [...(s.skills || [])],
-        skillPoints: s.skillPoints || 0
+        skillPoints: s.skillPoints || 0,
+        wins: s.id ? (this.sessionWins[s.id] || 0) : 0
       }))
     };
   }

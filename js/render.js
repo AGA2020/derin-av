@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.41';
-import { hasLineOfSight } from './sim.js?v=4.41';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.5';
+import { hasLineOfSight } from './sim.js?v=4.5';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -16,6 +16,13 @@ export class SeaRenderer {
     this.time = 0;
     this.wakes = []; // visual foam trails
     this.bubbles = []; // visual bubbles for sinking players
+    this.particles = []; // 💥 Game Juice: ateş kıvılcımı, tahta kıymığı, köpük & elektrik parçacıkları (maks 140)
+    this.hitFlash = new Map(); // id -> flash timer (beyaz vuruş parlaması)
+    this.prevHpTotal = new Map(); // id -> önceki (hp + breath + shield)
+    this.prevBreakables = new Map(); // id -> { x, y }
+    this.seenPulses = new Set();
+    this.seenSinks = new Set();
+    this.lastRoundSeen = -1;
     this.shake = 0;
     this.smoothPos = new Map(); // id -> { x, y, aim }
     this.smoothProj = new Map(); // id -> { x, y }
@@ -123,6 +130,9 @@ export class SeaRenderer {
       }
     }
 
+    // 💥 Game Juice event detection & particle physics
+    this._stepJuice(state, myId, dt);
+
     // Update trails
     for (let i = this.wakes.length - 1; i >= 0; i--) {
       const w = this.wakes[i];
@@ -189,6 +199,7 @@ export class SeaRenderer {
     this._drawLighthouse(ctx, state.lighthouse);
     this._drawStorm(ctx, state.storm);
     this._drawBubbles(ctx, me);
+    this._drawParticles(ctx);
     this._drawFloatTexts(ctx, state.floatTexts || []);
 
     // Subtle sea border buoys
@@ -1013,6 +1024,17 @@ export class SeaRenderer {
     ctx.rotate(p.aim);
     this._drawCharacterBody(ctx, p, ch, mainColor, roleColor, spd, seed);
     ctx.restore();
+
+    // 💥 Beyaz Vuruş Parlaması (Hit-Flash!)
+    const hf = this.hitFlash.get(p.id) || 0;
+    if (hf > 0) {
+      ctx.save();
+      ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.78, hf * 5.2)})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, 23, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
 
     // Status badges (Rooted / Stunned / Slowed)
     if (p.rootTimer) {
@@ -1984,6 +2006,146 @@ export class SeaRenderer {
     ctx.textBaseline = 'middle';
     ctx.fillText('🗼', 0, 1);
     ctx.restore();
+  }
+
+  _spawnBurst(x, y, count, cfg) {
+    for (let i = 0; i < count; i++) {
+      if (this.particles.length >= 140) this.particles.shift();
+      const a = Math.random() * Math.PI * 2;
+      const spd = cfg.minSpd + Math.random() * (cfg.maxSpd - cfg.minSpd);
+      const colors = cfg.colors;
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(a) * spd,
+        vy: Math.sin(a) * spd,
+        size: cfg.minSize + Math.random() * (cfg.maxSize - cfg.minSize),
+        color: colors[Math.floor(Math.random() * colors.length)],
+        shape: cfg.shape || 'dot',
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 10,
+        life: cfg.life * (0.7 + Math.random() * 0.5),
+        maxLife: cfg.life
+      });
+    }
+  }
+
+  _stepJuice(state, myId, dt) {
+    // Reset tracking cleanly on new round
+    if (state.round !== this.lastRoundSeen) {
+      this.lastRoundSeen = state.round;
+      this.prevHpTotal.clear();
+      this.hitFlash.clear();
+      this.prevBreakables.clear();
+      this.seenPulses.clear();
+      this.seenSinks.clear();
+      this.particles = [];
+    }
+
+    // Tick hit-flashes
+    for (const [id, t] of this.hitFlash.entries()) {
+      const nt = t - dt;
+      if (nt <= 0) this.hitFlash.delete(id);
+      else this.hitFlash.set(id, nt);
+    }
+
+    // 1) Detect player hits -> Hit-flash + droplets + subtle screen shake!
+    for (const p of state.players || []) {
+      const tot = (p.hp || 0) + (p.breath || 0) + (p.shield || 0);
+      const prev = this.prevHpTotal.get(p.id);
+      if (prev !== undefined && p.alive && prev - tot >= 10) {
+        const dmg = prev - tot;
+        this.hitFlash.set(p.id, 0.15);
+        this._spawnBurst(p.x, p.y, dmg >= 45 ? 12 : 7, {
+          minSpd: 75, maxSpd: 210, minSize: 2.5, maxSize: 5, life: 0.42,
+          colors: dmg >= 45 ? ['#ffffff', '#ffd166', '#ff6b35'] : ['#ffffff', '#7dd3fc', '#bae6fd']
+        });
+        if (p.id === myId) {
+          this.triggerShake(dmg >= 45 ? 8.5 : 4.2);
+        } else if (dmg >= 55 && dist(this.camX, this.camY, p.x, p.y) < 520) {
+          this.triggerShake(5.5);
+        }
+      }
+      this.prevHpTotal.set(p.id, tot);
+    }
+
+    // 2) Detect new boom / flash pulses -> sparks & glints!
+    for (const pu of state.pulses || []) {
+      if (this.seenPulses.has(pu.id)) continue;
+      this.seenPulses.add(pu.id);
+      if (this.seenPulses.size > 240) this.seenPulses.clear();
+      if (pu.kind === 'boom') {
+        this._spawnBurst(pu.x, pu.y, 18, {
+          minSpd: 90, maxSpd: 310, minSize: 3, maxSize: 6.5, life: 0.55,
+          colors: ['#fff7ed', '#ffd166', '#ff6b35', '#ef4444']
+        });
+        if (dist(this.camX, this.camY, pu.x, pu.y) < 680) this.triggerShake(7.5);
+      } else if (pu.kind === 'flash') {
+        this._spawnBurst(pu.x, pu.y, 11, {
+          minSpd: 80, maxSpd: 240, minSize: 2.2, maxSize: 4.5, life: 0.38,
+          colors: ['#ffffff', '#38bdf8', '#e0f2fe']
+        });
+      }
+    }
+
+    // 3) Detect shattered barricades -> flying wood splinters!
+    const curBrIds = new Set((state.breakables || []).map(b => b.id));
+    if (state.phase === 'playing') {
+      for (const [id, pos] of this.prevBreakables.entries()) {
+        if (!curBrIds.has(id)) {
+          this._spawnBurst(pos.x, pos.y, 14, {
+            minSpd: 85, maxSpd: 260, minSize: 5, maxSize: 9, life: 0.65, shape: 'splinter',
+            colors: ['#b45309', '#fde68a', '#78350f', '#d97706']
+          });
+          if (dist(this.camX, this.camY, pos.x, pos.y) < 620) this.triggerShake(5.2);
+        }
+      }
+    }
+    this.prevBreakables.clear();
+    for (const b of state.breakables || []) this.prevBreakables.set(b.id, { x: b.x, y: b.y });
+
+    // 4) Detect new sink effects -> dramatic ocean foam burst!
+    for (const se of state.sinkEffects || []) {
+      if (this.seenSinks.has(se.id)) continue;
+      this.seenSinks.add(se.id);
+      this._spawnBurst(se.x, se.y, 20, {
+        minSpd: 70, maxSpd: 250, minSize: 3, maxSize: 6.5, life: 0.72,
+        colors: ['#ffffff', '#bae6fd', '#38bdf8', '#06d6a0']
+      });
+      if (dist(this.camX, this.camY, se.x, se.y) < 700) this.triggerShake(8.0);
+    }
+
+    // 5) Step particles with water/air drag
+    const drag = Math.pow(0.06, dt);
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const pt = this.particles[i];
+      pt.life -= dt;
+      pt.x += pt.vx * dt;
+      pt.y += pt.vy * dt;
+      pt.vx *= drag;
+      pt.vy *= drag;
+      pt.rot += pt.vrot * dt;
+      if (pt.life <= 0) this.particles.splice(i, 1);
+    }
+  }
+
+  _drawParticles(ctx) {
+    for (const pt of this.particles) {
+      const alpha = Math.max(0, Math.min(1, pt.life / pt.maxLife));
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(pt.x, pt.y);
+      ctx.fillStyle = pt.color;
+      if (pt.shape === 'splinter') {
+        ctx.rotate(pt.rot);
+        ctx.fillRect(-pt.size * 0.5, -pt.size * 0.22, pt.size, pt.size * 0.44);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, pt.size * (0.45 + alpha * 0.55), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   }
 
   _drawSinkEffects(ctx, effects) {
