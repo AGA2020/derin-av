@@ -4,6 +4,8 @@ class SoundEngine {
   constructor() {
     this.ctx = null;
     this.muted = false;
+    this.ambientOn = true;
+    this._ambNodes = null;
   }
 
   unlock() {
@@ -14,10 +16,68 @@ class SoundEngine {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+    if (this.ambientOn && !this.muted && !this._ambNodes) {
+      this._startOceanAmbient();
+    }
   }
 
   setMuted(m) {
     this.muted = m;
+    if (this._ambNodes?.masterGain && this.ctx) {
+      this._ambNodes.masterGain.gain.setTargetAtTime(m || !this.ambientOn ? 0 : 0.055, this.ctx.currentTime, 0.2);
+    }
+  }
+
+  setAmbient(on) {
+    this.ambientOn = on;
+    if (on && !this.muted && !this._ambNodes) {
+      this.unlock();
+    }
+    if (this._ambNodes?.masterGain && this.ctx) {
+      this._ambNodes.masterGain.gain.setTargetAtTime(on && !this.muted ? 0.055 : 0, this.ctx.currentTime, 0.25);
+    }
+  }
+
+  _startOceanAmbient() {
+    if (!this.ctx || this._ambNodes) return;
+    try {
+      const sr = this.ctx.sampleRate;
+      const len = sr * 4;
+      const buf = this.ctx.createBuffer(1, len, sr);
+      const data = buf.getChannelData(0);
+      // Soft pink-ish ocean noise
+      let b0 = 0, b1 = 0, b2 = 0;
+      for (let i = 0; i < len; i++) {
+        const w = Math.random() * 2 - 1;
+        b0 = 0.997 * b0 + w * 0.029;
+        b1 = 0.985 * b1 + w * 0.032;
+        b2 = 0.950 * b2 + w * 0.048;
+        data[i] = (b0 + b1 + b2 + w * 0.015) * 0.6;
+      }
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 340;
+
+      // Gentle slow swell LFO modulating wave cutoff
+      const lfo = this.ctx.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.value = 0.14;
+      const lfoGain = this.ctx.createGain();
+      lfoGain.gain.value = 140;
+      lfo.connect(lfoGain).connect(filter.frequency);
+
+      const masterGain = this.ctx.createGain();
+      masterGain.gain.value = this.muted || !this.ambientOn ? 0 : 0.055;
+
+      src.connect(filter).connect(masterGain).connect(this.ctx.destination);
+      src.start();
+      lfo.start();
+      this._ambNodes = { src, lfo, masterGain };
+    } catch (_) {}
   }
 
   _noiseBuffer(duration = 0.4) {

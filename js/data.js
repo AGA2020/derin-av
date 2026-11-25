@@ -1,8 +1,30 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.0';
+export const GAME_VERSION = 'v4.1';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
+
+// 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
+export const ROUND_EVENTS = [
+  { id: 'barut_yagmuru', name: 'Barut Yağmuru', icon: '🧨', color: '#ff6b35', desc: 'Haritada 2 kat barut fıçısı ve hızlı yenilenme!' },
+  { id: 'cift_cephane', name: 'Çift Cephane', icon: '🔫', color: '#ffb703', desc: 'Tek atımlık ateşli silahlar bu tur 2 atımlık!' },
+  { id: 'gece_sisi', name: 'Karanlık Gece Sisi', icon: '🌫️', color: '#94a3b8', desc: 'Görüş mesafesi %30 daralır — tam gerilim ve pusu!' },
+  { id: 'kasirga_hizi', name: 'Kasırga Hızı', icon: '⚡', color: '#38bdf8', desc: 'Tüm tekneler +%25 daha hızlı süzülür!' },
+  { id: 'derin_deniz', name: 'Sonsuz Derinlik', icon: '🤿', color: '#06d6a0', desc: 'Su altında nefes tüketimi yarıya iner (%50)!' },
+  { id: 'hazine_firtinasi', name: 'Hazine Fırtınası', icon: '📦', color: '#c084fc', desc: '4 deniz sandığı ile başlar ve 2 kat hızlı çıkar!' }
+];
+export const ROUND_EVENT_MAP = Object.fromEntries(ROUND_EVENTS.map(e => [e.id, e]));
+
+// 🚩 TEKNE RENGİ & KÖPÜK İZİ KİŞİSELLEŞTİRME
+export const BOAT_SKINS = [
+  { id: 'auto', name: 'Çar Rengi', icon: '⚓', hull: null, wake: '210, 245, 255' },
+  { id: 'gold', name: 'Altın Korsan', icon: '👑', hull: '#ffb703', wake: '255, 220, 120' },
+  { id: 'crimson', name: 'Kızıl Alev', icon: '🔥', hull: '#ef476f', wake: '255, 130, 155' },
+  { id: 'neon', name: 'Neon Turkuaz', icon: '💎', hull: '#00f5d4', wake: '100, 255, 235' },
+  { id: 'phantom', name: 'Hayalet Mor', icon: '👻', hull: '#a855f7', wake: '205, 160, 255' },
+  { id: 'emerald', name: 'Zümrüt', icon: '🐉', hull: '#22c55e', wake: '125, 250, 175' }
+];
+export const BOAT_SKIN_MAP = Object.fromEntries(BOAT_SKINS.map(s => [s.id, s]));
 
 // 🌿 3 DALLI MAÇ İÇİ YETENEK AĞACI (Her tur +1 Yetenek Puanı!)
 export const SKILL_TREE = [
@@ -43,6 +65,14 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.1',
+    notes: [
+      '🎲 YENİ: Rastgele Tur Olayları! (Barut Yağmuru, Çift Cephane, Karanlık Gece Sisi, Kasırga Hızı, Sonsuz Derinlik, Hazine Fırtınası — lobiden açılıp kapatılabilir.)',
+      '🔥 YENİ: Çifte Batırma, Durdurulamaz ve Barut Ustası seri anonsları + hafif okyanus dalga sesi ambıyansı (🌊 aç/kapa).',
+      '🚩 YENİ: Lobide 6 farklı Tekne Rengi & Köpük İzi seçimi eklendi!'
+    ]
+  },
   {
     ver: 'v4.0',
     notes: [

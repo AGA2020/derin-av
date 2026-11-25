@@ -3,6 +3,8 @@
 import {
   GAME_VERSION,
   CHANGELOG,
+  ROUND_EVENT_MAP,
+  BOAT_SKINS,
   SKILL_TREE,
   SKILL_NODE_MAP,
   WORLD_W,
@@ -14,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.0';
-import { sfx } from './audio.js?v=4.0';
-import { NetClient, generateRoomCode } from './net.js?v=4.0';
-import { GameSim } from './sim.js?v=4.0';
-import { SeaRenderer } from './render.js?v=4.0';
+} from './data.js?v=4.1';
+import { sfx } from './audio.js?v=4.1';
+import { NetClient, generateRoomCode } from './net.js?v=4.1';
+import { GameSim } from './sim.js?v=4.1';
+import { SeaRenderer } from './render.js?v=4.1';
 
 const $ = (id) => document.getElementById(id);
 
@@ -50,6 +52,7 @@ function createBackgroundTicker(intervalMs, onTick) {
 const app = {
   mode: 'menu', // menu | host | client | offline
   myName: localStorage.getItem('derinav_name') || '',
+  mySkin: localStorage.getItem('derinav_skin') || 'auto',
   myId: null,
   roomCode: null,
   net: null,
@@ -172,7 +175,7 @@ function initNet(isHost, roomCode) {
       $('net-status').dataset.state = status;
       if (status === 'connected') {
         if (!isHost) {
-          app.net.send({ type: 'join', name: app.myName });
+          app.net.send({ type: 'join', name: app.myName, skinId: app.mySkin });
         } else {
           broadcastLobby();
         }
@@ -199,6 +202,7 @@ function createHostSim() {
     }
   });
   app.sim.addHuman(app.myId, app.myName);
+  if (app.mySkin) app.sim.pickSkin(app.myId, app.mySkin);
   startHostTicker();
 }
 
@@ -283,8 +287,15 @@ function handleHostReceive(msg) {
   switch (msg.type) {
     case 'join': {
       app.sim.addHuman(sender, msg.name);
+      if (msg.skinId) app.sim.pickSkin(sender, msg.skinId);
       broadcastLobby();
       if (app.sim.phase !== 'lobby') broadcastState();
+      renderLobby();
+      break;
+    }
+    case 'pickSkin': {
+      app.sim.pickSkin(sender, msg.skinId);
+      broadcastLobby();
       renderLobby();
       break;
     }
@@ -414,6 +425,7 @@ function stepClientPrediction(dt) {
   if (len > 1) { mx /= len; my /= len; }
 
   let maxSpd = ch.speed * (me.speedBoost ? 1.38 : 1) * (me.slowTimer ? 0.45 : 1);
+  if (app.liveState.roundEvent === 'kasirga_hizi') maxSpd *= 1.25;
   if (me.role === 'hunter') maxSpd *= 1.03;
   if (me.submerged) maxSpd *= 0.66;
   if (me.rootTimer || me.stunTimer) maxSpd = 0;
@@ -600,6 +612,33 @@ function renderLobby() {
 
   const mySlot = st.slots.find(s => s.id === app.myId);
   const myCharId = mySlot?.charId || 'kaptan';
+  const mySkinId = mySlot?.skinId || app.mySkin || 'auto';
+
+  // 🚩 Tekne Rengi & Köpük İzi Seçici
+  const skinRow = $('skin-picker-row');
+  if (skinRow) {
+    skinRow.innerHTML = BOAT_SKINS.map(sk => `
+      <button class="skin-chip ${sk.id === mySkinId ? 'selected' : ''}" data-skin="${sk.id}" style="--sk-col:${sk.hull || '#38bdf8'}">
+        <span class="skin-dot"></span>${sk.icon} ${sk.name}
+      </button>
+    `).join('');
+    document.querySelectorAll('[data-skin]').forEach(btn => {
+      btn.onclick = () => {
+        const skinId = btn.dataset.skin;
+        app.mySkin = skinId;
+        localStorage.setItem('derinav_skin', skinId);
+        sfx.play('ui');
+        if (app.sim) {
+          app.sim.pickSkin(app.myId, skinId);
+          broadcastLobby();
+          renderLobby();
+        } else {
+          app.net?.send({ type: 'pickSkin', skinId });
+        }
+      };
+    });
+  }
+
   $('char-grid').innerHTML = CHARACTERS.map(c => {
     const selected = c.id === myCharId;
     return `
@@ -657,13 +696,15 @@ function renderDraftUI() {
   $('draft-round-badge').textContent = `TUR ${st.round} / ${st.totalRounds} · ${map.name.toUpperCase()}`;
   $('draft-timer').textContent = `${Math.max(0, st.phaseTimer)}s`;
 
+  const ev = st.roundEvent ? ROUND_EVENT_MAP[st.roundEvent] : null;
+  const evHtml = ev ? `<div class="event-pill-inline" style="border-color:${ev.color};color:${ev.color}">🎲 TUR OLAYI: ${ev.icon} <b>${ev.name}</b> — ${ev.desc}</div>` : '';
   const roleBox = $('draft-role-banner');
   roleBox.className = `role-banner ${isFfa ? 'hunter' : myRole}`;
-  roleBox.innerHTML = isFfa
-    ? `<strong>💀 HERKES TEK (DEATHMATCH)!</strong> — Herkes rakip! Ortak cephanelikten istediğin <b>2 itemi</b> seç, son ayakta kalan turu kazanır! (Batırma ödülü: +40 Can &amp; Tam Nefes)`
+  roleBox.innerHTML = (isFfa
+    ? `<strong>💀 HERKES TEK (DEATHMATCH)!</strong> — Herkes rakip! Ortak cephanelikten istediğin <b>2 itemi</b> seç, son ayakta kalan turu kazanır!`
     : myRole === 'hunter'
-      ? `<strong>🎯 BU TUR AVCISIN!</strong> — Görevin: ${st.settings?.mode === '1v1' ? 'Avı' : 'İki Avı da'} <b>suya gömmek</b>! 2 item seç (Ateşli silahlar <b>TEK KULLANIMLIKTIR</b>).`
-      : `<strong>🌊 BU TUR AVSIN!</strong> — Görevin: <b>Suya gömülmeden</b> süreyi tamamla veya ${st.settings?.mode === '1v1' ? 'Avcıyı' : 'Avcıları'} batır! 2 item seç.`;
+      ? `<strong>🎯 BU TUR AVCISIN!</strong> — Görevin: ${st.settings?.mode === '1v1' ? 'Avı' : 'İki Avı da'} <b>suya gömmek</b>! 2 item seç.`
+      : `<strong>🌊 BU TUR AVSIN!</strong> — Görevin: <b>Suya gömülmeden</b> süreyi tamamla veya ${st.settings?.mode === '1v1' ? 'Avcıyı' : 'Avcıları'} batır! 2 item seç.`) + evHtml;
 
   // 🌿 Yetenek Ağacı (Skill Tree) paneli — ayarda açıksa göster!
   const treeWrap = $('draft-skill-tree');
@@ -820,8 +861,23 @@ function setIfChanged(key, val, applyFn) {
 function updateHudFromState(st) {
   if (!st) return;
   const map = SEA_MAPS[(st.mapIndex || 0) % SEA_MAPS.length];
-  const roundStr = `TUR ${st.round}/${st.totalRounds} · ${map.name}`;
+  const ev = st.roundEvent ? ROUND_EVENT_MAP[st.roundEvent] : null;
+  const roundStr = `TUR ${st.round}/${st.totalRounds} · ${map.name}${ev ? ` · ${ev.icon} ${ev.name}` : ''}`;
   setIfChanged('round', roundStr, () => { $('hud-round').textContent = roundStr; });
+
+  // 🔥 Seri / Özel Anons Bannerı
+  const bKey = st.banner ? `${st.banner.id}` : 'none';
+  setIfChanged('banner', bKey, () => {
+    const el = $('hud-banner');
+    if (!el) return;
+    if (st.banner) {
+      el.style.borderColor = st.banner.color || '#ffb703';
+      el.innerHTML = `<div class="hb-title" style="color:${st.banner.color}">${st.banner.text}</div><div class="hb-sub">${st.banner.sub || ''}</div>`;
+      el.classList.add('show');
+    } else {
+      el.classList.remove('show');
+    }
+  });
   const isFfa = st.mode === 'ffa';
   setIfChanged('scoreMode', isFfa, () => {
     $('hud-score-badge-a').style.display = isFfa ? 'none' : '';
@@ -990,7 +1046,8 @@ function renderIntroVS(st) {
 
   const rosterKey = `${st.round}_${st.mode}_${(st.players || []).map(p => p.id + ':' + (p.items || []).map(i => i.id).join(',')).join('|')}`;
   setIfChanged('introRoster', rosterKey, () => {
-    $('intro-map-title').textContent = `TUR ${st.round}/${st.totalRounds} · ${map.name.toUpperCase()}`;
+    const ev = st.roundEvent ? ROUND_EVENT_MAP[st.roundEvent] : null;
+    $('intro-map-title').textContent = `TUR ${st.round}/${st.totalRounds} · ${map.name.toUpperCase()}${ev ? ` · ${ev.icon} ${ev.name.toUpperCase()}` : ''}`;
 
     const renderCard = (p) => {
       const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
@@ -1315,6 +1372,7 @@ function renderLobbyRulesSummary(st) {
     `🗺️ ${mapLabel}`,
     gunLabel,
     `🌿 Ağaç ${s.skillTree !== false ? '✓' : '✕'}`,
+    `🎲 Olay ${s.roundEvents !== false ? '✓' : '✕'}`,
     `📦 Sandık ${s.powerups ? '✓' : '✕'}`,
     `🧨 Fıçı ${s.barrels ? '✓' : '✕'}`,
     `🌪️ Fırtına ${s.storm ? '✓' : '✕'}`,
@@ -1546,6 +1604,16 @@ function init() {
     sfx.setMuted(next);
     $('btn-mute').textContent = next ? '🔇' : '🔊';
   };
+
+  const ambBtn = $('btn-ambient');
+  if (ambBtn) {
+    ambBtn.onclick = () => {
+      const next = !sfx.ambientOn;
+      sfx.setAmbient(next);
+      ambBtn.style.opacity = next ? '1' : '0.45';
+      showToast(next ? '🌊 Okyanus dalga sesi açıldı' : '🌊 Okyanus dalga sesi kapatıldı');
+    };
+  }
 
   // ⛶ Tam Ekran Butonu
   const fsBtn = $('btn-fullscreen');

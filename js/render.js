@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=4.0';
-import { hasLineOfSight } from './sim.js?v=4.0';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.1';
+import { hasLineOfSight } from './sim.js?v=4.1';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -99,10 +99,12 @@ export class SeaRenderer {
             });
           }
         } else if (spd > 40 && Math.random() < dt * 26) {
+          const skin = BOAT_SKIN_MAP[p.skinId] || BOAT_SKIN_MAP.auto;
           this.wakes.push({
             x: sp.x - Math.cos(sp.aim) * 16 + (Math.random() - 0.5) * 8,
             y: sp.y - Math.sin(sp.aim) * 16 + (Math.random() - 0.5) * 8,
             r: 5 + Math.random() * 5,
+            rgb: skin.wake || '210, 245, 255',
             life: 0.75,
             maxLife: 0.75
           });
@@ -178,7 +180,7 @@ export class SeaRenderer {
     this._drawRocksAndShips(ctx, map);
     this._drawSinkEffects(ctx, state.sinkEffects || []);
     this._drawDecoys(ctx, state.decoys || [], me, map);
-    this._drawPlayers(ctx, players, me, map);
+    this._drawPlayers(ctx, players, me, map, state.roundEvent);
     this._drawProjectiles(ctx, state.projectiles || [], dt);
     this._drawZones(ctx, state.zones || []);
     this._drawFogs(ctx, map, me);
@@ -201,10 +203,11 @@ export class SeaRenderer {
       const vx = sp.x - this.camX + this.viewW / 2;
       const vy = sp.y - this.camY + this.viewH / 2;
       const ch = CHAR_MAP[me.charId];
-      const visR = (ch?.vision || 390) * 1.15;
-      const grad = ctx.createRadialGradient(vx, vy, visR * 0.55, vx, vy, visR * 1.35);
+      const visMult = state.roundEvent === 'gece_sisi' ? 0.7 : 1.0;
+      const visR = (ch?.vision || 390) * visMult * 1.15;
+      const grad = ctx.createRadialGradient(vx, vy, visR * 0.52, vx, vy, visR * 1.32);
       grad.addColorStop(0, 'rgba(3, 12, 22, 0)');
-      grad.addColorStop(1, 'rgba(2, 10, 18, 0.56)');
+      grad.addColorStop(1, state.roundEvent === 'gece_sisi' ? 'rgba(1, 6, 14, 0.82)' : 'rgba(2, 10, 18, 0.56)');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, this.viewW, this.viewH);
 
@@ -486,9 +489,9 @@ export class SeaRenderer {
 
   _drawWakes(ctx) {
     for (const w of this.wakes) {
-      const a = Math.max(0, w.life / w.maxLife) * 0.28;
-      ctx.strokeStyle = `rgba(210, 245, 255, ${a})`;
-      ctx.lineWidth = 2;
+      const a = Math.max(0, w.life / w.maxLife) * 0.34;
+      ctx.strokeStyle = `rgba(${w.rgb || '210, 245, 255'}, ${a})`;
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2);
       ctx.stroke();
@@ -753,7 +756,7 @@ export class SeaRenderer {
     }
   }
 
-  _canViewerSee(me, target, map) {
+  _canViewerSee(me, target, map, roundEvent = null) {
     if (!me || !me.alive) return true; // Spectator sees everyone!
     if (me.team === target.team) return true;
     if (me.blindTimer > 0) return false;
@@ -771,7 +774,8 @@ export class SeaRenderer {
       const fogDetect = tch?.stealthBonus ? 88 : 138;
       if (d > fogDetect) return false;
     }
-    if (d > (ch?.vision || 390)) return false;
+    const visMult = roundEvent === 'gece_sisi' ? 0.7 : 1.0;
+    if (d > (ch?.vision || 390) * visMult) return false;
     return hasLineOfSight(map, myPos.x, myPos.y, tPos.x, tPos.y);
   }
 
@@ -797,10 +801,10 @@ export class SeaRenderer {
     }
   }
 
-  _drawPlayers(ctx, players, me, map) {
+  _drawPlayers(ctx, players, me, map, roundEvent = null) {
     for (const p of players) {
       if (!p.alive) continue;
-      if (!this._canViewerSee(me, p, map)) continue;
+      if (!this._canViewerSee(me, p, map, roundEvent)) continue;
       const sp = this.smoothPos.get(p.id) || p;
       const isMe = me && p.id === me.id;
       const alpha = p.submerged
@@ -945,8 +949,9 @@ export class SeaRenderer {
     ctx.fill();
     ctx.stroke();
 
-    // Inner deck colored by character
-    ctx.fillStyle = ch.color;
+    // Inner deck colored by chosen boat skin (or character color)
+    const skin = BOAT_SKIN_MAP[p.skinId];
+    ctx.fillStyle = skin?.hull || ch.color;
     ctx.beginPath();
     ctx.ellipse(-2, 0, 12, 8.5, 0, 0, Math.PI * 2);
     ctx.fill();

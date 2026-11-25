@@ -3,6 +3,9 @@
 import {
   GAME_VERSION,
   EMOTES,
+  ROUND_EVENTS,
+  ROUND_EVENT_MAP,
+  BOAT_SKIN_MAP,
   SKILL_TREE,
   SKILL_NODE_MAP,
   WORLD_W,
@@ -18,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=4.0';
+} from './data.js?v=4.1';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -97,6 +100,7 @@ export class GameSim {
       hpMult: 1.0,
       lives: 1, // 1 | 2 | 3 (Mario Kalp Sistemi ❤️❤️❤️)
       skillTree: true, // 🌿 Maç içi 3 dallı yetenek ağacı
+      roundEvents: true, // 🎲 Rastgele tur olayları
       mapMode: 'rotate', // 'rotate' | '0'..'5'
       firearmMode: 'single', // 'single' | 'long_cd'
       powerups: true,
@@ -107,6 +111,8 @@ export class GameSim {
     this.totalRounds = 4; // Her takım 2 Avcı + 2 Av (beraberlikte Final Turu)
     this.round = 1;
     this.mapIndex = 0;
+    this.roundEvent = null; // 🎲 Aktif rastgele tur olayı id
+    this.banner = null; // 🔥 Seri / özel anons bannerı
     this.scores = { A: 0, B: 0 };
     this.ffaScores = {}; // playerId -> round wins in FFA
     this.matchStats = {}; // playerId -> cumulative match stats across all rounds!
@@ -121,10 +127,10 @@ export class GameSim {
 
     // 4 Lobby Slots: 0,1 = Takım A | 2,3 = Takım B
     this.slots = [
-      { idx: 0, team: 'A', id: null, name: '', isBot: false, charId: 'kaptan', items: [], readyItems: false, skills: [], skillPoints: 0 },
-      { idx: 1, team: 'A', id: null, name: '', isBot: false, charId: 'kopekbaligi', items: [], readyItems: false, skills: [], skillPoints: 0 },
-      { idx: 2, team: 'B', id: null, name: '', isBot: false, charId: 'hayalet', items: [], readyItems: false, skills: [], skillPoints: 0 },
-      { idx: 3, team: 'B', id: null, name: '', isBot: false, charId: 'fenerci', items: [], readyItems: false, skills: [], skillPoints: 0 }
+      { idx: 0, team: 'A', id: null, name: '', isBot: false, charId: 'kaptan', skinId: 'auto', items: [], readyItems: false, skills: [], skillPoints: 0 },
+      { idx: 1, team: 'A', id: null, name: '', isBot: false, charId: 'kopekbaligi', skinId: 'auto', items: [], readyItems: false, skills: [], skillPoints: 0 },
+      { idx: 2, team: 'B', id: null, name: '', isBot: false, charId: 'hayalet', skinId: 'auto', items: [], readyItems: false, skills: [], skillPoints: 0 },
+      { idx: 3, team: 'B', id: null, name: '', isBot: false, charId: 'fenerci', skinId: 'auto', items: [], readyItems: false, skills: [], skillPoints: 0 }
     ];
 
     // Live match entities
@@ -258,6 +264,14 @@ export class GameSim {
     return true;
   }
 
+  pickSkin(playerId, skinId) {
+    if (!BOAT_SKIN_MAP[skinId]) return false;
+    const slot = this.slots.find(s => s.id === playerId);
+    if (!slot) return false;
+    slot.skinId = skinId;
+    return true;
+  }
+
   _pickUnusedChar(slotIdx) {
     const used = new Set(this.slots.filter(s => s.id && s.idx !== slotIdx).map(s => s.charId));
     const free = CHARACTERS.find(c => !used.has(c.id));
@@ -314,7 +328,7 @@ export class GameSim {
     if (['single', 'long_cd'].includes(String(patch.firearmMode))) {
       this.settings.firearmMode = String(patch.firearmMode);
     }
-    for (const k of ['powerups', 'barrels', 'storm', 'rescue', 'skillTree']) {
+    for (const k of ['powerups', 'barrels', 'storm', 'rescue', 'skillTree', 'roundEvents']) {
       if (typeof patch[k] === 'boolean') this.settings[k] = patch[k];
     }
   }
@@ -392,6 +406,16 @@ export class GameSim {
     this.phaseTimer = DRAFT_DURATION;
     this.roundWinnerRole = null;
     this.roundWinnerTeam = null;
+    this.banner = null;
+
+    // 🎲 Rastgele Tur Olayı seç (önceki turun aynısı gelmesin!)
+    if (this.settings.roundEvents) {
+      const prev = this.roundEvent;
+      const pool = ROUND_EVENTS.filter(e => e.id !== prev);
+      this.roundEvent = pool[Math.floor(Math.random() * pool.length)].id;
+    } else {
+      this.roundEvent = null;
+    }
 
     for (const s of this.getActiveSlots(true)) {
       const role = this.getTeamRole(s.team);
@@ -544,10 +568,12 @@ export class GameSim {
       const itemStates = s.items.map(itemId => {
         const def = ALL_ITEMS[itemId];
         const longCdMode = def.firearm && this.settings.firearmMode === 'long_cd';
+        const doubleAmmo = def.firearm && !longCdMode && this.roundEvent === 'cift_cephane';
+        const maxU = longCdMode ? 99 : (doubleAmmo ? 2 : def.uses);
         return {
           id: def.id,
-          usesLeft: longCdMode ? 99 : def.uses,
-          maxUses: longCdMode ? 99 : def.uses,
+          usesLeft: maxU,
+          maxUses: maxU,
           firearm: def.firearm,
           longCd: longCdMode,
           cd: 0
@@ -567,6 +593,7 @@ export class GameSim {
         role,
         isBot: s.isBot,
         charId: ch.id,
+        skinId: s.skinId || 'auto',
         skills: [...(s.skills || [])],
         sk,
         x: sp.x,
@@ -629,14 +656,18 @@ export class GameSim {
     });
 
     if (this.settings.powerups) {
-      this._spawnPowerup();
-      this._spawnPowerup();
+      const puCount = this.roundEvent === 'hazine_firtinasi' ? 4 : 2;
+      for (let i = 0; i < puCount; i++) this._spawnPowerup();
     }
     if (this.settings.barrels) {
       this._spawnInitialBarrels();
     }
     this.onEvent({ type: 'sfx', name: 'ui' });
     this.onEvent({ type: 'phase', phase: 'intro', round: this.round });
+  }
+
+  _triggerBanner(text, sub = '', color = '#ffd166') {
+    this.banner = { id: this._nextEntityId++, text, sub, color, life: 2.6 };
   }
 
   _beginPlay() {
@@ -650,20 +681,21 @@ export class GameSim {
 
   _spawnInitialBarrels() {
     const map = this.currentMap;
-    const spots = (map.barrelSpots || []).slice(0, 5);
+    const isRain = this.roundEvent === 'barut_yagmuru';
+    const spots = isRain ? (map.barrelSpots || []) : (map.barrelSpots || []).slice(0, 5);
+    const makeBarrel = (x, y) => ({
+      id: this._nextEntityId++,
+      x, y, vx: 0, vy: 0, r: 17, fuse: 0,
+      lastTouchId: null, lastTouchTeam: null
+    });
     for (const sp of spots) {
       if (!this._hitsObstacle(sp.x, sp.y, 20, map)) {
-        this.barrels.push({
-          id: this._nextEntityId++,
-          x: sp.x,
-          y: sp.y,
-          vx: 0,
-          vy: 0,
-          r: 17,
-          fuse: 0,
-          lastTouchId: null,
-          lastTouchTeam: null
-        });
+        this.barrels.push(makeBarrel(sp.x, sp.y));
+        if (isRain) {
+          const ox = clamp(sp.x + 56, 80, WORLD_W - 80);
+          const oy = clamp(sp.y + 34, map.beach ? map.beach.sandY + 45 : 80, WORLD_H - 80);
+          if (!this._hitsObstacle(ox, oy, 20, map)) this.barrels.push(makeBarrel(ox, oy));
+        }
       }
     }
   }
@@ -1316,6 +1348,19 @@ export class GameSim {
         attacker.sinks += 1;
         const aStat = this._stat(attacker.id);
         if (aStat && attacker.id !== target.id) aStat.sinks += 1;
+
+        // 🔥 Seri & Özel Anons Bannerları!
+        if (attacker.id !== target.id) {
+          if (attacker.sinks >= 3) {
+            this._triggerBanner('👑 DURDURULAMAZ!', `${attacker.name} (${attacker.sinks} Batırma!)`, '#ff4d6d');
+          } else if (attacker.sinks === 2) {
+            this._triggerBanner('🔥 ÇİFTE BATIRMA!', `${attacker.name} ortalığı süpürüyor!`, '#ffb703');
+          } else if (sourceLabel === 'Barut Fıçısı') {
+            this._triggerBanner('🧨 BARUT USTASI!', `${attacker.name}, ${target.name}'i fıçıyla uçurdu!`, '#ff6b35');
+          } else if (sourceLabel === 'Sürpriz Çıkış') {
+            this._triggerBanner('🦈 KÖPEKBALIĞI PUSUSU!', `${attacker.name} su altından bitirdi!`, '#38bdf8');
+          }
+        }
         // 💀 Deathmatch Kill Ödülü: third-party dengesini korur!
         if (this.settings.mode === 'ffa' && attacker.alive && attacker.id !== target.id) {
           attacker.hp = Math.min(attacker.maxHp, attacker.hp + 40);
@@ -1414,7 +1459,11 @@ export class GameSim {
       this.storm.r = 980 - (980 - 255) * prog;
     }
 
-    // Update feed TTL
+    // Update feed TTL & announcement banner
+    if (this.banner) {
+      this.banner.life -= dt;
+      if (this.banner.life <= 0) this.banner = null;
+    }
     for (let i = this.feed.length - 1; i >= 0; i--) {
       this.feed[i].ttl -= dt;
       if (this.feed[i].ttl <= 0) this.feed.splice(i, 1);
@@ -1450,7 +1499,7 @@ export class GameSim {
     if (this.settings.powerups) {
       this.powerupSpawnTimer -= dt;
       if (this.powerupSpawnTimer <= 0) {
-        this.powerupSpawnTimer = 9.0;
+        this.powerupSpawnTimer = this.roundEvent === 'hazine_firtinasi' ? 4.8 : 9.0;
         this._spawnPowerup();
       }
     }
@@ -1569,7 +1618,8 @@ export class GameSim {
       const pSk = p.sk || this._computeSkillBonuses([]);
       if (p.submerged) {
         p.diveTime += dt;
-        p.breath = Math.max(0, p.breath - (22 * pSk.breathDrainMult) * dt);
+        const evDrain = this.roundEvent === 'derin_deniz' ? 0.5 : 1.0;
+        p.breath = Math.max(0, p.breath - (22 * pSk.breathDrainMult * evDrain) * dt);
         p.breathRegenDelay = Math.max(1.2, 2.2 - pSk.regenDelayReduce * 0.5);
         if (p.breath <= 0) {
           this._addFloatText(p.x, p.y - 30, '🫁 NEFES BİTTİ!', '#38bdf8');
@@ -1624,7 +1674,8 @@ export class GameSim {
         my /= mlen;
       }
 
-      let maxSpd = ch.speed * p.speedMult * p.slowFactor * pSk.speedMult;
+      const evSpd = this.roundEvent === 'kasirga_hizi' ? 1.25 : 1.0;
+      let maxSpd = ch.speed * p.speedMult * p.slowFactor * pSk.speedMult * evSpd;
       if (p.role === 'hunter') maxSpd *= 1.03; // Hafif avcı takip hızı avantajı
       if (p.submerged) maxSpd *= 0.66 * pSk.subSpeedBonus; // Su altında yavaş gizlenme ve pusu hızı
       if (p.rootTimer > 0 || p.stunTimer > 0) maxSpd = 0;
@@ -1741,7 +1792,7 @@ export class GameSim {
     if (this.settings.barrels) {
       this.barrelSpawnTimer -= dt;
       if (this.barrelSpawnTimer <= 0) {
-        this.barrelSpawnTimer = 22.0;
+        this.barrelSpawnTimer = this.roundEvent === 'barut_yagmuru' ? 10.0 : 22.0;
         this._spawnOneBarrel();
       }
     }
@@ -2168,7 +2219,8 @@ export class GameSim {
       const fogDetect = tch.stealthBonus ? 85 : 135;
       if (d > fogDetect) return false;
     }
-    if (d > ch.vision) return false;
+    const visMult = this.roundEvent === 'gece_sisi' ? 0.7 : 1.0;
+    if (d > ch.vision * visMult) return false;
     return hasLineOfSight(map, viewer.x, viewer.y, target.x, target.y);
   }
 
@@ -2368,6 +2420,7 @@ export class GameSim {
       settings: { ...this.settings },
       round: this.round,
       mapIndex: this.mapIndex,
+      roundEvent: this.roundEvent,
       scores: { ...this.scores },
       ffaScores: { ...this.ffaScores },
       phaseTimer: Math.ceil(this.phaseTimer),
@@ -2378,6 +2431,7 @@ export class GameSim {
         name: s.name,
         isBot: s.isBot,
         charId: s.charId,
+        skinId: s.skinId || 'auto',
         items: [...s.items],
         readyItems: s.readyItems,
         skills: [...(s.skills || [])],
@@ -2393,6 +2447,8 @@ export class GameSim {
       round: this.round,
       totalRounds: this.totalRounds,
       mapIndex: this.mapIndex,
+      roundEvent: this.roundEvent,
+      banner: this.banner ? { id: this.banner.id, text: this.banner.text, sub: this.banner.sub, color: this.banner.color } : null,
       scores: { ...this.scores },
       ffaScores: { ...this.ffaScores },
       phaseTimer: Number(this.phaseTimer.toFixed(1)),
@@ -2411,6 +2467,7 @@ export class GameSim {
         role: p.role,
         isBot: p.isBot,
         charId: p.charId,
+        skinId: p.skinId || 'auto',
         x: Math.round(p.x),
         y: Math.round(p.y),
         vx: Math.round(p.vx),

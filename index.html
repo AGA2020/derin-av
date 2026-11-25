@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=4.0" />
+  <link rel="stylesheet" href="./styles.css?v=4.1" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -117,6 +117,10 @@
             <span>Her çarın farklı direnci, hızı ve deniz yeteneği var</span>
           </div>
           <div id="char-grid" class="char-grid"></div>
+          <div class="skin-section">
+            <div class="skin-label">🚩 Tekne Rengi &amp; Köpük İzi</div>
+            <div id="skin-picker-row" class="skin-picker-row"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -144,7 +148,8 @@
           <div id="hud-score-badge-b" class="score-badge b"><b id="hud-score-b">0</b> TAKIM B</div>
           <button id="btn-fullscreen" class="btn-icon" title="Tam Ekran">⛶</button>
           <button id="btn-guide-game" class="btn-icon" title="Nasıl Oynanır? (Rehber)">❓</button>
-          <button id="btn-mute" class="btn-icon" title="Sesi Aç/Kapat">🔊</button>
+          <button id="btn-ambient" class="btn-icon" title="Dalga Sesi Ambıyansı Aç/Kapat">🌊</button>
+          <button id="btn-mute" class="btn-icon" title="Tüm Sesleri Aç/Kapat">🔊</button>
         </div>
         <div id="hud-team-b" class="mini-team right"></div>
       </div>
@@ -152,6 +157,9 @@
 
     <!-- OLAY AKIŞI -->
     <div id="hud-feed" class="hud-feed"></div>
+
+    <!-- 🔥 SERİ & ÖZEL ANONS BANNERI -->
+    <div id="hud-banner" class="hud-banner"></div>
 
     <!-- HIZLI EMOJİ TEPKİ ÇUBUĞU (3-6) -->
     <div class="emote-bar" title="Tekne üstü emoji tepkisi (3-6)">
@@ -253,7 +261,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.0</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.1</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -341,6 +349,7 @@
           <div class="setting-label">Harita Olayları &amp; Mekanikler</div>
           <div class="toggle-grid">
             <button class="toggle-chip" data-toggle="skillTree">🌿 Yetenek Ağacı (Skill Tree)</button>
+            <button class="toggle-chip" data-toggle="roundEvents">🎲 Rastgele Tur Olayları</button>
             <button class="toggle-chip" data-toggle="powerups">📦 Power-Up Sandıkları</button>
             <button class="toggle-chip" data-toggle="barrels">🧨 Barut Fıçıları</button>
             <button class="toggle-chip" data-toggle="storm">🌪️ Son 25s Dev Fırtına</button>
@@ -460,7 +469,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=4.0"></script>
+  <script type="module" src="./js/main.js?v=4.1"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {
