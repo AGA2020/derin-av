@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.63';
+export const GAME_VERSION = 'v4.64';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,16 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.64',
+    notes: [
+      '🐛 Maç Sonu ekranının saniyede 28 kez yeniden çizilip kaydırmayı bozma hatası giderildi.',
+      '🚪 Maç içi sağ üst HUD’a güvenli çift-tıkla Lobiye Dön / Çık butonu eklendi.',
+      '⌨️ Klavye UX: ESC ile açık pencereler kapanır, oda kodunda Enter ile direkt girilir, rehber açıkken arkada silah sıkılmaz.',
+      '🔌 Oda kurucusu odadan ayrıldığında veya bağlantısı koptuğunda arkadaşlar artık sonsuza kadar beklemez; otomatik bilgilendirilir.',
+      '📖 Nasıl Oynanır rehberi İKİ İTEMLİ OYUN ve tüm yeni özelliklerle güncellendi.'
+    ]
+  },
   {
     ver: 'v4.63',
     notes: [

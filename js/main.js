@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.63';
-import { sfx } from './audio.js?v=4.63';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.63';
-import { GameSim } from './sim.js?v=4.63';
-import { SeaRenderer } from './render.js?v=4.63';
+} from './data.js?v=4.64';
+import { sfx } from './audio.js?v=4.64';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.64';
+import { GameSim } from './sim.js?v=4.64';
+import { SeaRenderer } from './render.js?v=4.64';
 
 const $ = (id) => document.getElementById(id);
 
@@ -80,6 +80,8 @@ const app = {
   verClicks: 0,
   verClickTimer: null,
   joinTimeout: null,
+  lastHostPacketAt: 0,
+  exitArmTimer: null,
   touchMove: { mx: 0, my: 0 }
 };
 
@@ -523,8 +525,11 @@ function joinOnlineRoom(rawCode) {
 function leaveRoom() {
   clearTimeout(app.joinTimeout);
   app.joinTimeout = null;
+  app.lastHostPacketAt = 0;
   if (app.mode === 'client' && app.net?.connected) {
     app.net.send({ type: 'leave' });
+  } else if (app.mode === 'host' && app.net?.connected) {
+    app.net.send({ type: 'hostClosed' });
   }
   stopHostTicker();
   if (app.net) app.net.disconnect();
@@ -534,6 +539,7 @@ function leaveRoom() {
   app.lobbyState = null;
   app.liveState = null;
   app.roomCode = null;
+  app.hudCache = {};
   $('invite-banner').style.display = 'none';
   updateUrlRoom(null);
   setScreen('home');
@@ -616,7 +622,13 @@ function handleHostReceive(msg) {
 }
 
 function handleClientReceive(msg) {
+  app.lastHostPacketAt = performance.now();
   switch (msg.type) {
+    case 'hostClosed': {
+      leaveRoom();
+      showToast('ℹ️ Oda kurucusu odadan ayrıldı.');
+      break;
+    }
     case 'lobby': {
       if (app.joinTimeout) { clearTimeout(app.joinTimeout); app.joinTimeout = null; }
       const prevJson = app.lobbyState ? JSON.stringify(app.lobbyState) : '';
@@ -1497,68 +1509,71 @@ function computeMatchAwards(st) {
 }
 
 function renderMatchEnd(st) {
-  const isSolo = st.mode === 'ffa' || st.mode === 'crown';
-  if (isSolo) {
-    $('match-end-title').textContent = `🏆 ${st.matchWinnerName || 'ŞAMPİYON'} KAZANDI!`;
-    $('match-end-score').textContent = st.mode === 'crown' ? 'ALTIN TAÇ FİNAL SIRALAMASI' : 'DEATHMATCH FİNAL SIRALAMASI';
-  } else {
-    const winTeamLabel = st.matchWinnerTeam === 'A' ? 'TAKIM A (ALTIN)' : 'TAKIM B (TURKUAZ)';
-    $('match-end-title').textContent = `🏆 ${winTeamLabel} ŞAMPİYON!`;
-    $('match-end-score').textContent = `FİNAL SKORU: TAKIM A ${st.scores.A} - ${st.scores.B} TAKIM B`;
-  }
+  const meKey = `${st.mode}_${st.round}_${st.scores?.A}_${st.scores?.B}_${st.matchWinnerTeam}_${st.matchWinnerName}`;
+  setIfChanged('matchEnd', meKey, () => {
+    const isSolo = st.mode === 'ffa' || st.mode === 'crown';
+    if (isSolo) {
+      $('match-end-title').textContent = `🏆 ${st.matchWinnerName || 'ŞAMPİYON'} KAZANDI!`;
+      $('match-end-score').textContent = st.mode === 'crown' ? 'ALTIN TAÇ FİNAL SIRALAMASI' : 'DEATHMATCH FİNAL SIRALAMASI';
+    } else {
+      const winTeamLabel = st.matchWinnerTeam === 'A' ? 'TAKIM A (ALTIN)' : 'TAKIM B (TURKUAZ)';
+      $('match-end-title').textContent = `🏆 ${winTeamLabel} ŞAMPİYON!`;
+      $('match-end-score').textContent = `FİNAL SKORU: TAKIM A ${st.scores.A} - ${st.scores.B} TAKIM B`;
+    }
 
-  const awards = computeMatchAwards(st);
-  recordCareerMatch(st, awards);
-  const mvp = awards[0];
-  if (mvp) {
-    const mch = CHAR_MAP[mvp.charId] || CHARACTERS[0];
-    $('match-mvp-banner').innerHTML = `
-      <div class="mvp-crown">👑 MAÇIN MVP'Sİ</div>
-      <div class="mvp-main">
-        <span class="mvp-ico">${mch.icon}</span>
-        <div>
-          <div class="mvp-name">${mvp.name} <span class="mvp-title-badge">${mvp.title}</span></div>
-          <div class="mvp-sub">🌊 ${mvp.sinks} Batırma · 💥 ${mvp.damage} Hasar · 🦈 ${mvp.ambushes} Pusu · 🛟 ${mvp.rescues} Kurtarma</div>
-        </div>
-      </div>
-    `;
-    $('match-mvp-banner').style.display = 'block';
-  }
-
-  const rows = awards.map((s, idx) => {
-    const ch = CHAR_MAP[s.charId] || CHARACTERS[0];
-    const teamTag = isSolo
-      ? `🏆 ${st.ffaScores?.[s.id] || 0} Tur`
-      : `Takım ${s.team}`;
-    return `
-      <div class="stat-card ${idx === 0 ? 'mvp' : ''}">
-        <div class="stat-card-top">
-          <div class="stat-player">
-            <span class="stat-rank">#${idx + 1}</span>
-            <span class="stat-ico">${ch.icon}</span>
-            <div>
-              <div class="stat-name">${s.name} <span class="stat-team">${teamTag}</span></div>
-              <div class="stat-award">${s.title}</div>
-            </div>
+    const awards = computeMatchAwards(st);
+    recordCareerMatch(st, awards);
+    const mvp = awards[0];
+    if (mvp) {
+      const mch = CHAR_MAP[mvp.charId] || CHARACTERS[0];
+      $('match-mvp-banner').innerHTML = `
+        <div class="mvp-crown">👑 MAÇIN MVP'Sİ</div>
+        <div class="mvp-main">
+          <span class="mvp-ico">${mch.icon}</span>
+          <div>
+            <div class="mvp-name">${mvp.name} <span class="mvp-title-badge">${mvp.title}</span></div>
+            <div class="mvp-sub">🌊 ${mvp.sinks} Batırma · 💥 ${mvp.damage} Hasar · 🦈 ${mvp.ambushes} Pusu · 🛟 ${mvp.rescues} Kurtarma</div>
           </div>
-          <div class="stat-pts">${s.mvpScore} Puan</div>
         </div>
-        <div class="stat-pills">
-          <span>🌊 Batırma: <b>${s.sinks}</b></span>
-          <span>💥 Hasar: <b>${s.damage}</b></span>
-          <span>🦈 Sürpriz: <b>${s.ambushes}</b></span>
-          <span>🛟 Kurtarma: <b>${s.rescues}</b></span>
-          <span>🧨 Fıçı: <b>${s.barrels}</b></span>
-          <span>📦 Sandık: <b>${s.powerups}</b></span>
-        </div>
-      </div>
-    `;
-  }).join('');
-  $('match-end-stats').innerHTML = rows;
+      `;
+      $('match-mvp-banner').style.display = 'block';
+    }
 
-  const isHostLike = app.mode === 'host' || app.mode === 'offline';
-  $('btn-rematch').style.display = isHostLike ? '' : 'none';
-  $('btn-back-lobby').style.display = isHostLike ? '' : 'none';
+    const rows = awards.map((s, idx) => {
+      const ch = CHAR_MAP[s.charId] || CHARACTERS[0];
+      const teamTag = isSolo
+        ? `🏆 ${st.ffaScores?.[s.id] || 0} Tur`
+        : `Takım ${s.team}`;
+      return `
+        <div class="stat-card ${idx === 0 ? 'mvp' : ''}">
+          <div class="stat-card-top">
+            <div class="stat-player">
+              <span class="stat-rank">#${idx + 1}</span>
+              <span class="stat-ico">${ch.icon}</span>
+              <div>
+                <div class="stat-name">${s.name} <span class="stat-team">${teamTag}</span></div>
+                <div class="stat-award">${s.title}</div>
+              </div>
+            </div>
+            <div class="stat-pts">${s.mvpScore} Puan</div>
+          </div>
+          <div class="stat-pills">
+            <span>🌊 Batırma: <b>${s.sinks}</b></span>
+            <span>💥 Hasar: <b>${s.damage}</b></span>
+            <span>🦈 Sürpriz: <b>${s.ambushes}</b></span>
+            <span>🛟 Kurtarma: <b>${s.rescues}</b></span>
+            <span>🧨 Fıçı: <b>${s.barrels}</b></span>
+            <span>📦 Sandık: <b>${s.powerups}</b></span>
+          </div>
+        </div>
+      `;
+    }).join('');
+    $('match-end-stats').innerHTML = rows;
+
+    const isHostLike = app.mode === 'host' || app.mode === 'offline';
+    $('btn-rematch').style.display = isHostLike ? '' : 'none';
+    $('btn-back-lobby').style.display = isHostLike ? '' : 'none';
+  });
 }
 
 // ============================================================
@@ -1645,6 +1660,12 @@ let lastFrameTime = performance.now();
 function renderLoop(now) {
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
+
+  // 🔌 Host bağlantı kopması kontrolü (9.5 sn hiç paket gelmezse bekletmeden çık!)
+  if (app.mode === 'client' && (app.lobbyState || app.liveState) && app.lastHostPacketAt > 0 && now - app.lastHostPacketAt > 9500) {
+    leaveRoom();
+    showToast('⚠️ Oda kurucusuyla bağlantı kesildi!');
+  }
 
   if (app.renderer && app.liveState && app.liveState.phase === 'playing') {
     const me = app.liveState.players?.find(p => p.id === app.myId);
@@ -2020,6 +2041,43 @@ function init() {
   if ($('btn-home-fs')) $('btn-home-fs').onclick = toggleFullscreen;
   if ($('btn-lobby-fs')) $('btn-lobby-fs').onclick = toggleFullscreen;
 
+  // 🚪 Maç içinden güvenli çift-tıkla Lobiye Dön / Çık!
+  const exitBtn = $('btn-game-exit');
+  if (exitBtn) {
+    exitBtn.onclick = () => {
+      if (exitBtn.dataset.armed === '1') {
+        clearTimeout(app.exitArmTimer);
+        exitBtn.dataset.armed = '0';
+        exitBtn.style.borderColor = '';
+        if (app.sim) {
+          app.sim.backToLobby();
+          broadcastLobby();
+          renderLobby();
+        } else {
+          leaveRoom();
+        }
+        sfx.play('ui');
+      } else {
+        exitBtn.dataset.armed = '1';
+        exitBtn.style.borderColor = '#ef4444';
+        showToast(app.sim ? '🚪 Lobiye dönmek için tekrar tıkla!' : '🚪 Odadan çıkmak için tekrar tıkla!');
+        clearTimeout(app.exitArmTimer);
+        app.exitArmTimer = setTimeout(() => {
+          exitBtn.dataset.armed = '0';
+          exitBtn.style.borderColor = '';
+        }, 3000);
+      }
+    };
+  }
+
+  // ⌨️ Oda kodunda Enter'a basınca direkt katıl!
+  $('input-code').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      joinOnlineRoom();
+    }
+  });
+
   // Lobide 1-tıkla Hızlı Mod Seçici (2v2 / 1v1 / Herkes Tek / Altın Taç)
   document.querySelectorAll('[data-qmode]').forEach(btn => {
     btn.onclick = () => {
@@ -2084,8 +2142,23 @@ function init() {
     btn.onclick = () => useEmote(Number(btn.dataset.emote));
   });
 
+  const INFO_MODALS = ['overlay-guide', 'overlay-settings', 'overlay-career', 'overlay-admin', 'overlay-changelog'];
+  const isInfoModalOpen = () => INFO_MODALS.some(id => $(id)?.classList.contains('active'));
+
   window.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape') {
+      let closed = false;
+      for (const id of INFO_MODALS) {
+        const el = $(id);
+        if (el?.classList.contains('active')) {
+          el.classList.remove('active');
+          closed = true;
+        }
+      }
+      if (closed) { sfx.play('ui'); return; }
+    }
     if (document.activeElement?.tagName === 'INPUT') return;
+    if (isInfoModalOpen()) return;
     const had = app.keys.has(e.code);
     app.keys.add(e.code);
     if (!had && app.mode === 'client') sendClientInputNow();
@@ -2124,6 +2197,7 @@ function init() {
   });
 
   canvas.addEventListener('mousedown', (e) => {
+    if (isInfoModalOpen()) return;
     if (e.button === 0) useSlot(0);
     if (e.button === 2) useSlot(1);
   });

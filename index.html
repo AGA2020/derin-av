@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>İKİ İTEMLİ OYUN — Online Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=4.63" />
+  <link rel="stylesheet" href="./styles.css?v=4.64" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -165,6 +165,7 @@
           <button id="btn-guide-game" class="btn-icon" title="Nasıl Oynanır? (Rehber)">❓</button>
           <button id="btn-ambient" class="btn-icon" title="Dalga Sesi Ambıyansı Aç/Kapat">🌊</button>
           <button id="btn-mute" class="btn-icon" title="Tüm Sesleri Aç/Kapat">🔊</button>
+          <button id="btn-game-exit" class="btn-icon" title="Lobiye Dön / Çık">🚪</button>
         </div>
         <div id="hud-team-b" class="mini-team right"></div>
       </div>
@@ -279,7 +280,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.63</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.64</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -390,36 +391,36 @@
     <div class="modal guide-modal">
       <div class="draft-header">
         <div>
-          <div class="draft-badge">DERİN AV · HIZLI REHBER</div>
+          <div class="draft-badge">İKİ İTEMLİ OYUN · HIZLI REHBER</div>
           <h2>📖 Nasıl Oynanır?</h2>
         </div>
-        <button id="btn-close-guide" class="btn-mini primary">✕ Kapat</button>
+        <button id="btn-close-guide" class="btn-mini primary">✕ Kapat (ESC)</button>
       </div>
 
       <div class="guide-tabs">
         <button class="guide-tab active" data-guide-tab="basics">🎯 Kurallar &amp; 2 İtem</button>
         <button class="guide-tab" data-guide-tab="dive">🤿 Nefes &amp; Su Altı</button>
-        <button class="guide-tab" data-guide-tab="map">🗺️ Harita &amp; Sandıklar</button>
+        <button class="guide-tab" data-guide-tab="map">🗺️ Harita &amp; Olaylar</button>
         <button class="guide-tab" data-guide-tab="controls">🎮 Kontroller</button>
       </div>
 
       <div class="guide-panel active" data-guide-panel="basics">
         <div class="guide-cards">
           <div class="guide-card">
-            <h4>🔄 Her Tur Roller Değişir</h4>
-            <p>1v1 veya 2v2 oynanır. <b>Avcılar</b> tüm Avları suya gömmeye çalışır; <b>Avlar</b> süre bitene kadar su üstünde kalmaya (veya Avcıları batırmaya) çalışır. Her tur roller otomatik değişir!</p>
+            <h4>🔄 4 Oyun Modu &amp; Rol Değişimi</h4>
+            <p><b>2v2</b> ve <b>1v1</b>'de her tur Av &amp; Avcı değişir. <b>Herkes Tek (FFA)</b> son ayakta kalanı, <b>👑 Altın Taç</b> ise tacı tutup 100 puana ilk ulaşanı seçer!</p>
           </div>
           <div class="guide-card">
-            <h4>🎒 2 İtem &amp; Tek Atımlık Silahlar</h4>
-            <p>Her tur başında kendi havuzundan <b>2 item</b> seçersin. <b>Ateşli silahlar tek kullanımlıktır</b> (ağır hasar ve güçlü etki verir, ateşleyince tükenir). İstenirse Lobi Ayarlarından 30 sn bekleme modu açılabilir.</p>
+            <h4>🎒 2 İtem, Yetenek Ağacı &amp; Kalpler</h4>
+            <p>Her tur <b>2 item</b> seç ve +1 puanla <b>Yetenek Ağacını</b> geliştir. Ateşli silahlar tek atımlıktır. Lobiden <b>1 / 2 / 3 Mario Kalp ❤️</b> açılabilir.</p>
           </div>
           <div class="guide-card">
             <h4>🌊 SPACE Özel Hamlesi</h4>
-            <p><b>Avcı:</b> <i>Suya Bastır</i> — ileri atılıp rakibe çarpar, hasar verir ve iter.<br><b>Av:</b> <i>Dalga Kaçışı</i> — ani hız patlamasıyla mermilerden sıyrılır.</p>
+            <p><b>Avcı / FFA:</b> <i>Suya Bastır</i> — ileri atılıp <b>42 Hasar</b> (hızla 52) vurur ve iter.<br><b>Av:</b> <i>Dalga Kaçışı</i> — ani hız patlamasıyla mermilerden sıyrılır.</p>
           </div>
           <div class="guide-card">
-            <h4>⚓ 6 Benzersiz Çar</h4>
-            <p>Lobide <b>Kaptan Kara</b> (tank), <b>Köpekbalığı</b> (hız), <b>Sis Hayaleti</b> (gizlilik), <b>Fenerci</b> (görüş+mermi), <b>Ahtapot</b> (tuzak/CD) veya <b>Dalga Binicisi</b> (akıntı ustası) arasından seç.</p>
+            <h4>⚓ 6 Özgün Çar</h4>
+            <p><b>Kaptan Kara</b> (kalyon/tank), <b>Köpekbalığı</b> (hız), <b>Sis Hayaleti</b> (gizlilik), <b>Fenerci</b> (görüş+mermi), <b>Ahtapot</b> (tuzak/CD), <b>Dalga Binicisi</b> (akıntı ustası).</p>
           </div>
         </div>
       </div>
@@ -520,7 +521,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=4.63"></script>
+  <script type="module" src="./js/main.js?v=4.64"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {
