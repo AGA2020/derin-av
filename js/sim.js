@@ -14,7 +14,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=3.1';
+} from './data.js?v=3.2';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -87,6 +87,7 @@ export class GameSim {
     this.onEvent = onEvent || (() => {});
     this.phase = 'lobby'; // lobby | draft | playing | round_end | match_end
     this.settings = {
+      mode: '2v2', // '2v2' | '1v1'
       totalRounds: 4,
       roundDuration: ROUND_DURATION,
       hpMult: 1.0,
@@ -140,6 +141,13 @@ export class GameSim {
     return SEA_MAPS[this.mapIndex % SEA_MAPS.length];
   }
 
+  getActiveSlots() {
+    if (this.settings.mode === '1v1') {
+      return [this.slots[0], this.slots[2]];
+    }
+    return this.slots;
+  }
+
   getTeamRole(team) {
     // HER TUR ROLLER DEĞİŞİR!
     // Tek turlar (1, 3, 5): Takım A = Avcı, Takım B = Av
@@ -150,14 +158,15 @@ export class GameSim {
   }
 
   addHuman(id, name) {
+    const active = this.getActiveSlots();
     const existing = this.slots.find(s => s.id === id);
     if (existing) {
       existing.name = name || existing.name;
       return existing.idx;
     }
-    // Prefer empty slot; if full, replace a bot slot
-    let slot = this.slots.find(s => !s.id);
-    if (!slot) slot = this.slots.find(s => s.isBot);
+    // Prefer empty active slot; if full, replace a bot in active slots
+    let slot = active.find(s => !s.id);
+    if (!slot) slot = active.find(s => s.isBot);
     if (!slot) return -1;
 
     slot.id = id;
@@ -203,7 +212,7 @@ export class GameSim {
   }
 
   fillEmptyWithBots() {
-    for (const s of this.slots) {
+    for (const s of this.getActiveSlots()) {
       if (!s.id) this.addBot(s.idx);
     }
   }
@@ -213,7 +222,7 @@ export class GameSim {
     const cur = this.slots.find(s => s.id === playerId);
     if (!cur) return false;
     const targetTeam = cur.team === 'A' ? 'B' : 'A';
-    const dest = this.slots.find(s => s.team === targetTeam && !s.id);
+    const dest = this.getActiveSlots().find(s => s.team === targetTeam && !s.id);
     if (!dest) return false;
 
     dest.id = cur.id;
@@ -250,6 +259,28 @@ export class GameSim {
 
   updateSettings(patch) {
     if (this.phase !== 'lobby' || !patch) return;
+    if (['2v2', '1v1'].includes(String(patch.mode))) {
+      this.settings.mode = String(patch.mode);
+      if (this.settings.mode === '1v1') {
+        // 1v1'e geçince 2. slotlardaki (idx 1,3) botları temizle, insan varsa boş 0/2 slotuna taşı
+        for (const extraIdx of [1, 3]) {
+          const ex = this.slots[extraIdx];
+          if (!ex.id) continue;
+          if (!ex.isBot) {
+            const free = [this.slots[0], this.slots[2]].find(s => !s.id || s.isBot);
+            if (free) {
+              free.id = ex.id;
+              free.name = ex.name;
+              free.isBot = false;
+              free.charId = ex.charId;
+            }
+          }
+          ex.id = null;
+          ex.name = '';
+          ex.isBot = false;
+        }
+      }
+    }
     if ([2, 4, 6, 8].includes(Number(patch.totalRounds))) {
       this.settings.totalRounds = Number(patch.totalRounds);
       this.totalRounds = this.settings.totalRounds;
@@ -301,7 +332,7 @@ export class GameSim {
     this.roundWinnerRole = null;
     this.roundWinnerTeam = null;
 
-    for (const s of this.slots) {
+    for (const s of this.getActiveSlots()) {
       const role = this.getTeamRole(s.team);
       if (s.isBot) {
         s.items = this._botPickItems(role);
@@ -334,16 +365,17 @@ export class GameSim {
     slot.items = cleaned;
     slot.readyItems = ready && cleaned.length === 2;
 
-    // Eğer tüm oyuncular 2 itemini seçtiyse hemen turu başlat!
-    if (this.slots.every(s => s.readyItems && s.items.length === 2)) {
+    // Eğer tüm aktif oyuncular 2 itemini seçtiyse hemen turu başlat!
+    if (this.getActiveSlots().every(s => s.readyItems && s.items.length === 2)) {
       this.startRound();
     }
     return true;
   }
 
   startRound() {
+    const activeSlots = this.getActiveSlots();
     // Eksik seçimi olanlara otomatik 2 item tamamla
-    for (const s of this.slots) {
+    for (const s of activeSlots) {
       const role = this.getTeamRole(s.team);
       const pool = role === 'hunter' ? HUNTER_ITEMS : PREY_ITEMS;
       while (s.items.length < 2) {
@@ -380,7 +412,7 @@ export class GameSim {
     let hIdx = 0;
     let pIdx = 0;
 
-    this.players = this.slots.map(s => {
+    this.players = activeSlots.map(s => {
       const role = this.getTeamRole(s.team);
       const ch = CHAR_MAP[s.charId] || CHARACTERS[0];
       const sp = role === 'hunter' ? map.hunterSpawns[hIdx++ % 2] : map.preySpawns[pIdx++ % 2];
@@ -2000,7 +2032,7 @@ export class GameSim {
       mapIndex: this.mapIndex,
       scores: { ...this.scores },
       phaseTimer: Math.ceil(this.phaseTimer),
-      slots: this.slots.map(s => ({
+      slots: this.getActiveSlots().map(s => ({
         idx: s.idx,
         team: s.team,
         id: s.id,

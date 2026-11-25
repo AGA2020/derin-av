@@ -1,8 +1,15 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v3.1';
+export const GAME_VERSION = 'v3.2';
 export const CHANGELOG = [
+  {
+    ver: 'v3.2',
+    notes: [
+      '⚔️ YENİ MOD: Lobi ve Maç Ayarlarına 1v1 Düello modu eklendi! (2 arkadaş botsuz 1v1 kapışabilir.)',
+      '📖 YENİ: Ana menü, lobi ve oyun içinden (? butonu) tek tıkla açılan 4 sekmeli "Nasıl Oynanır? (Rehber)" eklendi.'
+    ]
+  },
   {
     ver: 'v3.1',
     notes: [

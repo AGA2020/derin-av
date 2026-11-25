@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>DERİN AV — 2v2 Denizde Av & Avcı</title>
-  <link rel="stylesheet" href="./styles.css?v=3.1" />
+  <title>DERİN AV — 1v1 & 2v2 Denizde Av & Avcı</title>
+  <link rel="stylesheet" href="./styles.css?v=3.2" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -12,10 +12,10 @@
   <section id="screen-home" class="screen active">
     <div class="ocean-bg"></div>
     <div class="home-shell">
-      <div class="brand-badge">2v2 ONLINE DENİZ ARENASI · 6 ÇAR · 2 İTEM</div>
+      <div class="brand-badge">1v1 &amp; 2v2 ONLINE DENİZ ARENASI · 6 ÇAR · 2 İTEM</div>
       <h1 class="brand-title">DERİN <span>AV</span></h1>
       <p class="brand-sub">
-        Açık denizde 2v2 Av &amp; Avcı kapışması! Her tur roller değişir.
+        Açık denizde 1v1 veya 2v2 Av &amp; Avcı kapışması! Her tur roller değişir.
         Avcılar avları <b>suya gömmeye</b> çalışır, Avlar su üstünde kalmak için savaşır.
         Her tur <b>2 item</b> seç — unutma, <b>ateşli silahlar tek kullanımlık!</b>
       </p>
@@ -32,8 +32,9 @@
         </div>
 
         <div class="home-actions">
-          <button id="btn-host" class="btn primary big">⚓ Online Oda Kur (2v2)</button>
+          <button id="btn-host" class="btn primary big">⚓ Online Oda Kur (1v1 / 2v2)</button>
           <button id="btn-quick-solo" class="btn ghost big">🤖 Botlarla Hemen Test Et</button>
+          <button id="btn-guide-home" class="btn ghost">📖 Nasıl Oynanır? (Rehber)</button>
         </div>
 
         <div class="divider"><span>veya arkadaşının odasına katıl</span></div>
@@ -60,13 +61,14 @@
     <div class="lobby-shell">
       <header class="lobby-header">
         <div>
-          <div class="lobby-kicker">DERİN AV · 2v2 LOBİ</div>
+          <div id="lobby-mode-kicker" class="lobby-kicker">DERİN AV · 2v2 TAKIM LOBİSİ</div>
           <div class="room-code-wrap">
             Oda Kodu: <span id="lobby-code" class="code-pill">----</span>
             <button id="btn-copy-link" class="btn-mini primary">🔗 Davet Linkini Kopyala</button>
           </div>
         </div>
         <div class="lobby-header-right">
+          <button id="btn-guide-lobby" class="btn-mini">📖 Rehber</button>
           <span id="net-status" class="net-pill">Bağlanıyor...</span>
           <button id="btn-leave-lobby" class="btn-mini danger">Odadan Çık</button>
         </div>
@@ -134,6 +136,7 @@
       <div class="hud-team-col right">
         <div class="score-row-right">
           <div class="score-badge b"><b id="hud-score-b">0</b> TAKIM B</div>
+          <button id="btn-guide-game" class="btn-icon" title="Nasıl Oynanır? (Rehber)">❓</button>
           <button id="btn-mute" class="btn-icon" title="Sesi Aç/Kapat">🔊</button>
         </div>
         <div id="hud-team-b" class="mini-team right"></div>
@@ -212,7 +215,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.1</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.2</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -229,6 +232,14 @@
       </div>
 
       <div class="settings-grid">
+        <div class="setting-row">
+          <div class="setting-label">Oyun Modu</div>
+          <div class="seg-group" data-setting="mode">
+            <button class="seg-btn" data-val="2v2">👥 2v2 Takım</button>
+            <button class="seg-btn" data-val="1v1">⚔️ 1v1 Düello</button>
+          </div>
+        </div>
+
         <div class="setting-row">
           <div class="setting-label">Tur Sayısı</div>
           <div class="seg-group" data-setting="totalRounds">
@@ -292,6 +303,100 @@
     </div>
   </div>
 
+  <!-- 📖 OYUN REHBERİ (NASIL OYNANIR?) -->
+  <div id="overlay-guide" class="overlay">
+    <div class="modal guide-modal">
+      <div class="draft-header">
+        <div>
+          <div class="draft-badge">DERİN AV · HIZLI REHBER</div>
+          <h2>📖 Nasıl Oynanır?</h2>
+        </div>
+        <button id="btn-close-guide" class="btn-mini primary">✕ Kapat</button>
+      </div>
+
+      <div class="guide-tabs">
+        <button class="guide-tab active" data-guide-tab="basics">🎯 Kurallar &amp; 2 İtem</button>
+        <button class="guide-tab" data-guide-tab="dive">🤿 Nefes &amp; Su Altı</button>
+        <button class="guide-tab" data-guide-tab="map">🗺️ Harita &amp; Sandıklar</button>
+        <button class="guide-tab" data-guide-tab="controls">🎮 Kontroller</button>
+      </div>
+
+      <div class="guide-panel active" data-guide-panel="basics">
+        <div class="guide-cards">
+          <div class="guide-card">
+            <h4>🔄 Her Tur Roller Değişir</h4>
+            <p>1v1 veya 2v2 oynanır. <b>Avcılar</b> tüm Avları suya gömmeye çalışır; <b>Avlar</b> süre bitene kadar su üstünde kalmaya (veya Avcıları batırmaya) çalışır. Her tur roller otomatik değişir!</p>
+          </div>
+          <div class="guide-card">
+            <h4>🎒 2 İtem &amp; Tek Atımlık Silahlar</h4>
+            <p>Her tur başında kendi havuzundan <b>2 item</b> seçersin. <b>Ateşli silahlar tek kullanımlıktır</b> (ağır hasar ve güçlü etki verir, ateşleyince tükenir). İstenirse Lobi Ayarlarından 30 sn bekleme modu açılabilir.</p>
+          </div>
+          <div class="guide-card">
+            <h4>🌊 SPACE Özel Hamlesi</h4>
+            <p><b>Avcı:</b> <i>Suya Bastır</i> — ileri atılıp rakibe çarpar, hasar verir ve iter.<br><b>Av:</b> <i>Dalga Kaçışı</i> — ani hız patlamasıyla mermilerden sıyrılır.</p>
+          </div>
+          <div class="guide-card">
+            <h4>⚓ 6 Benzersiz Çar</h4>
+            <p>Lobide <b>Kaptan Kara</b> (tank), <b>Köpekbalığı</b> (hız), <b>Sis Hayaleti</b> (gizlilik), <b>Fenerci</b> (görüş+mermi), <b>Ahtapot</b> (tuzak/CD) veya <b>Dalga Binicisi</b> (akıntı ustası) arasından seç.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-panel" data-guide-panel="dive">
+        <div class="guide-cards">
+          <div class="guide-card">
+            <h4>🫁 Yenilenen Nefes Barı</h4>
+            <p>Hasar önce üstteki <b>Nefes Barından</b> gider. Nefesin bitince (<i>NEFESİ KESİLDİ!</i>) kalan tüm hasar kalıcı <b>Batma Direncine</b> vurur. Son hasardan <b>3.6 sn</b> sonra nefesin hızla geri dolar.</p>
+          </div>
+          <div class="guide-card">
+            <h4>🤿 Su Altına Dalma (SHIFT / E)</h4>
+            <p>Her karakter su altına dalıp düşmanlardan gizlenebilir! Su altında <b>%66 hızla</b> ilerlersin ve yüzey mermileri üstünden geçer. Ancak saniyede <b>22 nefes</b> harcarsın; nefes 0 olunca zorla yüzeye çıkarsın.</p>
+          </div>
+          <div class="guide-card">
+            <h4>🦈 Sürpriz Çıkış Pususu!</h4>
+            <p>En az <b>1 saniye</b> su altında kalınca sarı <b>70px</b> halka yanar. Tam rakibin dibinde yukarı fırlarsan <b>2.0 sn %65 yavaşlatma + 15 şok hasarı</b> vurursun! (Çıkış sonrası 3.5 sn dalış beklemesi vardır.)</p>
+          </div>
+          <div class="guide-card">
+            <h4>📡 Su Altına Karşı Oyun</h4>
+            <p>Düşman <b>150px</b> yakınsa su üstünde hafif kabarcıklar görür. <b>Denizaltı Sonarı</b> su altındakileri açığa çıkarır; <b>Ağır Çapa &amp; Su Altı Mayını</b> dalıştakileri de yakalayıp yüzeye fırlatır.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-panel" data-guide-panel="map">
+        <div class="guide-cards">
+          <div class="guide-card">
+            <h4>📦 5 Deniz Power-Up Sandığı</h4>
+            <p>🛟 <b>Can Simidi</b> (+50 Direnç) · 🛡️ <b>Çelik Gövde</b> (+45 Kalkan) · ⚡ <b>Rüzgar</b> (+%35 Hız) · 📦 <b>Cephane</b> (tükenmiş iteme +1 şarj!) · 👁️ <b>Fener Gözü</b> (3.5s radar).</p>
+          </div>
+          <div class="guide-card">
+            <h4>🧨 Barut Fıçıları</h4>
+            <p>Teknenle veya <code>SPACE</code> ile fıçıyı rakibe itip mermiyle patlatabilirsin! Geniş alanda ağır hasar + savurma verir, yakındaki fıçıları zincirleme patlatır.</p>
+          </div>
+          <div class="guide-card">
+            <h4>🌊 Turbo Akıntılar &amp; 🌫️ Sis</h4>
+            <p>Parlayan ok koridorları yönünde girersen <b>+%55 hızlanırsın</b>. Deniz sisleri ve Mürekkep Bulutu içinde düşmanlardan gizlenebilirsin.</p>
+          </div>
+          <div class="guide-card">
+            <h4>🛟 Kurtarma &amp; 🌪️ Son 25s Fırtına</h4>
+            <p>2v2'de batan arkadaşının yerinde 15 sn <b>Kurtarma Şamandırası</b> kalır (3 sn durursan %55 canla çıkar!). Son 25 sn'de daralan <b>Dev Fırtına</b> herkesi merkeze çeker.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-panel" data-guide-panel="controls">
+        <div class="key-list">
+          <div class="key-row"><kbd>W A S D</kbd> / <kbd>Oklar</kbd><span>Denizde hareket (Mobilde ekranın sol yarısı)</span></div>
+          <div class="key-row"><kbd>Fare</kbd><span>Nişan alma ve tekne yönü</span></div>
+          <div class="key-row"><kbd>Sol Tık</kbd> / <kbd>1</kbd><span>1. İtemi kullan</span></div>
+          <div class="key-row"><kbd>Sağ Tık</kbd> / <kbd>2</kbd><span>2. İtemi kullan</span></div>
+          <div class="key-row"><kbd>SPACE</kbd><span>Avcı: Suya Bastır · Av: Dalga Kaçışı</span></div>
+          <div class="key-row"><kbd>SHIFT</kbd> / <kbd>E</kbd><span>Su Altına Dal / Yüzeye Çık (Sürpriz Çıkış!)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="overlay-changelog" class="overlay">
     <div class="modal compact-modal changelog-modal">
       <div class="draft-badge">DERİN AV · SÜRÜM BİLGİSİ</div>
@@ -302,7 +407,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=3.1"></script>
+  <script type="module" src="./js/main.js?v=3.2"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

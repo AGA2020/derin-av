@@ -11,11 +11,11 @@ import {
   PREY_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=3.1';
-import { sfx } from './audio.js?v=3.1';
-import { NetClient, generateRoomCode } from './net.js?v=3.1';
-import { GameSim } from './sim.js?v=3.1';
-import { SeaRenderer } from './render.js?v=3.1';
+} from './data.js?v=3.2';
+import { sfx } from './audio.js?v=3.2';
+import { NetClient, generateRoomCode } from './net.js?v=3.2';
+import { GameSim } from './sim.js?v=3.2';
+import { SeaRenderer } from './render.js?v=3.2';
 
 const $ = (id) => document.getElementById(id);
 
@@ -515,6 +515,8 @@ function renderLobby() {
     return;
   }
 
+  const is1v1 = st.settings?.mode === '1v1';
+  $('lobby-mode-kicker').textContent = `DERİN AV · ${is1v1 ? '1v1 DÜELLO' : '2v2 TAKIM'} LOBİSİ`;
   renderLobbyRulesSummary(st);
 
   const renderSlot = (s) => {
@@ -951,10 +953,12 @@ function renderLoop(now) {
 
 function renderLobbyRulesSummary(st) {
   const s = st.settings || {
+    mode: '2v2',
     totalRounds: st.totalRounds || 4,
     roundDuration: 85,
     hpMult: 1,
     mapMode: 'rotate',
+    firearmMode: 'single',
     powerups: true,
     barrels: true,
     storm: true,
@@ -965,7 +969,9 @@ function renderLobbyRulesSummary(st) {
     : (SEA_MAPS[Number(s.mapMode)]?.name || 'Harita');
   const hpLabel = `%${Math.round((s.hpMult || 1) * 100)} Can`;
   const gunLabel = s.firearmMode === 'long_cd' ? '⏳ Silah 30s CD' : '🔥 Tek Atım (Ağır)';
+  const modeLabel = s.mode === '1v1' ? '⚔️ 1v1 Düello' : '👥 2v2 Takım';
   const pills = [
+    modeLabel,
     `🏁 ${s.totalRounds} Tur`,
     `⏱️ ${s.roundDuration}sn`,
     `❤️ ${hpLabel}`,
@@ -974,7 +980,7 @@ function renderLobbyRulesSummary(st) {
     `📦 Sandık ${s.powerups ? '✓' : '✕'}`,
     `🧨 Fıçı ${s.barrels ? '✓' : '✕'}`,
     `🌪️ Fırtına ${s.storm ? '✓' : '✕'}`,
-    `🛟 Kurtarma ${s.rescue ? '✓' : '✕'}`
+    ...(s.mode === '1v1' ? [] : [`🛟 Kurtarma ${s.rescue ? '✓' : '✕'}`])
   ];
   $('lobby-rules-summary').innerHTML = pills.map(p => `<span class="rule-chip">${p}</span>`).join('');
 }
@@ -1112,7 +1118,7 @@ function init() {
   $('btn-preset-std').onclick = () => {
     if (!app.sim) return;
     app.sim.updateSettings({
-      totalRounds: 4, roundDuration: 85, hpMult: 1, mapMode: 'rotate', firearmMode: 'single',
+      mode: app.sim.settings.mode, totalRounds: 4, roundDuration: 85, hpMult: 1, mapMode: 'rotate', firearmMode: 'single',
       powerups: true, barrels: true, storm: true, rescue: true
     });
     broadcastLobby();
@@ -1124,7 +1130,7 @@ function init() {
   $('btn-preset-chaos').onclick = () => {
     if (!app.sim) return;
     app.sim.updateSettings({
-      totalRounds: 6, roundDuration: 60, hpMult: 0.75, mapMode: '2', firearmMode: 'long_cd',
+      mode: app.sim.settings.mode, totalRounds: 6, roundDuration: 60, hpMult: 0.75, mapMode: '2', firearmMode: 'long_cd',
       powerups: true, barrels: true, storm: true, rescue: true
     });
     broadcastLobby();
@@ -1139,7 +1145,7 @@ function init() {
       btn.onclick = () => {
         if (!app.sim) return;
         const raw = btn.dataset.val;
-        const val = (key === 'mapMode' || key === 'firearmMode') ? raw : Number(raw);
+        const val = (key === 'mapMode' || key === 'firearmMode' || key === 'mode') ? raw : Number(raw);
         app.sim.updateSettings({ [key]: val });
         broadcastLobby();
         renderLobby();
@@ -1202,6 +1208,31 @@ function init() {
     sfx.setMuted(next);
     $('btn-mute').textContent = next ? '🔇' : '🔊';
   };
+
+  // 📖 Oyun İçi Rehber Modalı (Ana menü, lobi ve oyun içinden açılır)
+  const openGuide = () => {
+    $('overlay-guide').classList.add('active');
+    sfx.play('ui');
+  };
+  const closeGuide = () => {
+    $('overlay-guide').classList.remove('active');
+  };
+  ['btn-guide-home', 'btn-guide-lobby', 'btn-guide-game'].forEach(id => {
+    const el = $(id);
+    if (el) el.onclick = openGuide;
+  });
+  $('btn-close-guide').onclick = closeGuide;
+  $('overlay-guide').onclick = (e) => {
+    if (e.target === $('overlay-guide')) closeGuide();
+  };
+  document.querySelectorAll('[data-guide-tab]').forEach(tabBtn => {
+    tabBtn.onclick = () => {
+      const target = tabBtn.dataset.guideTab;
+      document.querySelectorAll('[data-guide-tab]').forEach(b => b.classList.toggle('active', b === tabBtn));
+      document.querySelectorAll('[data-guide-panel]').forEach(p => p.classList.toggle('active', p.dataset.guidePanel === target));
+      sfx.play('ui');
+    };
+  });
 
   $('hud-slot-0').onclick = () => useSlot(0);
   $('hud-slot-1').onclick = () => useSlot(1);
