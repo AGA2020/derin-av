@@ -1,8 +1,15 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v2.3';
+export const GAME_VERSION = 'v2.4';
 export const CHANGELOG = [
+  {
+    ver: 'v2.4',
+    notes: [
+      '🌪️ YENİ MEKANİK: Turun son 25 saniyesinde Dev Fırtına Çemberi daralmaya başlar!',
+      'Fırtına dışında kalanlar hızla su alır; rakipleri fırtınaya itip batırma taktiği artık mümkün!'
+    ]
+  },
   {
     ver: 'v2.3',
     notes: [

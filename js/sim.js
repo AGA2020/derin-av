@@ -14,7 +14,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=2.3';
+} from './data.js?v=2.4';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -114,6 +114,7 @@ export class GameSim {
     this.powerups = []; // denizde beliren power-up sandıkları!
     this.powerupSpawnTimer = 4.5;
     this.rescueBuoys = []; // suya gömülen takım arkadaşını kurtarma şamandıraları!
+    this.storm = { active: false, cx: WORLD_W / 2, cy: WORLD_H / 2, r: 1000, announced: false };
     this.pulses = []; // sonar rings, sound pings, splash rings
     this.sinkEffects = []; // dramatic "SUYA GÖMÜLDÜ" vortexes
     this.floatTexts = []; // power-up / kalkan / batma metinleri
@@ -320,6 +321,13 @@ export class GameSim {
     this.powerups = [];
     this.powerupSpawnTimer = 5.0;
     this.rescueBuoys = [];
+    this.storm = {
+      active: false,
+      cx: WORLD_W / 2 + Math.round((Math.random() - 0.5) * 220),
+      cy: WORLD_H / 2 + Math.round((Math.random() - 0.5) * 160),
+      r: 980,
+      announced: false
+    };
     this.pulses = [];
     this.sinkEffects = [];
     this.floatTexts = [];
@@ -384,6 +392,7 @@ export class GameSim {
         inFog: false,
         inInk: false,
         inWhirlpool: false,
+        inStorm: false,
         wakeTimer: 0,
         sinks: 0,
         botState: {
@@ -895,6 +904,18 @@ export class GameSim {
 
     this.phaseTimer -= dt;
 
+    // 🌪️ Son 25 saniyede Dev Fırtına Çemberi daralır!
+    if (this.phaseTimer <= 25) {
+      if (!this.storm.announced) {
+        this.storm.announced = true;
+        this.storm.active = true;
+        this._pushFeed('🌪️ DEV FIRTINA BAŞLADI! Güvenli çember daralıyor!', 'firearm');
+        this.onEvent({ type: 'sfx', name: 'round_start' });
+      }
+      const prog = clamp((25 - this.phaseTimer) / 25, 0, 1);
+      this.storm.r = 980 - (980 - 255) * prog;
+    }
+
     // Update feed TTL
     for (let i = this.feed.length - 1; i >= 0; i--) {
       this.feed[i].ttl -= dt;
@@ -1106,6 +1127,17 @@ export class GameSim {
       p.x = clamp(p.x + p.vx * dt, p.r + 12, WORLD_W - p.r - 12);
       p.y = clamp(p.y + p.vy * dt, p.r + 12, WORLD_H - p.r - 12);
       this._resolveObstacleCollision(p, p.r, map, false);
+
+      // Fırtına çemberi dışı hasarı!
+      p.inStorm = false;
+      if (this.storm.active) {
+        const dStorm = dist(p.x, p.y, this.storm.cx, this.storm.cy);
+        if (dStorm > this.storm.r) {
+          p.inStorm = true;
+          this._applyDamage(p, 18 * dt, null, 0, 0, 'Dev Fırtına');
+          if (!p.alive) continue;
+        }
+      }
 
       // Wake / sound ripple when moving fast
       const spd = Math.hypot(p.vx, p.vy);
@@ -1584,13 +1616,21 @@ export class GameSim {
       }
     }
 
-    // Avoid whirlpools!
+    // Avoid whirlpools & stay inside storm circle!
     for (const wp of map.whirlpools) {
       const d = dist(bot.x, bot.y, wp.x, wp.y);
       if (d < wp.r * 1.6) {
         const away = angleBetween(wp.x, wp.y, bot.x, bot.y);
         mx += Math.cos(away) * 1.4;
         my += Math.sin(away) * 1.4;
+      }
+    }
+    if (this.storm.active) {
+      const dStorm = dist(bot.x, bot.y, this.storm.cx, this.storm.cy);
+      if (dStorm > this.storm.r - 65) {
+        const inward = angleBetween(bot.x, bot.y, this.storm.cx, this.storm.cy);
+        mx += Math.cos(inward) * 2.0;
+        my += Math.sin(inward) * 2.0;
       }
     }
 
@@ -1667,6 +1707,7 @@ export class GameSim {
         inFog: p.inFog,
         inInk: p.inInk,
         inWhirlpool: p.inWhirlpool,
+        inStorm: p.inStorm,
         sinks: p.sinks
       })),
       projectiles: this.projectiles.map(pr => ({
@@ -1726,6 +1767,12 @@ export class GameSim {
         pct: Number(clamp(rb.progress / rb.duration, 0, 1).toFixed(2)),
         life: Math.ceil(rb.life)
       })),
+      storm: this.storm.active ? {
+        active: true,
+        cx: Math.round(this.storm.cx),
+        cy: Math.round(this.storm.cy),
+        r: Math.round(this.storm.r)
+      } : { active: false },
       floatTexts: this.floatTexts.map(ft => ({
         id: ft.id,
         x: Math.round(ft.x),

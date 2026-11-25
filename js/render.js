@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.3';
-import { hasLineOfSight } from './sim.js?v=2.3';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.4';
+import { hasLineOfSight } from './sim.js?v=2.4';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -168,6 +168,7 @@ export class SeaRenderer {
     this._drawProjectiles(ctx, state.projectiles || [], dt);
     this._drawZones(ctx, state.zones || []);
     this._drawFogs(ctx, map, me);
+    this._drawStorm(ctx, state.storm);
     this._drawBubbles(ctx);
     this._drawFloatTexts(ctx, state.floatTexts || []);
 
@@ -200,17 +201,26 @@ export class SeaRenderer {
         ctx.fillRect(0, 0, this.viewW, this.viewH);
       }
 
-      // Low buoyancy / sinking danger edge pulse
-      if (me.hp / me.maxHp < 0.38 || me.inWhirlpool) {
+      // Low buoyancy / sinking / storm danger edge pulse
+      if (me.hp / me.maxHp < 0.38 || me.inWhirlpool || me.inStorm) {
         const pulse = 0.16 + 0.12 * Math.sin(this.time * 8);
         const dg = ctx.createRadialGradient(
           this.viewW / 2, this.viewH / 2, Math.min(this.viewW, this.viewH) * 0.25,
           this.viewW / 2, this.viewH / 2, Math.max(this.viewW, this.viewH) * 0.65
         );
         dg.addColorStop(0, 'rgba(0,0,0,0)');
-        dg.addColorStop(1, `rgba(14, 165, 233, ${pulse + 0.18})`);
+        dg.addColorStop(1, me.inStorm
+          ? `rgba(239, 71, 111, ${pulse + 0.26})`
+          : `rgba(14, 165, 233, ${pulse + 0.18})`);
         ctx.fillStyle = dg;
         ctx.fillRect(0, 0, this.viewW, this.viewH);
+
+        if (me.inStorm) {
+          ctx.fillStyle = '#ff8fa3';
+          ctx.font = '900 16px system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('🌪️ FIRTINA DIŞINDASIN! ÇEMBERE GİR!', this.viewW / 2, 118);
+        }
       }
     }
 
@@ -708,6 +718,10 @@ export class SeaRenderer {
       ctx.fillStyle = '#f43f5e';
       ctx.font = '700 11px system-ui, sans-serif';
       ctx.fillText('⚡ SERSEMLEDİ', 0, -40);
+    } else if (p.inStorm) {
+      ctx.fillStyle = '#ff4d6d';
+      ctx.font = '700 11px system-ui, sans-serif';
+      ctx.fillText('🌪️ FIRTINA!', 0, -40);
     } else if (p.inWhirlpool) {
       ctx.fillStyle = '#38bdf8';
       ctx.font = '700 11px system-ui, sans-serif';
@@ -835,6 +849,36 @@ export class SeaRenderer {
       }
       ctx.restore();
     }
+  }
+
+  _drawStorm(ctx, storm) {
+    if (!storm || !storm.active) return;
+    ctx.save();
+    // Dark crimson-violet storm mask outside the safe circle using evenodd!
+    ctx.beginPath();
+    ctx.rect(-200, -200, WORLD_W + 400, WORLD_H + 400);
+    ctx.arc(storm.cx, storm.cy, Math.max(10, storm.r), 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(42, 6, 36, 0.44)';
+    ctx.fill('evenodd');
+
+    // Pulsing storm wall ring
+    const glow = 0.65 + 0.3 * Math.sin(this.time * 7);
+    ctx.strokeStyle = `rgba(255, 77, 109, ${glow})`;
+    ctx.lineWidth = 5;
+    ctx.setLineDash([18, 10]);
+    ctx.lineDashOffset = -this.time * 45;
+    ctx.beginPath();
+    ctx.arc(storm.cx, storm.cy, Math.max(10, storm.r), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Subtle inner safety halo
+    ctx.strokeStyle = 'rgba(255, 209, 102, 0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(storm.cx, storm.cy, Math.max(10, storm.r - 6), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   _drawFloatTexts(ctx, floatTexts) {
@@ -998,6 +1042,20 @@ export class SeaRenderer {
       ctx.arc(rb.x * sx, rb.y * sy, 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+    }
+
+    // Storm circle on minimap
+    if (state.storm && state.storm.active) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(0, 0, mw, mh, 10);
+      ctx.clip();
+      ctx.strokeStyle = '#ff4d6d';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(state.storm.cx * sx, state.storm.cy * sy, Math.max(4, state.storm.r * sx), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // Visible players
