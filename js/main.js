@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.54';
-import { sfx } from './audio.js?v=4.54';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.54';
-import { GameSim } from './sim.js?v=4.54';
-import { SeaRenderer } from './render.js?v=4.54';
+} from './data.js?v=4.6';
+import { sfx } from './audio.js?v=4.6';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.6';
+import { GameSim } from './sim.js?v=4.6';
+import { SeaRenderer } from './render.js?v=4.6';
 
 const $ = (id) => document.getElementById(id);
 
@@ -824,12 +824,12 @@ function renderLobby() {
   const isFfa = mode === 'ffa' || mode === 'crown';
   const isCrown = mode === 'crown';
   $('lobby-mode-kicker').textContent = mode === '1v1'
-    ? 'DERİN AV · 1v1 DÜELLO LOBİSİ'
+    ? 'İKİ İTEMLİ OYUN · 1v1 DÜELLO'
     : isCrown
-      ? 'DERİN AV · 👑 ALTIN TAÇ (HAZİNE KAPMACA)'
+      ? 'İKİ İTEMLİ OYUN · 👑 ALTIN TAÇ'
       : isFfa
-        ? 'DERİN AV · HERKES TEK (DEATHMATCH)'
-        : 'DERİN AV · 2v2 TAKIM LOBİSİ';
+        ? 'İKİ İTEMLİ OYUN · HERKES TEK'
+        : 'İKİ İTEMLİ OYUN · 2v2 TAKIM LOBİSİ';
   $('btn-switch-team').style.display = isFfa ? 'none' : '';
   $('team-a-title').textContent = isFfa ? 'OYUNCULAR (1-2)' : 'TAKIM A (ALTIN)';
   $('team-a-role').textContent = isCrown ? '👑 100 Puan Kazanır' : isFfa ? '💀 Herkes Tek' : '1. Tur: Avcılar 🎯';

@@ -21,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=4.54';
+} from './data.js?v=4.6';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -121,6 +121,8 @@ export class GameSim {
     this.breakables = []; // 🪵 Kırılabilir deniz barikatları
     this.lighthouseAngle = 0; // 🗼 Dönen deniz feneri açısı
     this.geyserTimer = 4.5; // 🌋 Lav gayzeri sayacı
+    this.kraken = null; // 🐙 Kraken Boss (7. Tur Olayı)
+    this.krakenSpawnTimer = 0;
     this.matchStats = {}; // playerId -> cumulative match stats across all rounds!
     this.phaseTimer = 0;
     this.roundWinnerRole = null;
@@ -569,6 +571,8 @@ export class GameSim {
     }));
     this.lighthouseAngle = 0;
     this.geyserTimer = 4.2;
+    this.kraken = null;
+    this.krakenSpawnTimer = this.roundEvent === 'kraken_uyanisi' ? 16.0 : 0;
 
     // 👑 Altın Taç Modu: Tacı merkezdeki en yakın açık suya yerleştir!
     this.crownScores = {};
@@ -783,6 +787,9 @@ export class GameSim {
     this.onEvent({ type: 'sfx', name: 'shot_heavy' });
 
     // Damage & knockback nearby players
+    if (this.kraken && dist(barrel.x, barrel.y, this.kraken.x, this.kraken.y) <= blastR + this.kraken.r) {
+      this._damageKraken(75, attackerId);
+    }
     for (const p of this.players) {
       if (!p.alive) continue;
       const d = dist(barrel.x, barrel.y, p.x, p.y);
@@ -1674,6 +1681,64 @@ export class GameSim {
       }
     }
 
+    // 🐙 7. TUR OLAYI — KRAKEN UYANIŞI!
+    if (this.roundEvent === 'kraken_uyanisi' && !this.kraken && this.krakenSpawnTimer > 0) {
+      this.krakenSpawnTimer -= dt;
+      if (this.krakenSpawnTimer <= 0) {
+        let kx = WORLD_W / 2;
+        let ky = WORLD_H / 2;
+        const kOffsets = [[0, 0], [0, -125], [0, 125], [-125, 0], [125, 0], [0, 185]];
+        for (const [ox, oy] of kOffsets) {
+          if (!this._hitsObstacle(kx + ox, ky + oy, 46, curMap)) {
+            kx += ox; ky += oy; break;
+          }
+        }
+        this.kraken = { id: this._nextEntityId++, x: kx, y: ky, r: 44, hp: 240, maxHp: 240, slamCd: 2.2, warnTimer: 0, slamR: 145 };
+        this._addPulse(kx, ky, 175, 'boom', 'N');
+        this.onEvent({ type: 'sfx', name: 'shot_heavy' });
+        this._triggerBanner('🐙 KRAKEN UYANDI!', 'Harita merkezinde! Son vuruş: +1 Silah & +50 Kalkan!', '#d946ef');
+        this._pushFeed('🐙 DEV KRAKEN UYANDI! Onu batıran silahını doldurur + 50 Kalkan alır!', 'firearm');
+      }
+    }
+    if (this.kraken) {
+      const k = this.kraken;
+      if (k.warnTimer > 0) {
+        k.warnTimer -= dt;
+        if (k.warnTimer <= 0) {
+          // 🐙 Dokunaç Şamarı!
+          this._addPulse(k.x, k.y, k.slamR + 15, 'boom', 'N');
+          this._addFloatText(k.x, k.y - 44, '🐙 ŞAMAR!', '#e879f9');
+          this.onEvent({ type: 'sfx', name: 'shot_heavy' });
+          for (const p of this.players) {
+            if (!p.alive) continue;
+            const d = dist(k.x, k.y, p.x, p.y);
+            if (d <= k.slamR + p.r) {
+              if (p.submerged) this._surfacePlayer(p, true);
+              const a = d > 1 ? angleBetween(k.x, k.y, p.x, p.y) : Math.random() * Math.PI * 2;
+              this._applyDamage(p, 24, null, Math.cos(a) * 440, Math.sin(a) * 440, 'Kraken');
+            }
+          }
+          k.slamCd = 2.6;
+        }
+      } else {
+        k.slamCd -= dt;
+        if (k.slamCd <= 0) {
+          const near = this.players.some(p => p.alive && dist(k.x, k.y, p.x, p.y) <= k.slamR + 28);
+          if (near) k.warnTimer = 0.85;
+        }
+      }
+      // Oyuncular Kraken gövdesinin içine girmesin
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        const d = dist(k.x, k.y, p.x, p.y);
+        const minD = k.r + p.r;
+        if (d > 0.01 && d < minD) {
+          p.x = k.x + ((p.x - k.x) / d) * minD;
+          p.y = k.y + ((p.y - k.y) / d) * minD;
+        }
+      }
+    }
+
     // 👑 ALTIN TAÇ MODU SİMÜLASYONU
     if (this.crown) {
       if (this.crown.dropGrace > 0) this.crown.dropGrace = Math.max(0, this.crown.dropGrace - dt);
@@ -2023,6 +2088,10 @@ export class GameSim {
 
       // Hunter & FFA Ram (Suya Bastırma) collision check
       if ((p.role === 'hunter' || p.role === 'ffa') && p.ramActive > 0) {
+        if (this.kraken && !p.ramHitIds.has('kraken') && dist(p.x, p.y, this.kraken.x, this.kraken.y) <= p.r + this.kraken.r + 16) {
+          p.ramHitIds.add('kraken');
+          this._damageKraken(36, p.id);
+        }
         // 🪵 SPACE darbesiyle kırılabilir barikatları parçala!
         for (let bi = this.breakables.length - 1; bi >= 0; bi--) {
           const br = this.breakables[bi];
@@ -2191,6 +2260,12 @@ export class GameSim {
         } else {
           dead = true;
         }
+      }
+
+      // 🐙 Kraken hit!
+      if (!dead && this.kraken && dist(pr.x, pr.y, this.kraken.x, this.kraken.y) <= pr.r + this.kraken.r) {
+        dead = true;
+        this._damageKraken(Math.max(20, pr.damage || 28), pr.ownerId);
       }
 
       // 🪵 Breakable barricade hit -> damage & shatter!
@@ -2521,6 +2596,39 @@ export class GameSim {
         if (p.submerged) this._surfacePlayer(p, true);
         const a = d > 1 ? angleBetween(z.x, z.y, p.x, p.y) : Math.random() * Math.PI * 2;
         this._applyDamage(p, 36, null, Math.cos(a) * 360, Math.sin(a) * 360, 'Lav Gayzeri');
+      }
+    }
+  }
+
+  _damageKraken(dmg, attackerId) {
+    if (!this.kraken) return;
+    const k = this.kraken;
+    k.hp -= dmg;
+    this._addPulse(k.x, k.y, k.r + 22, 'flash', 'N');
+    this._addFloatText(k.x + (Math.random() - 0.5) * 30, k.y - 34, `-${Math.round(dmg)}`, '#f0abfc');
+    this.onEvent({ type: 'sfx', name: 'hit' });
+    if (k.hp <= 0) {
+      const kx = k.x; const ky = k.y;
+      this.kraken = null;
+      this._addPulse(kx, ky, 190, 'boom', 'N');
+      this.onEvent({ type: 'sfx', name: 'sink' });
+      const killer = this.players.find(pl => pl.id === attackerId);
+      if (killer && killer.alive) {
+        const spent = killer.items.find(it => it.usesLeft === 0) || killer.items.find(it => it.usesLeft < it.maxUses);
+        if (spent) {
+          spent.usesLeft += 1;
+          spent.cd = 0;
+        } else {
+          killer.hp = Math.min(killer.maxHp, killer.hp + 45);
+        }
+        killer.shield = Math.min(75, (killer.shield || 0) + 50);
+        killer.shieldTimer = Math.max(killer.shieldTimer, 10.0);
+        this._addPulse(killer.x, killer.y, 130, 'heal', killer.team);
+        this._addFloatText(killer.x, killer.y - 36, '🐙 +1 ŞARJ & +50 KALKAN!', '#e879f9');
+        this._triggerBanner('🐙 KRAKEN AVLANDI!', `${killer.name} son vuruşu çaldı! (+1 Silah & +50 Kalkan)`, '#d946ef');
+        this._pushFeed(`🐙 ${killer.name} DEV KRAKEN'İ BATIRDI! (+1 Şarj & +50 Kalkan)`, 'firearm');
+      } else {
+        this._pushFeed('🐙 Dev Kraken derinlere gömüldü!', 'info');
       }
     }
   }
@@ -2949,6 +3057,17 @@ export class GameSim {
       crown: this.crown ? { x: Math.round(this.crown.x), y: Math.round(this.crown.y), holderId: this.crown.holderId } : null,
       crownScores: this.crown ? Object.fromEntries(Object.entries(this.crownScores).map(([k, v]) => [k, Math.round(v)])) : null,
       breakables: this.breakables.map(br => ({ id: br.id, x: br.x, y: br.y, r: br.r, hp: Math.round(br.hp), maxHp: br.maxHp })),
+      kraken: this.kraken ? {
+        id: this.kraken.id,
+        x: Math.round(this.kraken.x),
+        y: Math.round(this.kraken.y),
+        r: this.kraken.r,
+        hp: Math.round(this.kraken.hp),
+        maxHp: this.kraken.maxHp,
+        warn: this.kraken.warnTimer > 0,
+        warnPct: this.kraken.warnTimer > 0 ? Number((1 - this.kraken.warnTimer / 0.85).toFixed(2)) : 0,
+        slamR: this.kraken.slamR
+      } : null,
       lighthouse: this.currentMap.lighthouse ? {
         x: this.currentMap.lighthouse.x,
         y: this.currentMap.lighthouse.y,

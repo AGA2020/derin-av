@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.54';
-import { hasLineOfSight } from './sim.js?v=4.54';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.6';
+import { hasLineOfSight } from './sim.js?v=4.6';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -292,6 +292,7 @@ export class SeaRenderer {
     this._drawRescueBuoys(ctx, state.rescueBuoys || [], me);
     this._drawRocksAndShips(ctx, map);
     this._drawBreakables(ctx, state.breakables || []);
+    this._drawKraken(ctx, state.kraken);
     this._drawCrown(ctx, state.crown);
     this._drawSinkEffects(ctx, state.sinkEffects || []);
     this._drawDecoys(ctx, state.decoys || [], me, map);
@@ -2044,6 +2045,107 @@ export class SeaRenderer {
     }
   }
 
+  _drawKraken(ctx, k) {
+    if (!k) return;
+    const t = this.time;
+    ctx.save();
+    ctx.translate(k.x, k.y);
+
+    // Slam telegraph ring!
+    if (k.warn) {
+      ctx.fillStyle = `rgba(217, 70, 239, ${0.14 + k.warnPct * 0.24})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, k.slamR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#f0abfc';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([10, 8]);
+      ctx.beginPath();
+      ctx.arc(0, 0, k.slamR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.26)';
+      ctx.beginPath();
+      ctx.arc(0, 0, Math.max(20, k.slamR * k.warnPct), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Abyssal dark whirlpool underneath Kraken
+    const vg = ctx.createRadialGradient(0, 0, 12, 0, 0, k.r + 36);
+    vg.addColorStop(0, 'rgba(30, 8, 52, 0.85)');
+    vg.addColorStop(0.6, 'rgba(126, 34, 206, 0.28)');
+    vg.addColorStop(1, 'rgba(126, 34, 206, 0)');
+    ctx.fillStyle = vg;
+    ctx.beginPath();
+    ctx.arc(0, 0, k.r + 36, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 8 giant animated writhing tentacles!
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.sin(t * 1.4 + i) * 0.14;
+      const sway = Math.sin(t * (k.warn ? 11 : 4.2) + i * 1.3) * 18;
+      const reach = k.warn ? k.r + 42 : k.r + 28;
+      const sx = Math.cos(a) * 18;
+      const sy = Math.sin(a) * 18;
+      const mx = Math.cos(a) * (reach * 0.55) - Math.sin(a) * sway;
+      const my = Math.sin(a) * (reach * 0.55) + Math.cos(a) * sway;
+      const ex = Math.cos(a) * reach + Math.sin(a) * (sway * 0.45);
+      const ey = Math.sin(a) * reach - Math.cos(a) * (sway * 0.45);
+
+      ctx.strokeStyle = i % 2 === 0 ? '#a21caf' : '#7e22ce';
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.quadraticCurveTo(mx, my, ex, ey);
+      ctx.stroke();
+
+      // Suction-cup glow dots
+      ctx.fillStyle = 'rgba(245, 208, 254, 0.65)';
+      ctx.beginPath();
+      ctx.arc(mx, my, 2.5, 0, Math.PI * 2);
+      ctx.arc((mx + ex) * 0.5, (my + ey) * 0.5, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Giant Kraken dome head
+    ctx.fillStyle = '#581c87';
+    ctx.strokeStyle = '#e879f9';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 30 + Math.sin(t * 4) * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Glowing yellow boss eyes
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.ellipse(-10, 4, 6.5, 4.5, 0.25, 0, Math.PI * 2);
+    ctx.ellipse(10, 4, 6.5, 4.5, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1e1b4b';
+    ctx.fillRect(-11, 1.5, 2.5, 5.5);
+    ctx.fillRect(8.5, 1.5, 2.5, 5.5);
+
+    // Boss HP Bar & label above
+    const bw = 92;
+    const pct = Math.max(0, Math.min(1, k.hp / (k.maxHp || 240)));
+    ctx.fillStyle = 'rgba(8, 4, 18, 0.88)';
+    ctx.beginPath();
+    ctx.roundRect(-bw / 2 - 2, -56, bw + 4, 10, 5);
+    ctx.fill();
+    ctx.fillStyle = '#d946ef';
+    ctx.beginPath();
+    ctx.roundRect(-bw / 2, -54, bw * pct, 6, 3);
+    ctx.fill();
+
+    ctx.fillStyle = '#f5d0fe';
+    ctx.font = '900 11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`🐙 KRAKEN · ${k.hp}/${k.maxHp}`, 0, -64);
+    ctx.restore();
+  }
+
   _drawCrown(ctx, crown) {
     if (!crown || crown.holderId) return;
     const bob = Math.sin(this.time * 4.5) * 4;
@@ -2370,6 +2472,17 @@ export class SeaRenderer {
       ctx.beginPath();
       ctx.arc(br.x * sx, br.y * sy, 3.2, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // Kraken Boss on minimap
+    if (state.kraken) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.fillStyle = '#d946ef';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(state.kraken.x * sx, state.kraken.y * sy, 5.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     }
 
     // Golden Crown on minimap
