@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.5';
-import { sfx } from './audio.js?v=4.5';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.5';
-import { GameSim } from './sim.js?v=4.5';
-import { SeaRenderer } from './render.js?v=4.5';
+} from './data.js?v=4.51';
+import { sfx } from './audio.js?v=4.51';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.51';
+import { GameSim } from './sim.js?v=4.51';
+import { SeaRenderer } from './render.js?v=4.51';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1651,7 +1651,9 @@ function renderLoop(now) {
   }
 
   // Render canvas & HUD when tab is visible
-  if (app.renderer && app.liveState && $('screen-game').classList.contains('active')) {
+  if (app.renderer && $('screen-home').classList.contains('active')) {
+    app.renderer.renderHomeBg($('home-canvas'), dt);
+  } else if (app.renderer && app.liveState && $('screen-game').classList.contains('active')) {
     if (app.sim) {
       updateHudFromState(app.liveState);
     }
@@ -1968,11 +1970,15 @@ function init() {
     renderLobby();
   };
 
-  $('btn-mute').onclick = () => {
+  const toggleMute = () => {
     const next = !sfx.muted;
     sfx.setMuted(next);
-    $('btn-mute').textContent = next ? '🔇' : '🔊';
+    const ico = next ? '🔇' : '🔊';
+    $('btn-mute').textContent = ico;
+    if ($('btn-home-mute')) $('btn-home-mute').textContent = ico;
   };
+  $('btn-mute').onclick = toggleMute;
+  if ($('btn-home-mute')) $('btn-home-mute').onclick = toggleMute;
 
   const ambBtn = $('btn-ambient');
   if (ambBtn) {
@@ -1984,18 +1990,17 @@ function init() {
     };
   }
 
-  // ⛶ Tam Ekran Butonu
-  const fsBtn = $('btn-fullscreen');
-  if (fsBtn) {
-    fsBtn.onclick = () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen?.().catch(() => {});
-      } else {
-        document.exitFullscreen?.().catch(() => {});
-      }
-      sfx.play('ui');
-    };
-  }
+  // ⛶ Tam Ekran Butonları (Ana Menü & Oyun İçi)
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+    sfx.play('ui');
+  };
+  if ($('btn-fullscreen')) $('btn-fullscreen').onclick = toggleFullscreen;
+  if ($('btn-home-fs')) $('btn-home-fs').onclick = toggleFullscreen;
 
   // Lobide 1-tıkla Hızlı Mod Seçici (2v2 / 1v1 / Herkes Tek / Altın Taç)
   document.querySelectorAll('[data-qmode]').forEach(btn => {

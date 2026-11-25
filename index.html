@@ -3,21 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=4.5" />
+  <title>DERİN AV — Online Deniz Arenası</title>
+  <link rel="stylesheet" href="./styles.css?v=4.51" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
   <!-- ANA MENÜ -->
   <section id="screen-home" class="screen active">
     <div class="ocean-bg"></div>
+    <canvas id="home-canvas" class="home-canvas"></canvas>
+    <div class="home-top-controls">
+      <button id="btn-home-mute" class="btn-icon" title="Sesleri Aç/Kapat">🔊</button>
+      <button id="btn-home-fs" class="btn-icon" title="Tam Ekran">⛶</button>
+    </div>
     <div class="home-shell">
-      <div class="brand-badge">1v1 &amp; 2v2 ONLINE DENİZ ARENASI · 6 ÇAR · 2 İTEM</div>
+      <div class="brand-badge">4 MOD · 6 ÇAR · 20 İTEM · 6 CANLI HARİTA</div>
       <h1 class="brand-title">DERİN <span>AV</span></h1>
       <p class="brand-sub">
-        Açık denizde 1v1 veya 2v2 Av &amp; Avcı kapışması! Her tur roller değişir.
-        Avcılar avları <b>suya gömmeye</b> çalışır, Avlar su üstünde kalmak için savaşır.
-        Her tur <b>2 item</b> seç — unutma, <b>ateşli silahlar tek kullanımlık!</b>
+        Açık denizde <b>2v2, 1v1, Herkes Tek</b> ve <b>Altın Taç</b> kapışması!
+        Her tur <b>2 item</b> seç, yetenek ağacını kur — unutma, <b>ateşli silahlar tek kullanımlık!</b>
       </p>
 
       <div id="invite-banner" class="invite-banner" style="display:none">
@@ -32,7 +36,7 @@
         </div>
 
         <div class="home-actions">
-          <button id="btn-host" class="btn primary big">⚓ Online Oda Kur (1v1 / 2v2)</button>
+          <button id="btn-host" class="btn primary big">⚓ Online Oda Kur</button>
           <button id="btn-quick-solo" class="btn ghost big">🤖 Botlarla Hemen Test Et</button>
           <div class="home-sub-actions">
             <button id="btn-guide-home" class="btn ghost">📖 Nasıl Oynanır?</button>
@@ -50,10 +54,9 @@
 
       <div class="rules-strip">
         <div class="rule-pill">🔄 Her tur Av &amp; Avcı değişir</div>
-        <div class="rule-pill">🎒 Herkes 2 item seçer</div>
-        <div class="rule-pill">🔥 Ateşli silahlar TEK ATIM</div>
-        <div class="rule-pill">🌊 Amaç: Avı suya gömmek</div>
-        <div class="rule-pill">⚓ Toplam 6 benzersiz çar</div>
+        <div class="rule-pill">🔥 20 İtem · Tek Atım Silahlar</div>
+        <div class="rule-pill">🗺️ 6 Canlı Deniz Haritası</div>
+        <div class="rule-pill">🦈 6 Özgün Çar</div>
       </div>
     </div>
   </section>
@@ -278,7 +281,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.5</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.51</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -517,7 +520,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=4.5"></script>
+  <script type="module" src="./js/main.js?v=4.51"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

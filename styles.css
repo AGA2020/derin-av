@@ -2014,3 +2014,47 @@ kbd {
   color: #ffd166;
   margin-left: 3px;
 }
+
+
+/* === v4.51: ANIMATED HOME OCEAN CANVAS, GLASSMORPHISM & TOP CONTROLS === */
+.home-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+.home-top-controls {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+}
+.home-top-controls .btn-icon {
+  background: rgba(6, 20, 36, 0.72);
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  backdrop-filter: blur(8px);
+}
+#screen-home .brand-title {
+  text-shadow: 0 0 34px rgba(56, 189, 248, 0.28), 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+#screen-home .brand-title span {
+  text-shadow: 0 0 28px rgba(255, 183, 3, 0.45), 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+#screen-home .home-card {
+  background: rgba(7, 22, 39, 0.76);
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  box-shadow: inset 0 1px 0 rgba(186, 230, 253, 0.24), 0 24px 64px rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(14px);
+}
+#screen-home .rules-strip {
+  max-width: 780px;
+  margin: 18px auto 0;
+}
+#screen-home .rule-pill {
+  background: rgba(6, 22, 38, 0.72);
+  backdrop-filter: blur(8px);
+}

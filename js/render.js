@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.5';
-import { hasLineOfSight } from './sim.js?v=4.5';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.51';
+import { hasLineOfSight } from './sim.js?v=4.51';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -24,6 +24,7 @@ export class SeaRenderer {
     this.seenSinks = new Set();
     this.lastRoundSeen = -1;
     this.shake = 0;
+    this.homeActors = null; // 🌊 Ana menü canlı arka plan aktörleri
     this.smoothPos = new Map(); // id -> { x, y, aim }
     this.smoothProj = new Map(); // id -> { x, y }
   }
@@ -50,6 +51,108 @@ export class SeaRenderer {
       x: this.camX - this.viewW / 2 + sx,
       y: this.camY - this.viewH / 2 + sy
     };
+  }
+
+  renderHomeBg(canvas, dt) {
+    if (!canvas) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = canvas.clientWidth || window.innerWidth;
+    const h = canvas.clientHeight || window.innerHeight;
+    if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+    }
+    this.time += dt;
+    const t = this.time;
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    // 1. Slow sweeping lighthouse glow from upper-left sea horizon
+    const lhAngle = -0.15 + Math.sin(t * 0.35) * 0.48;
+    const lhG = ctx.createRadialGradient(0, 0, 20, 0, 0, Math.max(w, h) * 0.72);
+    lhG.addColorStop(0, 'rgba(255, 224, 130, 0.14)');
+    lhG.addColorStop(0.45, 'rgba(56, 189, 248, 0.05)');
+    lhG.addColorStop(1, 'rgba(56, 189, 248, 0)');
+    ctx.fillStyle = lhG;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, Math.max(w, h) * 0.72, lhAngle - 0.16, lhAngle + 0.16);
+    ctx.closePath();
+    ctx.fill();
+
+    // 2. Gentle rolling ocean wave crests
+    ctx.strokeStyle = 'rgba(125, 211, 252, 0.08)';
+    ctx.lineWidth = 2;
+    const cols = Math.ceil(w / 140) + 2;
+    const rows = Math.ceil(h / 92) + 1;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const wx = ((c * 140 + r * 52 + t * 18) % (w + 160)) - 80;
+        const wy = r * 92 + 30 + Math.sin(t * 1.1 + c + r) * 8;
+        ctx.beginPath();
+        ctx.moveTo(wx - 22, wy);
+        ctx.quadraticCurveTo(wx, wy - 6, wx + 22, wy);
+        ctx.stroke();
+      }
+    }
+
+    // 3. Ambient animated sea characters patrolling the deep margins!
+    if (!this.homeActors) {
+      this.homeActors = [
+        { charId: 'kopekbaligi', color: '#38bdf8', role: 'hunter', rx: 0.14, ry: 0.28, dir: 1, spd: 52, ampY: 22, scale: 1.25, seed: 0.4, wakes: [] },
+        { charId: 'ahtapot', color: '#f472b6', role: 'prey', rx: 0.86, ry: 0.72, dir: -1, spd: 38, ampY: 26, scale: 1.22, seed: 2.1, wakes: [] },
+        { charId: 'kaptan', color: '#ffb703', role: 'hunter', rx: 0.82, ry: 0.22, dir: -1, spd: 32, ampY: 14, scale: 1.18, seed: 3.7, wakes: [] },
+        { charId: 'hayalet', color: '#a855f7', role: 'prey', rx: 0.16, ry: 0.78, dir: 1, spd: 40, ampY: 18, scale: 1.18, seed: 5.2, wakes: [] }
+      ];
+    }
+
+    for (const a of this.homeActors) {
+      a.rx += (a.dir * a.spd * dt) / Math.max(w, 600);
+      if (a.rx > 1.12) a.rx = -0.12;
+      if (a.rx < -0.12) a.rx = 1.12;
+      const px = a.rx * w;
+      const py = a.ry * h + Math.sin(t * 0.9 + a.seed) * a.ampY;
+      const dy = Math.cos(t * 0.9 + a.seed) * a.ampY * 0.9;
+      const aim = Math.atan2(dy, a.dir * a.spd);
+
+      // Soft ambient wake bubbles
+      if (Math.random() < dt * 10) {
+        a.wakes.push({ x: px - Math.cos(aim) * 20, y: py - Math.sin(aim) * 20, r: 4, life: 1.1, maxLife: 1.1 });
+        if (a.wakes.length > 18) a.wakes.shift();
+      }
+      for (let i = a.wakes.length - 1; i >= 0; i--) {
+        const wk = a.wakes[i];
+        wk.life -= dt;
+        wk.r += dt * 12;
+        if (wk.life <= 0) { a.wakes.splice(i, 1); continue; }
+        ctx.strokeStyle = `rgba(186, 230, 253, ${(wk.life / wk.maxLife) * 0.14})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(wk.x, wk.y, wk.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.save();
+      ctx.globalAlpha = 0.36;
+      ctx.translate(px, py);
+      ctx.scale(a.scale, a.scale);
+      ctx.rotate(aim);
+      const ch = CHAR_MAP[a.charId] || { color: a.color };
+      this._drawCharacterBody(
+        ctx,
+        { charId: a.charId, isMe: false, submerged: false, slotIdx: Math.round(a.seed) },
+        ch,
+        a.color,
+        a.role === 'hunter' ? '#ffb703' : '#06d6a0',
+        a.spd * 2,
+        a.seed
+      );
+      ctx.restore();
+    }
+
+    ctx.restore();
   }
 
   render(state, myId, dt, localAim, localPred) {
