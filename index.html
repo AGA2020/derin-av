@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=3.7" />
+  <link rel="stylesheet" href="./styles.css?v=3.8" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -153,6 +153,14 @@
     <!-- OLAY AKIŞI -->
     <div id="hud-feed" class="hud-feed"></div>
 
+    <!-- HIZLI EMOJİ TEPKİ ÇUBUĞU (3-6) -->
+    <div class="emote-bar" title="Tekne üstü emoji tepkisi (3-6)">
+      <button class="emote-btn" data-emote="0" title="3: Gülme"><span>3</span>😂</button>
+      <button class="emote-btn" data-emote="1" title="4: Köpekbalığı"><span>4</span>🦈</button>
+      <button class="emote-btn" data-emote="2" title="5: Alev"><span>5</span>🔥</button>
+      <button class="emote-btn" data-emote="3" title="6: Batırdım"><span>6</span>💀</button>
+    </div>
+
     <!-- ALT HUD (KOMPAKT TAKTİKSEL BAR + CANLI ETKİ ROZETLERİ) -->
     <div class="hud-bottom">
       <div id="hud-effects" class="hud-effects"></div>
@@ -244,7 +252,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.7</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.8</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -425,6 +433,7 @@
           <div class="key-row"><kbd>Sağ Tık</kbd> / <kbd>2</kbd><span>2. İtemi kullan</span></div>
           <div class="key-row"><kbd>SPACE</kbd><span>Avcı: Suya Bastır · Av: Dalga Kaçışı</span></div>
           <div class="key-row"><kbd>SHIFT</kbd> / <kbd>E</kbd><span>Su Altına Dal / Yüzeye Çık (Sürpriz Çıkış!)</span></div>
+          <div class="key-row"><kbd>3</kbd> <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd><span>Tekne üstü mini emoji tepkileri (😂 🦈 🔥 💀)</span></div>
         </div>
       </div>
     </div>
@@ -440,7 +449,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=3.7"></script>
+  <script type="module" src="./js/main.js?v=3.8"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

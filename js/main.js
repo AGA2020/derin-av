@@ -12,11 +12,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=3.7';
-import { sfx } from './audio.js?v=3.7';
-import { NetClient, generateRoomCode } from './net.js?v=3.7';
-import { GameSim } from './sim.js?v=3.7';
-import { SeaRenderer } from './render.js?v=3.7';
+} from './data.js?v=3.8';
+import { sfx } from './audio.js?v=3.8';
+import { NetClient, generateRoomCode } from './net.js?v=3.8';
+import { GameSim } from './sim.js?v=3.8';
+import { SeaRenderer } from './render.js?v=3.8';
 
 const $ = (id) => document.getElementById(id);
 
@@ -324,6 +324,10 @@ function handleHostReceive(msg) {
     }
     case 'dive': {
       app.sim.toggleDive(sender);
+      break;
+    }
+    case 'emote': {
+      app.sim.triggerEmote(sender, msg.idx);
       break;
     }
   }
@@ -1141,6 +1145,17 @@ function useDive() {
   }
 }
 
+function useEmote(idx) {
+  const st = app.liveState;
+  if (!st || st.phase !== 'playing') return;
+  sfx.unlock();
+  if (app.sim) {
+    app.sim.triggerEmote(app.myId, idx);
+  } else {
+    app.net?.send({ type: 'emote', idx });
+  }
+}
+
 function getMoveVector() {
   let mx = app.touchMove.mx;
   let my = app.touchMove.my;
@@ -1522,6 +1537,9 @@ function init() {
   $('hud-slot-1').onclick = () => useSlot(1);
   $('hud-slot-space').onclick = () => useSpace();
   $('hud-slot-dive').onclick = () => useDive();
+  document.querySelectorAll('[data-emote]').forEach(btn => {
+    btn.onclick = () => useEmote(Number(btn.dataset.emote));
+  });
 
   window.addEventListener('keydown', (e) => {
     if (document.activeElement?.tagName === 'INPUT') return;
@@ -1530,6 +1548,10 @@ function init() {
     if (!had && app.mode === 'client') sendClientInputNow();
     if (e.code === 'Digit1') useSlot(0);
     if (e.code === 'Digit2') useSlot(1);
+    if (e.code === 'Digit3' && !e.repeat) useEmote(0);
+    if (e.code === 'Digit4' && !e.repeat) useEmote(1);
+    if (e.code === 'Digit5' && !e.repeat) useEmote(2);
+    if (e.code === 'Digit6' && !e.repeat) useEmote(3);
     if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && !e.repeat) {
       e.preventDefault();
       useDive();

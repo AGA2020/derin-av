@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=3.7';
-import { hasLineOfSight } from './sim.js?v=3.7';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=3.8';
+import { hasLineOfSight } from './sim.js?v=3.8';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -1008,6 +1008,41 @@ export class SeaRenderer {
       const shRatio = Math.min(1, p.shield / (p.maxHp || 120));
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(-bw / 2, 20, bw * shRatio, 2);
+    }
+
+    // 💬 Tekne üstü mini emoji tepki balonu (gizlilik otomatik korunur!)
+    if (p.emote && p.emoteTimer > 0) {
+      const elapsed = 2.2 - p.emoteTimer;
+      const pop = elapsed < 0.16 ? 0.65 + (elapsed / 0.16) * 0.45 : 1.0;
+      const alpha = p.emoteTimer < 0.4 ? Math.max(0, p.emoteTimer / 0.4) : 1.0;
+      const lift = elapsed * 6;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(0, -56 - lift);
+      ctx.scale(pop, pop);
+
+      ctx.fillStyle = 'rgba(6, 22, 40, 0.92)';
+      ctx.strokeStyle = 'rgba(255, 209, 102, 0.78)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-19, -18, 38, 32, 11);
+      ctx.fill();
+      ctx.stroke();
+
+      // Baloncuk ucu
+      ctx.fillStyle = 'rgba(6, 22, 40, 0.92)';
+      ctx.beginPath();
+      ctx.moveTo(-5, 13);
+      ctx.lineTo(0, 19);
+      ctx.lineTo(5, 13);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.font = '20px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.emote, 0, -1);
+      ctx.restore();
     }
 
     ctx.restore();

@@ -2,6 +2,7 @@
 
 import {
   GAME_VERSION,
+  EMOTES,
   WORLD_W,
   WORLD_H,
   ROUND_DURATION,
@@ -15,7 +16,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=3.7';
+} from './data.js?v=3.8';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -527,6 +528,9 @@ export class GameSim {
         submerged: false,
         diveTime: 0,
         diveCd: 0,
+        emote: null,
+        emoteTimer: 0,
+        emoteCd: 0,
         // Status effects
         speedBoost: 0,
         speedMult: 1,
@@ -1080,6 +1084,18 @@ export class GameSim {
     this.onEvent({ type: 'sfx', name: 'splash' });
   }
 
+  triggerEmote(playerId, emoteIdx) {
+    if (this.phase !== 'playing') return;
+    const p = this.players.find(pl => pl.id === playerId);
+    if (!p || !p.alive || p.emoteCd > 0) return;
+    const icon = EMOTES[Number(emoteIdx)];
+    if (!icon) return;
+    p.emote = icon;
+    p.emoteTimer = 2.2;
+    p.emoteCd = 2.0;
+    this.onEvent({ type: 'sfx', name: 'ui', targetId: p.id });
+  }
+
   _surfacePlayer(p, forced = false) {
     if (!p.submerged) return;
     const wasDeepEnough = p.diveTime >= 1.0;
@@ -1440,6 +1456,11 @@ export class GameSim {
       // Tick cooldowns & statuses
       p.spaceCd = Math.max(0, p.spaceCd - dt);
       p.diveCd = Math.max(0, p.diveCd - dt);
+      p.emoteCd = Math.max(0, p.emoteCd - dt);
+      if (p.emoteTimer > 0) {
+        p.emoteTimer = Math.max(0, p.emoteTimer - dt);
+        if (p.emoteTimer <= 0) p.emote = null;
+      }
       p.dashTimer = Math.max(0, p.dashTimer - dt);
       p.ramActive = Math.max(0, p.ramActive - dt);
       p.shieldTimer = Math.max(0, p.shieldTimer - dt);
@@ -2269,6 +2290,8 @@ export class GameSim {
         submerged: p.submerged,
         diveTime: Number(p.diveTime.toFixed(1)),
         diveCd: Number(p.diveCd.toFixed(1)),
+        emote: p.emote || null,
+        emoteTimer: p.emote ? Number(p.emoteTimer.toFixed(2)) : 0,
         ramActive: p.ramActive > 0,
         speedBoost: p.speedBoost > 0,
         speedBoostSec: Number(p.speedBoost.toFixed(1)),

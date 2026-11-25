@@ -1,8 +1,16 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v3.7';
+export const GAME_VERSION = 'v3.8';
+export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 export const CHANGELOG = [
+  {
+    ver: 'v3.8',
+    notes: [
+      '💬 YENİ: Tekne üstü mini emoji tepkileri eklendi! [3] 😂 · [4] 🦈 · [5] 🔥 · [6] 💀 (veya sol alttaki hızlı emoji çubuğu).',
+      'Siste, mürekkepte veya su altında gizliyken rakipler emojini göremez — gizlilik bozulmaz!'
+    ]
+  },
   {
     ver: 'v3.7',
     notes: [
