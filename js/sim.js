@@ -14,7 +14,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=2.6';
+} from './data.js?v=2.7';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -86,7 +86,17 @@ export class GameSim {
   constructor(onEvent) {
     this.onEvent = onEvent || (() => {});
     this.phase = 'lobby'; // lobby | draft | playing | round_end | match_end
-    this.totalRounds = 4; // Her takım 2 Avcı + 2 Av (beraberlikte 5. Final Turu)
+    this.settings = {
+      totalRounds: 4,
+      roundDuration: ROUND_DURATION,
+      hpMult: 1.0,
+      mapMode: 'rotate', // 'rotate' | '0' | '1' | '2'
+      powerups: true,
+      barrels: true,
+      storm: true,
+      rescue: true
+    };
+    this.totalRounds = 4; // Her takım 2 Avcı + 2 Av (beraberlikte Final Turu)
     this.round = 1;
     this.mapIndex = 0;
     this.scores = { A: 0, B: 0 };
@@ -232,11 +242,34 @@ export class GameSim {
 
   setTotalRounds(n) {
     if (this.phase !== 'lobby') return;
-    this.totalRounds = n === 6 ? 6 : 4;
+    const valid = [2, 4, 6, 8];
+    this.settings.totalRounds = valid.includes(n) ? n : 4;
+    this.totalRounds = this.settings.totalRounds;
+  }
+
+  updateSettings(patch) {
+    if (this.phase !== 'lobby' || !patch) return;
+    if ([2, 4, 6, 8].includes(Number(patch.totalRounds))) {
+      this.settings.totalRounds = Number(patch.totalRounds);
+      this.totalRounds = this.settings.totalRounds;
+    }
+    if ([60, 85, 110].includes(Number(patch.roundDuration))) {
+      this.settings.roundDuration = Number(patch.roundDuration);
+    }
+    if ([0.75, 1, 1.4].includes(Number(patch.hpMult))) {
+      this.settings.hpMult = Number(patch.hpMult);
+    }
+    if (['rotate', '0', '1', '2'].includes(String(patch.mapMode))) {
+      this.settings.mapMode = String(patch.mapMode);
+    }
+    for (const k of ['powerups', 'barrels', 'storm', 'rescue']) {
+      if (typeof patch[k] === 'boolean') this.settings[k] = patch[k];
+    }
   }
 
   startMatch() {
     this.fillEmptyWithBots();
+    this.totalRounds = this.settings.totalRounds;
     this.round = 1;
     this.scores = { A: 0, B: 0 };
     this.matchWinnerTeam = null;
@@ -257,7 +290,9 @@ export class GameSim {
 
   startDraft() {
     this.phase = 'draft';
-    this.mapIndex = (this.round - 1) % SEA_MAPS.length;
+    this.mapIndex = this.settings.mapMode === 'rotate'
+      ? (this.round - 1) % SEA_MAPS.length
+      : Number(this.settings.mapMode) % SEA_MAPS.length;
     this.phaseTimer = DRAFT_DURATION;
     this.roundWinnerRole = null;
     this.roundWinnerTeam = null;
@@ -315,7 +350,7 @@ export class GameSim {
     }
 
     this.phase = 'playing';
-    this.phaseTimer = ROUND_DURATION;
+    this.phaseTimer = this.settings.roundDuration || ROUND_DURATION;
     this.projectiles = [];
     this.traps = [];
     this.zones = [];
@@ -370,8 +405,8 @@ export class GameSim {
         vy: 0,
         aim: role === 'hunter' ? 0 : Math.PI,
         r: 20,
-        hp: ch.hp,
-        maxHp: ch.hp,
+        hp: Math.round(ch.hp * (this.settings.hpMult || 1)),
+        maxHp: Math.round(ch.hp * (this.settings.hpMult || 1)),
         shield: 0,
         shieldTimer: 0,
         alive: true,
@@ -409,10 +444,14 @@ export class GameSim {
       };
     });
 
-    this._spawnPowerup();
-    this._spawnPowerup();
-    this._spawnInitialBarrels();
-    this._pushFeed(`TUR ${this.round} BAŞLADI — ${map.name}! Barut fıçıları ve sandıklar hazır!`, 'info');
+    if (this.settings.powerups) {
+      this._spawnPowerup();
+      this._spawnPowerup();
+    }
+    if (this.settings.barrels) {
+      this._spawnInitialBarrels();
+    }
+    this._pushFeed(`TUR ${this.round} BAŞLADI — ${map.name}!`, 'info');
     this.onEvent({ type: 'sfx', name: 'round_start' });
     this.onEvent({ type: 'phase', phase: 'playing', round: this.round });
   }
@@ -936,7 +975,7 @@ export class GameSim {
 
       // 🛟 Takım arkadaşı hâlâ hayattaysa ve oyuncu bu tur henüz kurtarılmadıysa Kurtarma Şamandırası bırak!
       const aliveAlly = this.players.find(o => o.alive && o.team === target.team && o.id !== target.id);
-      if (aliveAlly && !target.rescuedOnce) {
+      if (this.settings.rescue && aliveAlly && !target.rescuedOnce) {
         const bx = clamp(target.x, 70, WORLD_W - 70);
         const by = clamp(target.y, 70, WORLD_H - 70);
         this.rescueBuoys.push({
@@ -981,15 +1020,16 @@ export class GameSim {
 
     this.phaseTimer -= dt;
 
-    // 🌪️ Son 25 saniyede Dev Fırtına Çemberi daralır!
-    if (this.phaseTimer <= 25) {
+    // 🌪️ Son 25 saniyede Dev Fırtına Çemberi daralır! (ayar açıksa)
+    const stormWindow = Math.min(25, Math.round((this.settings.roundDuration || ROUND_DURATION) * 0.35));
+    if (this.settings.storm && this.phaseTimer <= stormWindow) {
       if (!this.storm.announced) {
         this.storm.announced = true;
         this.storm.active = true;
         this._pushFeed('🌪️ DEV FIRTINA BAŞLADI! Güvenli çember daralıyor!', 'firearm');
         this.onEvent({ type: 'sfx', name: 'round_start' });
       }
-      const prog = clamp((25 - this.phaseTimer) / 25, 0, 1);
+      const prog = clamp((stormWindow - this.phaseTimer) / stormWindow, 0, 1);
       this.storm.r = 980 - (980 - 255) * prog;
     }
 
@@ -1026,10 +1066,12 @@ export class GameSim {
     }
 
     // Spawn & collect Sea Power-Ups!
-    this.powerupSpawnTimer -= dt;
-    if (this.powerupSpawnTimer <= 0) {
-      this.powerupSpawnTimer = 9.0;
-      this._spawnPowerup();
+    if (this.settings.powerups) {
+      this.powerupSpawnTimer -= dt;
+      if (this.powerupSpawnTimer <= 0) {
+        this.powerupSpawnTimer = 9.0;
+        this._spawnPowerup();
+      }
     }
     for (let i = this.powerups.length - 1; i >= 0; i--) {
       const pu = this.powerups[i];
@@ -1269,10 +1311,12 @@ export class GameSim {
     }
 
     // 🧨 Update Pushable & Chain-Exploding Sea Powder Barrels!
-    this.barrelSpawnTimer -= dt;
-    if (this.barrelSpawnTimer <= 0) {
-      this.barrelSpawnTimer = 22.0;
-      this._spawnOneBarrel();
+    if (this.settings.barrels) {
+      this.barrelSpawnTimer -= dt;
+      if (this.barrelSpawnTimer <= 0) {
+        this.barrelSpawnTimer = 22.0;
+        this._spawnOneBarrel();
+      }
     }
     for (let i = this.barrels.length - 1; i >= 0; i--) {
       const b = this.barrels[i];
@@ -1783,6 +1827,7 @@ export class GameSim {
       version: GAME_VERSION,
       phase: this.phase,
       totalRounds: this.totalRounds,
+      settings: { ...this.settings },
       round: this.round,
       mapIndex: this.mapIndex,
       scores: { ...this.scores },

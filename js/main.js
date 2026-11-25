@@ -11,11 +11,11 @@ import {
   PREY_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=2.6';
-import { sfx } from './audio.js?v=2.6';
-import { NetClient, generateRoomCode } from './net.js?v=2.6';
-import { GameSim } from './sim.js?v=2.6';
-import { SeaRenderer } from './render.js?v=2.6';
+} from './data.js?v=2.7';
+import { sfx } from './audio.js?v=2.7';
+import { NetClient, generateRoomCode } from './net.js?v=2.7';
+import { GameSim } from './sim.js?v=2.7';
+import { SeaRenderer } from './render.js?v=2.7';
 
 const $ = (id) => document.getElementById(id);
 
@@ -498,7 +498,7 @@ function renderLobby() {
   const isHostLike = app.mode === 'host' || app.mode === 'offline';
   $('btn-start-match').style.display = isHostLike ? '' : 'none';
   $('btn-fill-bots').style.display = isHostLike ? '' : 'none';
-  $('round-select-wrap').style.display = isHostLike ? '' : 'none';
+  $('btn-open-settings').style.display = isHostLike ? '' : 'none';
   $('btn-copy-link').style.display = app.mode === 'offline' ? 'none' : '';
   $('client-wait-msg').style.display = isHostLike ? 'none' : '';
 
@@ -506,10 +506,11 @@ function renderLobby() {
   if (!st) {
     $('team-a-slots').innerHTML = '<div class="slot-card empty">Oda bilgisi bekleniyor...</div>';
     $('team-b-slots').innerHTML = '<div class="slot-card empty">Oda bilgisi bekleniyor...</div>';
+    $('lobby-rules-summary').innerHTML = '';
     return;
   }
 
-  $('round-count-val').textContent = `${st.totalRounds} Tur`;
+  renderLobbyRulesSummary(st);
 
   const renderSlot = (s) => {
     const ch = CHAR_MAP[s.charId] || CHARACTERS[0];
@@ -907,6 +908,51 @@ function renderLoop(now) {
 // EVENT WIRING & INITIALIZATION
 // ============================================================
 
+function renderLobbyRulesSummary(st) {
+  const s = st.settings || {
+    totalRounds: st.totalRounds || 4,
+    roundDuration: 85,
+    hpMult: 1,
+    mapMode: 'rotate',
+    powerups: true,
+    barrels: true,
+    storm: true,
+    rescue: true
+  };
+  const mapLabel = s.mapMode === 'rotate'
+    ? '🔄 Dönüşümlü'
+    : (SEA_MAPS[Number(s.mapMode)]?.name || 'Harita');
+  const hpLabel = `%${Math.round((s.hpMult || 1) * 100)} Can`;
+  const pills = [
+    `🏁 ${s.totalRounds} Tur`,
+    `⏱️ ${s.roundDuration}sn`,
+    `❤️ ${hpLabel}`,
+    `🗺️ ${mapLabel}`,
+    `📦 Sandık ${s.powerups ? '✓' : '✕'}`,
+    `🧨 Fıçı ${s.barrels ? '✓' : '✕'}`,
+    `🌪️ Fırtına ${s.storm ? '✓' : '✕'}`,
+    `🛟 Kurtarma ${s.rescue ? '✓' : '✕'}`
+  ];
+  $('lobby-rules-summary').innerHTML = pills.map(p => `<span class="rule-chip">${p}</span>`).join('');
+}
+
+function renderSettingsModal() {
+  if (!app.sim) return;
+  const s = app.sim.settings;
+  document.querySelectorAll('.seg-group').forEach(grp => {
+    const key = grp.dataset.setting;
+    const cur = String(s[key]);
+    grp.querySelectorAll('.seg-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.val === cur);
+    });
+  });
+  document.querySelectorAll('.toggle-chip').forEach(btn => {
+    const key = btn.dataset.toggle;
+    const on = Boolean(s[key]);
+    btn.classList.toggle('on', on);
+  });
+}
+
 function checkVersionMismatch(hostVersion) {
   const banner = $('version-mismatch');
   if (!banner) return;
@@ -1004,13 +1050,73 @@ function init() {
     sfx.play('ui');
   };
 
-  $('btn-toggle-rounds').onclick = () => {
+  $('btn-open-settings').onclick = () => {
     if (!app.sim) return;
-    app.sim.setTotalRounds(app.sim.totalRounds === 4 ? 6 : 4);
-    broadcastLobby();
-    renderLobby();
+    renderSettingsModal();
+    $('overlay-settings').classList.add('active');
     sfx.play('ui');
   };
+
+  $('btn-close-settings').onclick = () => {
+    $('overlay-settings').classList.remove('active');
+    sfx.play('ui');
+  };
+
+  $('overlay-settings').onclick = (e) => {
+    if (e.target === $('overlay-settings')) $('overlay-settings').classList.remove('active');
+  };
+
+  $('btn-preset-std').onclick = () => {
+    if (!app.sim) return;
+    app.sim.updateSettings({
+      totalRounds: 4, roundDuration: 85, hpMult: 1, mapMode: 'rotate',
+      powerups: true, barrels: true, storm: true, rescue: true
+    });
+    broadcastLobby();
+    renderLobby();
+    renderSettingsModal();
+    sfx.play('ui');
+  };
+
+  $('btn-preset-chaos').onclick = () => {
+    if (!app.sim) return;
+    app.sim.updateSettings({
+      totalRounds: 6, roundDuration: 60, hpMult: 0.75, mapMode: '2',
+      powerups: true, barrels: true, storm: true, rescue: true
+    });
+    broadcastLobby();
+    renderLobby();
+    renderSettingsModal();
+    sfx.play('ui');
+  };
+
+  document.querySelectorAll('.seg-group').forEach(grp => {
+    const key = grp.dataset.setting;
+    grp.querySelectorAll('.seg-btn').forEach(btn => {
+      btn.onclick = () => {
+        if (!app.sim) return;
+        const raw = btn.dataset.val;
+        const val = key === 'mapMode' ? raw : Number(raw);
+        app.sim.updateSettings({ [key]: val });
+        broadcastLobby();
+        renderLobby();
+        renderSettingsModal();
+        sfx.play('ui');
+      };
+    });
+  });
+
+  document.querySelectorAll('.toggle-chip').forEach(btn => {
+    const key = btn.dataset.toggle;
+    btn.onclick = () => {
+      if (!app.sim) return;
+      app.sim.updateSettings({ [key]: !app.sim.settings[key] });
+      broadcastLobby();
+      renderLobby();
+      renderSettingsModal();
+      sfx.play('ui');
+    };
+  });
 
   $('btn-start-match').onclick = () => {
     if (!app.sim) return;

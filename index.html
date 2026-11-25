@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 2v2 Denizde Av & Avcı</title>
-  <link rel="stylesheet" href="./styles.css?v=2.6" />
+  <link rel="stylesheet" href="./styles.css?v=2.7" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -90,12 +90,12 @@
             <div id="team-b-slots" class="slots-col"></div>
           </div>
 
+          <div id="lobby-rules-summary" class="lobby-rules-summary"></div>
+
           <div class="lobby-controls">
             <button id="btn-switch-team" class="btn ghost">⇄ Takım Değiştir</button>
             <button id="btn-fill-bots" class="btn ghost">🤖 Boş Yerleri Botla Doldur</button>
-            <div id="round-select-wrap" class="round-toggle">
-              <button id="btn-toggle-rounds" class="btn ghost">Maç Uzunluğu: <b id="round-count-val">4 Tur</b></button>
-            </div>
+            <button id="btn-open-settings" class="btn ghost">⚙️ Maç Ayarları</button>
             <button id="btn-start-match" class="btn primary big">🚀 Maçı Başlat</button>
             <div id="client-wait-msg" class="wait-msg" style="display:none">
               Oda kurucusunun maçı başlatması bekleniyor...
@@ -207,7 +207,77 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v2.6</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v2.7</button>
+
+  <!-- MAÇ AYARLARI MODALI (HOST) -->
+  <div id="overlay-settings" class="overlay">
+    <div class="modal settings-modal">
+      <div class="draft-header">
+        <div>
+          <div class="draft-badge">HOST KONTROLÜ</div>
+          <h2>⚙️ Maç Ayarları</h2>
+        </div>
+        <div class="preset-btns">
+          <button id="btn-preset-std" class="btn-mini">⚖️ Standart</button>
+          <button id="btn-preset-chaos" class="btn-mini primary">🔥 Kaos Modu</button>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <div class="setting-row">
+          <div class="setting-label">Tur Sayısı</div>
+          <div class="seg-group" data-setting="totalRounds">
+            <button class="seg-btn" data-val="2">2 Tur</button>
+            <button class="seg-btn" data-val="4">4 Tur</button>
+            <button class="seg-btn" data-val="6">6 Tur</button>
+            <button class="seg-btn" data-val="8">8 Tur</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">Tur Süresi</div>
+          <div class="seg-group" data-setting="roundDuration">
+            <button class="seg-btn" data-val="60">60 sn (Hızlı)</button>
+            <button class="seg-btn" data-val="85">85 sn (Normal)</button>
+            <button class="seg-btn" data-val="110">110 sn (Uzun)</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">Can (Su Üstü Direnci)</div>
+          <div class="seg-group" data-setting="hpMult">
+            <button class="seg-btn" data-val="0.75">%75 (Sert)</button>
+            <button class="seg-btn" data-val="1">%100 (Dengeli)</button>
+            <button class="seg-btn" data-val="1.4">%140 (Tank)</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">Harita Seçimi</div>
+          <div class="seg-group" data-setting="mapMode">
+            <button class="seg-btn" data-val="rotate">🔄 Dönüşümlü</button>
+            <button class="seg-btn" data-val="0">Fırtına Boğazı</button>
+            <button class="seg-btn" data-val="1">Korsan Enkazı</button>
+            <button class="seg-btn" data-val="2">Akıntı Koyu</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">Harita Olayları &amp; Mekanikler</div>
+          <div class="toggle-grid">
+            <button class="toggle-chip" data-toggle="powerups">📦 Power-Up Sandıkları</button>
+            <button class="toggle-chip" data-toggle="barrels">🧨 Barut Fıçıları</button>
+            <button class="toggle-chip" data-toggle="storm">🌪️ Son 25s Dev Fırtına</button>
+            <button class="toggle-chip" data-toggle="rescue">🛟 Takım Arkadaşı Kurtarma</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top:16px">
+        <button id="btn-close-settings" class="btn primary big">✓ Ayarları Kaydet</button>
+      </div>
+    </div>
+  </div>
 
   <div id="overlay-changelog" class="overlay">
     <div class="modal compact-modal changelog-modal">
@@ -219,7 +289,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=2.6"></script>
+  <script type="module" src="./js/main.js?v=2.7"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

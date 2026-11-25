@@ -1,8 +1,16 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v2.6';
+export const GAME_VERSION = 'v2.7';
 export const CHANGELOG = [
+  {
+    ver: 'v2.7',
+    notes: [
+      '⚙️ Lobiye kapsamlı Maç Ayarları eklendi: Tur sayısı (2/4/6/8), Tur süresi (60/85/110s), Can çarpanı (%75/%100/%140), Harita seçimi.',
+      'Power-Up Sandıkları, Barut Fıçıları, Dev Fırtına ve Takım Arkadaşı Kurtarma artık tek tıkla açılıp kapatılabiliyor!',
+      'Aktif maç kuralları lobide tüm oyunculara anlık özet rozetler halinde görünür.'
+    ]
+  },
   {
     ver: 'v2.6',
     notes: [
