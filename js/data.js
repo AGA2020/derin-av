@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.65';
+export const GAME_VERSION = 'v4.66';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,14 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.66',
+    notes: [
+      '🧪 80 MAÇLIK KAOS TESTİYLE BULUNAN 2 GİZLİ BUG ÇÖZÜLDÜ:',
+      '🏖️ Mercan Plajı’nda iskele/çarpışma itmesiyle teknenin kuru kumsala çıkma hatası giderildi.',
+      '🗺️ Akıntı Koyu, Mercan Plajı ve Hayalet Sis haritalarında kaya/iskele içine denk gelen 5 sandık/fıçı doğma noktası açık suya taşındı.'
+    ]
+  },
   {
     ver: 'v4.65',
     notes: [
@@ -992,7 +1000,7 @@ export const SEA_MAPS = [
       { x: 960, y: 645 },
       { x: 960, y: 355 },
       { x: 640, y: 645 },
-      { x: 420, y: 500 }
+      { x: 470, y: 380 }
     ],
     breakables: [
       { x: 350, y: 500, r: 34 },
@@ -1034,9 +1042,9 @@ export const SEA_MAPS = [
       { x: 1435, y: 740 }
     ],
     powerupSpots: [
-      { x: 800, y: 215 }, // Sığ su risk-ödül sandığı!
-      { x: 450, y: 215 },
-      { x: 1150, y: 215 },
+      { x: 600, y: 215 }, // Sığ su risk-ödül sandığı!
+      { x: 260, y: 215 },
+      { x: 1340, y: 215 },
       { x: 800, y: 580 },
       { x: 520, y: 760 },
       { x: 1080, y: 760 },
@@ -1143,7 +1151,7 @@ export const SEA_MAPS = [
       { x: 1450, y: 660 }
     ],
     powerupSpots: [
-      { x: 800, y: 500 },
+      { x: 800, y: 380 },
       { x: 470, y: 500 },
       { x: 1130, y: 500 },
       { x: 800, y: 180 },

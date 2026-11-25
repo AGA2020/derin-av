@@ -21,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=4.65';
+} from './data.js?v=4.66';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -2061,6 +2061,9 @@ export class GameSim {
       p.x = clamp(p.x + p.vx * dt, p.r + 12, WORLD_W - p.r - 12);
       p.y = clamp(p.y + p.vy * dt, minY, WORLD_H - p.r - 12);
       this._resolveObstacleCollision(p, p.r, map, false);
+      // Engel çözümü sonrası kumsala / sınır dışına taşmayı engelle!
+      p.x = clamp(p.x, p.r + 12, WORLD_W - p.r - 12);
+      p.y = clamp(p.y, minY, WORLD_H - p.r - 12);
 
       // 🏖️ Mercan Plajı: Sığ su şeridinde dalış yapılamaz (dalıştaysa yüzeye çıkar!)
       p.inShallow = Boolean(map.beach && p.y < map.beach.shallowY);
@@ -2140,6 +2143,11 @@ export class GameSim {
           a.y -= ny * ov;
           b.x += nx * ov;
           b.y += ny * ov;
+          const sepMinY = map.beach ? map.beach.sandY + a.r + 2 : a.r + 12;
+          a.x = clamp(a.x, a.r + 12, WORLD_W - a.r - 12);
+          a.y = clamp(a.y, sepMinY, WORLD_H - a.r - 12);
+          b.x = clamp(b.x, b.r + 12, WORLD_W - b.r - 12);
+          b.y = clamp(b.y, sepMinY, WORLD_H - b.r - 12);
         }
       }
     }
@@ -2790,7 +2798,11 @@ export class GameSim {
               ent.vy -= 2 * dot * ny;
             }
           } else {
-            ent.y = obs.y - r;
+            if (obs.type === 'pier') {
+              ent.x = (ent.x < obs.x + obs.w * 0.5) ? obs.x - r : obs.x + obs.w + r;
+            } else {
+              ent.y = obs.y - r;
+            }
           }
         }
       }
