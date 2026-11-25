@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>DERİN AV — 2v2 Denizde Av & Avcı</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="./vendor/mqtt.min.js"></script>
+</head>
+<body>
+  <!-- ANA MENÜ -->
+  <section id="screen-home" class="screen active">
+    <div class="ocean-bg"></div>
+    <div class="home-shell">
+      <div class="brand-badge">2v2 ONLINE DENİZ ARENASI · 6 ÇAR · 2 İTEM</div>
+      <h1 class="brand-title">DERİN <span>AV</span></h1>
+      <p class="brand-sub">
+        Açık denizde 2v2 Av &amp; Avcı kapışması! Her tur roller değişir.
+        Avcılar avları <b>suya gömmeye</b> çalışır, Avlar su üstünde kalmak için savaşır.
+        Her tur <b>2 item</b> seç — unutma, <b>ateşli silahlar tek kullanımlık!</b>
+      </p>
+
+      <div id="invite-banner" class="invite-banner" style="display:none">
+        <span>Davet edildiğin oda: <b id="invite-banner-code">----</b></span>
+        <button id="btn-invite-go" class="btn primary">Hemen Katıl</button>
+      </div>
+
+      <div class="home-card">
+        <div class="field-group">
+          <label for="input-name">Kaptan Adın</label>
+          <input id="input-name" type="text" maxlength="14" placeholder="Örn: Karasakal" autocomplete="off" />
+        </div>
+
+        <div class="home-actions">
+          <button id="btn-host" class="btn primary big">⚓ Online Oda Kur (2v2)</button>
+          <button id="btn-quick-solo" class="btn ghost big">🤖 Botlarla Hemen Test Et</button>
+        </div>
+
+        <div class="divider"><span>veya arkadaşının odasına katıl</span></div>
+
+        <div class="join-row">
+          <input id="input-code" type="text" maxlength="6" placeholder="ODA KODU (Örn: K7M4)" autocomplete="off" />
+          <button id="btn-join" class="btn accent">Odaya Katıl</button>
+        </div>
+      </div>
+
+      <div class="rules-strip">
+        <div class="rule-pill">🔄 Her tur Av &amp; Avcı değişir</div>
+        <div class="rule-pill">🎒 Herkes 2 item seçer</div>
+        <div class="rule-pill">🔥 Ateşli silahlar TEK ATIM</div>
+        <div class="rule-pill">🌊 Amaç: Avı suya gömmek</div>
+        <div class="rule-pill">⚓ Toplam 6 benzersiz çar</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOBİ & 6 ÇAR SEÇİMİ -->
+  <section id="screen-lobby" class="screen">
+    <div class="ocean-bg"></div>
+    <div class="lobby-shell">
+      <header class="lobby-header">
+        <div>
+          <div class="lobby-kicker">DERİN AV · 2v2 LOBİ</div>
+          <div class="room-code-wrap">
+            Oda Kodu: <span id="lobby-code" class="code-pill">----</span>
+            <button id="btn-copy-link" class="btn-mini primary">🔗 Davet Linkini Kopyala</button>
+          </div>
+        </div>
+        <div class="lobby-header-right">
+          <span id="net-status" class="net-pill">Bağlanıyor...</span>
+          <button id="btn-leave-lobby" class="btn-mini danger">Odadan Çık</button>
+        </div>
+      </header>
+
+      <div class="lobby-grid">
+        <div class="lobby-teams">
+          <div class="team-panel team-a">
+            <div class="team-head">
+              <h3>TAKIM A (ALTIN)</h3>
+              <span>1. Tur: Avcılar 🎯</span>
+            </div>
+            <div id="team-a-slots" class="slots-col"></div>
+          </div>
+
+          <div class="team-panel team-b">
+            <div class="team-head">
+              <h3>TAKIM B (TURKUAZ)</h3>
+              <span>1. Tur: Avlar 🌊</span>
+            </div>
+            <div id="team-b-slots" class="slots-col"></div>
+          </div>
+
+          <div class="lobby-controls">
+            <button id="btn-switch-team" class="btn ghost">⇄ Takım Değiştir</button>
+            <button id="btn-fill-bots" class="btn ghost">🤖 Boş Yerleri Botla Doldur</button>
+            <div id="round-select-wrap" class="round-toggle">
+              <button id="btn-toggle-rounds" class="btn ghost">Maç Uzunluğu: <b id="round-count-val">4 Tur</b></button>
+            </div>
+            <button id="btn-start-match" class="btn primary big">🚀 Maçı Başlat</button>
+            <div id="client-wait-msg" class="wait-msg" style="display:none">
+              Oda kurucusunun maçı başlatması bekleniyor...
+            </div>
+          </div>
+        </div>
+
+        <div class="lobby-chars">
+          <div class="section-head">
+            <h3>Çarını Seç (Toplam 6 Çar)</h3>
+            <span>Her çarın farklı direnci, hızı ve deniz yeteneği var</span>
+          </div>
+          <div id="char-grid" class="char-grid"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OYUN EKRANI -->
+  <section id="screen-game" class="screen">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- ÜST HUD -->
+    <div class="hud-top">
+      <div class="hud-team-col left">
+        <div class="score-badge a">TAKIM A <b id="hud-score-a">0</b></div>
+        <div id="hud-team-a" class="mini-team"></div>
+      </div>
+
+      <div class="hud-center">
+        <div id="hud-round" class="hud-round">TUR 1/4</div>
+        <div id="hud-timer" class="hud-timer">01:10</div>
+        <div id="hud-role-pill" class="hud-role-pill hunter">🎯 AVCISIN</div>
+      </div>
+
+      <div class="hud-team-col right">
+        <div class="score-row-right">
+          <div class="score-badge b"><b id="hud-score-b">0</b> TAKIM B</div>
+          <button id="btn-mute" class="btn-icon" title="Sesi Aç/Kapat">🔊</button>
+        </div>
+        <div id="hud-team-b" class="mini-team right"></div>
+      </div>
+    </div>
+
+    <!-- OLAY AKIŞI -->
+    <div id="hud-feed" class="hud-feed"></div>
+
+    <!-- ALT HUD (CAN + 2 İTEM + SPACE) -->
+    <div class="hud-bottom">
+      <div class="hp-wrap">
+        <div id="hud-hp-text" class="hp-text">Su Üstü Direnci: 100/100</div>
+        <div class="hp-bar"><div id="hud-hp-fill" class="hp-fill" style="width:100%"></div></div>
+      </div>
+      <div class="slots-bar">
+        <button id="hud-slot-0" class="hud-item-slot"></button>
+        <button id="hud-slot-1" class="hud-item-slot"></button>
+        <button id="hud-slot-space" class="hud-item-slot space"></button>
+      </div>
+      <div class="controls-hint">WASD / Oklar: Hareket · Fare: Nişan · Sol Tık / 1: İtem 1 · Sağ Tık / 2: İtem 2 · SPACE: Hamle / Kaçış</div>
+    </div>
+
+    <!-- 2 İTEM SEÇİM OVERLAY -->
+    <div id="overlay-draft" class="overlay">
+      <div class="modal draft-modal">
+        <div class="draft-header">
+          <div>
+            <div id="draft-round-badge" class="draft-badge">TUR 1 / 4</div>
+            <h2>2 İtemini Seç</h2>
+          </div>
+          <div id="draft-timer" class="draft-timer">22s</div>
+        </div>
+        <div id="draft-role-banner" class="role-banner hunter"></div>
+        <div id="draft-grid" class="draft-grid"></div>
+        <div class="draft-footer">
+          <div id="draft-ready-list" class="ready-list"></div>
+          <button id="btn-lock-items" class="btn primary big" disabled>2 İtem Seç (0/2)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TUR SONU OVERLAY -->
+    <div id="overlay-round" class="overlay">
+      <div class="modal compact-modal">
+        <div class="draft-badge">TUR TAMAMLANDI</div>
+        <h2 id="round-end-title">AVCILAR KAZANDI!</h2>
+        <p id="round-end-reason" class="modal-sub">Tüm Avlar suya gömüldü!</p>
+        <div id="round-end-score" class="big-score">TAKIM A 1 - 0 TAKIM B</div>
+        <div id="round-end-next" class="swap-callout">Sonraki turda ROLLER DEĞİŞİYOR!</div>
+      </div>
+    </div>
+
+    <!-- MAÇ SONU OVERLAY -->
+    <div id="overlay-match" class="overlay">
+      <div class="modal compact-modal">
+        <div class="draft-badge">MAÇ SONA ERDİ</div>
+        <h2 id="match-end-title">🏆 TAKIM A ŞAMPİYON!</h2>
+        <div id="match-end-score" class="big-score">FİNAL SKORU</div>
+        <div id="match-end-stats" class="stats-list"></div>
+        <div class="modal-actions">
+          <button id="btn-rematch" class="btn primary big">🔄 Tekrar Oyna</button>
+          <button id="btn-back-lobby" class="btn ghost big">⚓ Lobiye Dön</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast"></div>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
