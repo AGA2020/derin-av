@@ -15,7 +15,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=3.5';
+} from './data.js?v=3.6';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -104,6 +104,7 @@ export class GameSim {
     this.mapIndex = 0;
     this.scores = { A: 0, B: 0 };
     this.ffaScores = {}; // playerId -> round wins in FFA
+    this.matchStats = {}; // playerId -> cumulative match stats across all rounds!
     this.phaseTimer = 0;
     this.roundWinnerRole = null;
     this.roundWinnerTeam = null;
@@ -322,13 +323,44 @@ export class GameSim {
     this.round = 1;
     this.scores = { A: 0, B: 0 };
     this.ffaScores = {};
+    this.matchStats = {};
     for (const s of this.getActiveSlots(true)) {
-      if (s.id) this.ffaScores[s.id] = 0;
+      if (s.id) {
+        this.ffaScores[s.id] = 0;
+        this.matchStats[s.id] = this._blankStat(s);
+      }
     }
     this.matchWinnerTeam = null;
     this.matchWinnerName = '';
     this.feed = [];
     this.startDraft();
+  }
+
+  _blankStat(s) {
+    return {
+      id: s.id,
+      name: s.name,
+      team: s.team,
+      charId: s.charId,
+      sinks: 0,
+      damage: 0,
+      ambushes: 0,
+      rescues: 0,
+      barrels: 0,
+      powerups: 0,
+      survived: 0,
+      deaths: 0
+    };
+  }
+
+  _stat(id) {
+    if (!id) return null;
+    if (!this.matchStats[id]) {
+      const p = this.players.find(pl => pl.id === id) || this.slots.find(sl => sl.id === id);
+      if (!p) return null;
+      this.matchStats[id] = this._blankStat(p);
+    }
+    return this.matchStats[id];
   }
 
   backToLobby() {
@@ -590,6 +622,8 @@ export class GameSim {
     this.barrels.splice(idx, 1);
 
     const blastR = 160;
+    const bStat = this._stat(attackerId);
+    if (bStat) bStat.barrels += 1;
     this._addPulse(barrel.x, barrel.y, blastR, 'boom', attackerTeam || 'N');
     this._addFloatText(barrel.x, barrel.y - 18, '💥 BUM!', '#ff6b35');
     this.onEvent({ type: 'sfx', name: 'shot_heavy' });
@@ -1068,6 +1102,8 @@ export class GameSim {
         }
       }
       if (ambushHits > 0) {
+        const aStat = this._stat(p.id);
+        if (aStat) aStat.ambushes += ambushHits;
         this._addPulse(p.x, p.y, 125, 'heal', p.team);
         this._addFloatText(p.x, p.y - 34, '🦈 SÜRPRİZ ÇIKIŞ!', '#ffd166');
         this._pushFeed(`🦈 ${p.name} su altından SÜRPRİZ ÇIKIŞ yaptı! (2sn %65 Yavaşlatma)`, 'firearm');
@@ -1118,6 +1154,10 @@ export class GameSim {
       target.firstHitAvail = false;
     }
     const rawShown = Math.round(dmg);
+    if (attackerId && attackerId !== target.id && rawShown > 0) {
+      const aStat = this._stat(attackerId);
+      if (aStat) aStat.damage += rawShown;
+    }
 
     // 1. Geçici kalkan (Çelik Gövde / Kurtarma kalkanı) önce emer
     if (target.shield > 0 && dmg > 0) {
@@ -1164,9 +1204,13 @@ export class GameSim {
       target.submerged = false;
       target.diveTime = 0;
       target.sinkingAnim = 1.0;
+      const tStat = this._stat(target.id);
+      if (tStat) tStat.deaths += 1;
       const attacker = this.players.find(p => p.id === attackerId);
       if (attacker) {
         attacker.sinks += 1;
+        const aStat = this._stat(attacker.id);
+        if (aStat && attacker.id !== target.id) aStat.sinks += 1;
         // 💀 Deathmatch Kill Ödülü: third-party dengesini korur!
         if (this.settings.mode === 'ffa' && attacker.alive && attacker.id !== target.id) {
           attacker.hp = Math.min(attacker.maxHp, attacker.hp + 40);
@@ -1335,6 +1379,8 @@ export class GameSim {
         rb.life = Math.min(rb.maxLife, rb.life + dt * 0.65);
         if (rb.progress >= rb.duration) {
           // KURTARMA TAMAMLANDI!
+          const rStat = this._stat(rescuer.id);
+          if (rStat) rStat.rescues += 1;
           fallen.alive = true;
           fallen.submerged = false;
           fallen.diveTime = 0;
@@ -1769,6 +1815,8 @@ export class GameSim {
   _grantPowerup(p, pu) {
     const def = POWERUP_MAP[pu.kind];
     if (!def) return;
+    const pStat = this._stat(p.id);
+    if (pStat) pStat.powerups += 1;
     this._addPulse(pu.x, pu.y, 95, 'heal', p.team);
     this.onEvent({ type: 'sfx', name: 'boost' });
     this._addFloatText(p.x, p.y - 26, `${def.icon} ${def.label}`, def.color);
@@ -1819,6 +1867,13 @@ export class GameSim {
     this.roundWinnerTeam = winnerTeam;
     this.roundWinnerName = winnerName;
     this.roundReason = reason;
+    // Hayatta kalarak turu tamamlayanlara +1 survived istatistiği
+    for (const p of this.players) {
+      if (p.alive) {
+        const st = this._stat(p.id);
+        if (st) st.survived += 1;
+      }
+    }
     if (winnerRole !== 'ffa' && (winnerTeam === 'A' || winnerTeam === 'B')) {
       this.scores[winnerTeam] += 1;
     }
@@ -2162,6 +2217,7 @@ export class GameSim {
       roundReason: this.roundReason,
       matchWinnerTeam: this.matchWinnerTeam,
       matchWinnerName: this.matchWinnerName,
+      matchStats: this.phase === 'match_end' ? Object.values(this.matchStats) : undefined,
       players: this.players.map(p => ({
         id: p.id,
         slotIdx: p.slotIdx,

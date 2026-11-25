@@ -12,11 +12,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=3.5';
-import { sfx } from './audio.js?v=3.5';
-import { NetClient, generateRoomCode } from './net.js?v=3.5';
-import { GameSim } from './sim.js?v=3.5';
-import { SeaRenderer } from './render.js?v=3.5';
+} from './data.js?v=3.6';
+import { sfx } from './audio.js?v=3.6';
+import { NetClient, generateRoomCode } from './net.js?v=3.6';
+import { GameSim } from './sim.js?v=3.6';
+import { SeaRenderer } from './render.js?v=3.6';
 
 const $ = (id) => document.getElementById(id);
 
@@ -984,39 +984,108 @@ function renderRoundEnd(st) {
   $('round-end-next').textContent = `Sonraki turda ROLLER DEĞİŞİYOR! (${Math.max(0, Math.ceil(st.phaseTimer))}s)`;
 }
 
+function computeMatchAwards(st) {
+  const list = (st.matchStats && st.matchStats.length)
+    ? st.matchStats.map(s => ({ ...s }))
+    : (st.players || []).map(p => ({
+        id: p.id, name: p.name, team: p.team, charId: p.charId,
+        sinks: p.sinks || 0, damage: 0, ambushes: 0, rescues: 0, barrels: 0, powerups: 0, survived: 0, deaths: 0
+      }));
+
+  // Calculate MVP score for each player
+  for (const s of list) {
+    const ffaBonus = st.mode === 'ffa' ? (st.ffaScores?.[s.id] || 0) * 140 : 0;
+    s.mvpScore = ffaBonus + s.sinks * 120 + s.rescues * 95 + s.ambushes * 55 + s.barrels * 40 + s.survived * 50 + s.powerups * 20 + Math.round(s.damage * 0.45);
+  }
+  list.sort((a, b) => b.mvpScore - a.mvpScore);
+
+  const used = new Set();
+  const assignTitle = (s) => {
+    const candidates = [
+      { ok: s.rescues >= 1, title: '🛟 Can Kurtaran' },
+      { ok: s.ambushes >= 1, title: '🦈 Köpekbalığı Pusucusu' },
+      { ok: s.barrels >= 2, title: '🧨 Barut Delisi' },
+      { ok: s.sinks >= 2, title: '🌊 Derinlerin Katili' },
+      { ok: s.powerups >= 3, title: '📦 Hazine Avcısı' },
+      { ok: s.damage >= 300, title: '💥 Topçu Başı' },
+      { ok: s.survived >= 2 && s.deaths <= 1, title: '👻 Batmaz Gemi' },
+      { ok: s.deaths >= 3, title: '⚓ Çapa Magneti' }
+    ];
+    for (const c of candidates) {
+      if (c.ok && !used.has(c.title)) {
+        used.add(c.title);
+        return c.title;
+      }
+    }
+    const fallbacks = ['⛵ Açık Deniz Kurdu', '🧭 Fırtına Kaptanı', '🌊 Dalga Savaşçısı', '🔱 Usta Denizci'];
+    const pick = fallbacks.find(t => !used.has(t)) || '⛵ Denizci';
+    used.add(pick);
+    return pick;
+  };
+
+  for (const s of list) {
+    s.title = assignTitle(s);
+  }
+  return list;
+}
+
 function renderMatchEnd(st) {
   if (st.mode === 'ffa') {
     $('match-end-title').textContent = `🏆 ${st.matchWinnerName || 'ŞAMPİYON'} KAZANDI!`;
-    $('match-end-score').textContent = 'DEATHMATCH SIRALAMASI';
-    const rows = (st.players || [])
-      .slice()
-      .sort((a, b) => (st.ffaScores?.[b.id] || 0) - (st.ffaScores?.[a.id] || 0))
-      .map((p, idx) => {
-        const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
-        return `
-          <div class="stat-row">
-            <span>#${idx + 1} ${ch.icon} <b>${p.name}</b></span>
-            <span>🏆 <b>${st.ffaScores?.[p.id] || 0}</b> Tur · 🌊 <b>${p.sinks}</b> Batırma</span>
-          </div>
-        `;
-      }).join('');
-    $('match-end-stats').innerHTML = rows;
+    $('match-end-score').textContent = 'DEATHMATCH FİNAL SIRALAMASI';
   } else {
     const winTeamLabel = st.matchWinnerTeam === 'A' ? 'TAKIM A (ALTIN)' : 'TAKIM B (TURKUAZ)';
     $('match-end-title').textContent = `🏆 ${winTeamLabel} ŞAMPİYON!`;
     $('match-end-score').textContent = `FİNAL SKORU: TAKIM A ${st.scores.A} - ${st.scores.B} TAKIM B`;
-
-    const rows = (st.players || []).map(p => {
-      const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
-      return `
-        <div class="stat-row">
-          <span>${ch.icon} <b>${p.name}</b> (Takım ${p.team})</span>
-          <span>🌊 Suya Gömme: <b>${p.sinks}</b></span>
-        </div>
-      `;
-    }).join('');
-    $('match-end-stats').innerHTML = rows;
   }
+
+  const awards = computeMatchAwards(st);
+  const mvp = awards[0];
+  if (mvp) {
+    const mch = CHAR_MAP[mvp.charId] || CHARACTERS[0];
+    $('match-mvp-banner').innerHTML = `
+      <div class="mvp-crown">👑 MAÇIN MVP'Sİ</div>
+      <div class="mvp-main">
+        <span class="mvp-ico">${mch.icon}</span>
+        <div>
+          <div class="mvp-name">${mvp.name} <span class="mvp-title-badge">${mvp.title}</span></div>
+          <div class="mvp-sub">🌊 ${mvp.sinks} Batırma · 💥 ${mvp.damage} Hasar · 🦈 ${mvp.ambushes} Pusu · 🛟 ${mvp.rescues} Kurtarma</div>
+        </div>
+      </div>
+    `;
+    $('match-mvp-banner').style.display = 'block';
+  }
+
+  const rows = awards.map((s, idx) => {
+    const ch = CHAR_MAP[s.charId] || CHARACTERS[0];
+    const teamTag = st.mode === 'ffa'
+      ? `🏆 ${st.ffaScores?.[s.id] || 0} Tur`
+      : `Takım ${s.team}`;
+    return `
+      <div class="stat-card ${idx === 0 ? 'mvp' : ''}">
+        <div class="stat-card-top">
+          <div class="stat-player">
+            <span class="stat-rank">#${idx + 1}</span>
+            <span class="stat-ico">${ch.icon}</span>
+            <div>
+              <div class="stat-name">${s.name} <span class="stat-team">${teamTag}</span></div>
+              <div class="stat-award">${s.title}</div>
+            </div>
+          </div>
+          <div class="stat-pts">${s.mvpScore} Puan</div>
+        </div>
+        <div class="stat-pills">
+          <span>🌊 Batırma: <b>${s.sinks}</b></span>
+          <span>💥 Hasar: <b>${s.damage}</b></span>
+          <span>🦈 Sürpriz: <b>${s.ambushes}</b></span>
+          <span>🛟 Kurtarma: <b>${s.rescues}</b></span>
+          <span>🧨 Fıçı: <b>${s.barrels}</b></span>
+          <span>📦 Sandık: <b>${s.powerups}</b></span>
+        </div>
+      </div>
+    `;
+  }).join('');
+  $('match-end-stats').innerHTML = rows;
 
   const isHostLike = app.mode === 'host' || app.mode === 'offline';
   $('btn-rematch').style.display = isHostLike ? '' : 'none';

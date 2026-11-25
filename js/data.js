@@ -1,8 +1,16 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v3.5';
+export const GAME_VERSION = 'v3.6';
 export const CHANGELOG = [
+  {
+    ver: 'v3.6',
+    notes: [
+      '🏆 YENİ: Maç Sonu MVP & Eğlenceli Denizci Ünvanları ekranı eklendi!',
+      'Tüm turlar boyunca Batırma, Hasar, Sürpriz Çıkış, Kurtarma, Fıçı Patlatma ve Sandık istatistikleri toplanır.',
+      'Maç sonunda 👑 MVP seçilir ve herkese özel denizci lakabı verilir (Köpekbalığı Pusucusu, Barut Delisi, Can Kurtaran, Batmaz Gemi, Çapa Magneti...).'
+    ]
+  },
   {
     ver: 'v3.5',
     notes: [
