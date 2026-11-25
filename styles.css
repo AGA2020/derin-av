@@ -2117,3 +2117,22 @@ kbd {
   .lobby-grid { grid-template-columns: 1fr; }
   #screen-lobby.active { justify-content: flex-start; }
 }
+
+
+/* === v4.62: SYMMETRIC 3x2 MAP PICKER GRID === */
+.seg-group.map-seg-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.seg-group.map-seg-grid .seg-btn {
+  min-width: 0;
+  white-space: nowrap;
+  padding: 9px 8px;
+}
+.seg-group.map-seg-grid .map-all-btn {
+  grid-column: 1 / -1;
+}
+@media (max-width: 560px) {
+  .seg-group.map-seg-grid { grid-template-columns: repeat(2, 1fr); }
+}

@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.61';
+export const GAME_VERSION = 'v4.62';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,12 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.62',
+    notes: [
+      '🗺️ Maç Ayarları Harita Seçici Düzeni: Üstte tam genişlik 🔄 Dönüşümlü, altında simetrik 3×2 ikonlu 6 harita ızgarası!'
+    ]
+  },
   {
     ver: 'v4.61',
     notes: [

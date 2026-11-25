@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>İKİ İTEMLİ OYUN — Online Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=4.61" />
+  <link rel="stylesheet" href="./styles.css?v=4.62" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -279,7 +279,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.61</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.62</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -346,12 +346,12 @@
         </div>
 
         <div class="setting-row">
-          <div class="setting-label">Harita Seçimi (6 Harita)</div>
-          <div class="seg-group" data-setting="mapMode">
-            <button class="seg-btn" data-val="rotate">🔄 Dönüşümlü</button>
-            <button class="seg-btn" data-val="0">Fırtına Boğazı</button>
-            <button class="seg-btn" data-val="1">Korsan Enkazı</button>
-            <button class="seg-btn" data-val="2">Akıntı Koyu</button>
+          <div class="setting-label">Harita Seçimi</div>
+          <div class="seg-group map-seg-grid" data-setting="mapMode">
+            <button class="seg-btn map-all-btn" data-val="rotate">🔄 Dönüşümlü (Tüm 6 Harita)</button>
+            <button class="seg-btn" data-val="0">⛈️ Fırtına Boğazı</button>
+            <button class="seg-btn" data-val="1">🗼 Korsan Enkazı</button>
+            <button class="seg-btn" data-val="2">🌊 Akıntı Koyu</button>
             <button class="seg-btn" data-val="3">🏝️ Mercan Plajı</button>
             <button class="seg-btn" data-val="4">🌋 Volkanik Resif</button>
             <button class="seg-btn" data-val="5">🌫️ Hayalet Sis</button>
@@ -520,7 +520,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=4.61"></script>
+  <script type="module" src="./js/main.js?v=4.62"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {
