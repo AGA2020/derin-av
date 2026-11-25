@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 2v2 Denizde Av & Avcı</title>
-  <link rel="stylesheet" href="./styles.css?v=2.9" />
+  <link rel="stylesheet" href="./styles.css?v=3.0" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -157,8 +157,9 @@
         <button id="hud-slot-0" class="hud-item-slot"></button>
         <button id="hud-slot-1" class="hud-item-slot"></button>
         <button id="hud-slot-space" class="hud-item-slot space"></button>
+        <button id="hud-slot-dive" class="hud-item-slot dive"></button>
       </div>
-      <div class="controls-hint">WASD / Oklar: Hareket · Fare: Nişan · Sol Tık / 1: İtem 1 · Sağ Tık / 2: İtem 2 · SPACE: Hamle / Kaçış</div>
+      <div class="controls-hint">WASD: Hareket · Sol/Sağ Tık: İtem 1-2 · SPACE: Hamle/Kaçış · SHIFT / E: Su Altına Dal (Sürpriz Çıkış!)</div>
     </div>
 
     <!-- 2 İTEM SEÇİM OVERLAY -->
@@ -211,7 +212,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v2.9</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.0</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -301,7 +302,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=2.9"></script>
+  <script type="module" src="./js/main.js?v=3.0"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

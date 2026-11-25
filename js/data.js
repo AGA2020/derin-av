@@ -1,8 +1,16 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v2.9';
+export const GAME_VERSION = 'v3.0';
 export const CHANGELOG = [
+  {
+    ver: 'v3.0',
+    notes: [
+      '🤿 BÜYÜK GÜNCELLEME: Tüm karakterler [SHIFT] veya [E] ile su altına dalıp gizlenebilir ve su altında ilerleyebilir!',
+      '🫁 Su altında durmak Nefes Barını tüketir (22/sn) — nefes bitince zorla yüzeye çıkarsın.',
+      '🦈 SÜRPRİZ ÇIKIŞ: En az 1 sn su altında kalıp düşmanın dibinde (105px) yukarı çıkarsan 2.0 sn %65 yavaşlatma + dalga şoku vurur!'
+    ]
+  },
   {
     ver: 'v2.9',
     notes: [

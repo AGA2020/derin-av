@@ -11,11 +11,11 @@ import {
   PREY_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=2.9';
-import { sfx } from './audio.js?v=2.9';
-import { NetClient, generateRoomCode } from './net.js?v=2.9';
-import { GameSim } from './sim.js?v=2.9';
-import { SeaRenderer } from './render.js?v=2.9';
+} from './data.js?v=3.0';
+import { sfx } from './audio.js?v=3.0';
+import { NetClient, generateRoomCode } from './net.js?v=3.0';
+import { GameSim } from './sim.js?v=3.0';
+import { SeaRenderer } from './render.js?v=3.0';
 
 const $ = (id) => document.getElementById(id);
 
@@ -320,6 +320,10 @@ function handleHostReceive(msg) {
       app.sim.triggerSpace(sender, msg.aim);
       break;
     }
+    case 'dive': {
+      app.sim.toggleDive(sender);
+      break;
+    }
   }
 }
 
@@ -396,6 +400,7 @@ function stepClientPrediction(dt) {
 
   let maxSpd = ch.speed * (me.speedBoost ? 1.38 : 1) * (me.slowTimer ? 0.45 : 1);
   if (me.role === 'hunter') maxSpd *= 1.03;
+  if (me.submerged) maxSpd *= 0.88;
   if (me.rootTimer || me.stunTimer) maxSpd = 0;
 
   const accel = ch.turnBonus ? 11.5 : 8.5;
@@ -772,6 +777,24 @@ function updateHudFromState(st) {
         </div>
       `;
     });
+
+    const diveKey = `${me.submerged}_${me.diveTime >= 1.0}_${(me.diveCd || 0).toFixed(1)}_${me.breath < 15}`;
+    setIfChanged('dive', diveKey, () => {
+      const dEl = $('hud-slot-dive');
+      if (!dEl) return;
+      const ready = !me.submerged && (me.diveCd || 0) <= 0 && me.breath >= 15;
+      dEl.className = `hud-item-slot dive ${me.submerged ? 'active-dive' : (ready ? '' : 'cooldown')}`;
+      dEl.innerHTML = `
+        <div class="slot-key">SHIFT / E</div>
+        <div class="slot-ico">${me.submerged ? (me.diveTime >= 1.0 ? '🦈' : '🤿') : '🤿'}</div>
+        <div class="slot-meta">
+          <div class="slot-title">${me.submerged ? 'Yüzeye Çık' : 'Su Altı Dal'}</div>
+          <div class="slot-uses">${me.submerged
+            ? (me.diveTime >= 1.0 ? '<span class="txt-firearm">SÜRPRİZ HAZIR!</span>' : 'GİZLİ')
+            : ((me.diveCd || 0) > 0 ? `${me.diveCd.toFixed(1)}s` : (me.breath < 15 ? 'NEFES AZ' : 'HAZIR'))}</div>
+        </div>
+      `;
+    });
   }
 
   const teamKey = (st.players || []).map(p => `${p.id}:${p.alive}`).join('|');
@@ -851,6 +874,17 @@ function useSpace() {
       app.pred.vx = Math.cos(app.localAim) * 520;
       app.pred.vy = Math.sin(app.localAim) * 520;
     }
+  }
+}
+
+function useDive() {
+  const st = app.liveState;
+  if (!st || st.phase !== 'playing') return;
+  sfx.unlock();
+  if (app.sim) {
+    app.sim.toggleDive(app.myId);
+  } else {
+    app.net?.send({ type: 'dive' });
   }
 }
 
@@ -1172,6 +1206,7 @@ function init() {
   $('hud-slot-0').onclick = () => useSlot(0);
   $('hud-slot-1').onclick = () => useSlot(1);
   $('hud-slot-space').onclick = () => useSpace();
+  $('hud-slot-dive').onclick = () => useDive();
 
   window.addEventListener('keydown', (e) => {
     if (document.activeElement?.tagName === 'INPUT') return;
@@ -1180,6 +1215,10 @@ function init() {
     if (!had && app.mode === 'client') sendClientInputNow();
     if (e.code === 'Digit1') useSlot(0);
     if (e.code === 'Digit2') useSlot(1);
+    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && !e.repeat) {
+      e.preventDefault();
+      useDive();
+    }
     if (e.code === 'Space') {
       e.preventDefault();
       useSpace();

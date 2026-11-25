@@ -14,7 +14,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=2.9';
+} from './data.js?v=3.0';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -427,6 +427,10 @@ export class GameSim {
         dashTimer: 0,
         ramActive: 0,
         ramHitIds: new Set(),
+        // 🤿 Su altına dalma & Sürpriz çıkış durumu
+        submerged: false,
+        diveTime: 0,
+        diveCd: 0,
         // Status effects
         speedBoost: 0,
         speedMult: 1,
@@ -594,6 +598,11 @@ export class GameSim {
     const p = this.players.find(pl => pl.id === playerId);
     if (!p || !p.alive || p.stunTimer > 0) return;
     if (slotIndex !== 0 && slotIndex !== 1) return;
+
+    // Su altındayken item kullanmaya çalışırsa anında yüzeye çıkar!
+    if (p.submerged) {
+      this._surfacePlayer(p, false);
+    }
 
     const itemState = p.items[slotIndex];
     if (!itemState) return;
@@ -906,6 +915,10 @@ export class GameSim {
     const p = this.players.find(pl => pl.id === playerId);
     if (!p || !p.alive || p.stunTimer > 0 || p.rootTimer > 0 || p.spaceCd > 0) return;
 
+    if (p.submerged) {
+      this._surfacePlayer(p, false);
+    }
+
     const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
     const angle = Number.isFinite(aimAngle) ? aimAngle : p.aim;
     p.aim = angle;
@@ -930,6 +943,64 @@ export class GameSim {
       p.vy = Math.sin(angle) * power;
       this._addPulse(p.x, p.y, 110, 'splash', p.team);
       this.onEvent({ type: 'sfx', name: 'boost' });
+    }
+  }
+
+  toggleDive(playerId) {
+    if (this.phase !== 'playing') return;
+    const p = this.players.find(pl => pl.id === playerId);
+    if (!p || !p.alive) return;
+
+    if (p.submerged) {
+      this._surfacePlayer(p, false);
+      return;
+    }
+
+    // Dalma şartları: sersem/çapalı değil, bekleme yok, en az 15 nefes var!
+    if (p.stunTimer > 0 || p.rootTimer > 0 || p.diveCd > 0 || p.breath < 15) {
+      this.onEvent({ type: 'sfx', name: 'empty', targetId: p.id });
+      return;
+    }
+    p.submerged = true;
+    p.diveTime = 0;
+    p.ramActive = 0;
+    this._addPulse(p.x, p.y, 82, 'splash', p.team);
+    this.onEvent({ type: 'sfx', name: 'splash' });
+  }
+
+  _surfacePlayer(p, forced = false) {
+    if (!p.submerged) return;
+    const wasDeepEnough = p.diveTime >= 1.0;
+    p.submerged = false;
+    p.diveTime = 0;
+    p.diveCd = 3.5;
+    if (forced) {
+      p.breathRegenDelay = 3.6;
+    }
+
+    this._addPulse(p.x, p.y, wasDeepEnough ? 115 : 80, 'splash', p.team);
+    this.onEvent({ type: 'sfx', name: 'splash' });
+
+    // 🦈 SÜRPRİZ ÇIKIŞ (en az 1 sn su altında kalıp düşmanın dibinde 105px'te çıkınca!)
+    if (wasDeepEnough && !forced) {
+      let ambushHits = 0;
+      for (const other of this.players) {
+        if (!other.alive || other.team === p.team || other.submerged) continue;
+        const d = dist(p.x, p.y, other.x, other.y);
+        if (d <= 108) {
+          ambushHits++;
+          const a = d > 1 ? angleBetween(p.x, p.y, other.x, other.y) : Math.random() * Math.PI * 2;
+          other.slowTimer = Math.max(other.slowTimer, 2.0);
+          other.slowFactor = Math.min(other.slowFactor, 0.35); // %65 slow!
+          this._applyDamage(other, 15, p.id, Math.cos(a) * 185, Math.sin(a) * 185, 'Sürpriz Çıkış');
+        }
+      }
+      if (ambushHits > 0) {
+        this._addPulse(p.x, p.y, 125, 'heal', p.team);
+        this._addFloatText(p.x, p.y - 34, '🦈 SÜRPRİZ ÇIKIŞ!', '#ffd166');
+        this._pushFeed(`🦈 ${p.name} su altından SÜRPRİZ ÇIKIŞ yaptı! (2sn %65 Yavaşlatma)`, 'firearm');
+        this.onEvent({ type: 'sfx', name: 'boost' });
+      }
     }
   }
 
@@ -1018,6 +1089,8 @@ export class GameSim {
 
     if (target.hp <= 0) {
       target.alive = false;
+      target.submerged = false;
+      target.diveTime = 0;
       target.sinkingAnim = 1.0;
       const attacker = this.players.find(p => p.id === attackerId);
       if (attacker) attacker.sinks += 1;
@@ -1173,6 +1246,9 @@ export class GameSim {
         if (rb.progress >= rb.duration) {
           // KURTARMA TAMAMLANDI!
           fallen.alive = true;
+          fallen.submerged = false;
+          fallen.diveTime = 0;
+          fallen.diveCd = 0;
           fallen.rescuedOnce = true;
           fallen.breath = fallen.maxBreath;
           fallen.breathRegenDelay = 0;
@@ -1221,13 +1297,22 @@ export class GameSim {
 
       // Tick cooldowns & statuses
       p.spaceCd = Math.max(0, p.spaceCd - dt);
+      p.diveCd = Math.max(0, p.diveCd - dt);
       p.dashTimer = Math.max(0, p.dashTimer - dt);
       p.ramActive = Math.max(0, p.ramActive - dt);
       p.shieldTimer = Math.max(0, p.shieldTimer - dt);
       if (p.shieldTimer <= 0) p.shield = 0;
 
-      // 🫁 Nefes Barı zamanla yenilenir (son hasardan 3.6 sn sonra 20/sn)
-      if (p.breathRegenDelay > 0) {
+      // 🤿 Su altı nefes tüketimi vs 🫁 Yüzeyde nefes yenilenmesi!
+      if (p.submerged) {
+        p.diveTime += dt;
+        p.breath = Math.max(0, p.breath - 22 * dt);
+        p.breathRegenDelay = 2.2;
+        if (p.breath <= 0) {
+          this._addFloatText(p.x, p.y - 30, '🫁 NEFES BİTTİ!', '#38bdf8');
+          this._surfacePlayer(p, true);
+        }
+      } else if (p.breathRegenDelay > 0) {
         p.breathRegenDelay = Math.max(0, p.breathRegenDelay - dt);
       } else if (p.breath < p.maxBreath) {
         p.breath = Math.min(p.maxBreath, p.breath + 20 * dt);
@@ -1278,6 +1363,7 @@ export class GameSim {
 
       let maxSpd = ch.speed * p.speedMult * p.slowFactor;
       if (p.role === 'hunter') maxSpd *= 1.03; // Hafif avcı takip hızı avantajı
+      if (p.submerged) maxSpd *= 0.88; // Su altında hafif sakin süzülme
       if (p.rootTimer > 0 || p.stunTimer > 0) maxSpd = 0;
 
       // Smooth sea-gliding physics (su üstünde akıcı kayma + çarpışma/itme koruma)
@@ -1329,9 +1415,9 @@ export class GameSim {
         }
       }
 
-      // Wake / sound ripple when moving fast
+      // Wake / sound ripple when moving fast (su altındayken köpük izi bırakmaz!)
       const spd = Math.hypot(p.vx, p.vy);
-      if (spd > 130 && p.stealthBoost <= 0) {
+      if (spd > 130 && p.stealthBoost <= 0 && !p.submerged) {
         p.wakeTimer -= dt;
         if (p.wakeTimer <= 0) {
           p.wakeTimer = 0.65;
@@ -1345,7 +1431,7 @@ export class GameSim {
       // Hunter Ram (Suya Bastırma) collision check
       if (p.role === 'hunter' && p.ramActive > 0) {
         for (const other of this.players) {
-          if (!other.alive || other.team === p.team || p.ramHitIds.has(other.id)) continue;
+          if (!other.alive || other.submerged || other.team === p.team || p.ramHitIds.has(other.id)) continue;
           if (dist(p.x, p.y, other.x, other.y) <= p.r + other.r + 14) {
             p.ramHitIds.add(other.id);
             const pushA = angleBetween(p.x, p.y, other.x, other.y);
@@ -1447,6 +1533,8 @@ export class GameSim {
         if (!p.alive || p.team === tr.team) continue;
         if (dist(tr.x, tr.y, p.x, p.y) <= tr.r + p.r * 0.55) {
           triggered = true;
+          // Ağır Çapa ve Su Altı Mayını su altındakileri de yakalayıp yüzeye çıkarır!
+          if (p.submerged) this._surfacePlayer(p, true);
           if (tr.kind === 'anchor') {
             p.rootTimer = Math.max(p.rootTimer, tr.rootDur);
             p.revealTimer = Math.max(p.revealTimer, 3.0);
@@ -1503,10 +1591,10 @@ export class GameSim {
         }
       }
 
-      // Player hit
+      // Player hit (yüzey mermileri su altındakilerin üstünden geçer!)
       if (!dead) {
         for (const p of this.players) {
-          if (!p.alive || p.team === pr.team) continue;
+          if (!p.alive || p.submerged || p.team === pr.team) continue;
           if (dist(pr.x, pr.y, p.x, p.y) <= pr.r + p.r) {
             dead = true;
             const a = Math.atan2(pr.vy, pr.vx);
@@ -1704,6 +1792,7 @@ export class GameSim {
     const tch = CHAR_MAP[target.charId] || CHARACTERS[0];
     const d = dist(viewer.x, viewer.y, target.x, target.y);
 
+    if (target.submerged) return false;
     if (target.inInk && d > 70) return false;
     if (target.inFog) {
       const fogDetect = tch.stealthBonus ? 85 : 135;
@@ -1834,7 +1923,13 @@ export class GameSim {
 
         if (st.thinkCd <= 0) {
           st.thinkCd = 0.35;
-          if (bestD < 150 && bot.spaceCd <= 0) {
+          // Bot kaçarken nefesi bolsa kısa dalış yapabilir, veya 1.2s sonra dibinde çıkabilir!
+          if (!bot.submerged && bestD < 190 && bot.diveCd <= 0 && bot.breath >= 45 && Math.random() < 0.25) {
+            this.toggleDive(bot.id);
+          } else if (bot.submerged && (bot.diveTime >= 1.5 || bot.breath < 22)) {
+            this.toggleDive(bot.id);
+          }
+          if (bestD < 150 && bot.spaceCd <= 0 && !bot.submerged) {
             this.triggerSpace(bot.id, away);
           }
           for (let i = 0; i < 2; i++) {
@@ -1960,6 +2055,9 @@ export class GameSim {
           cd: Number(it.cd.toFixed(1))
         })),
         spaceCd: Number(p.spaceCd.toFixed(1)),
+        submerged: p.submerged,
+        diveTime: Number(p.diveTime.toFixed(1)),
+        diveCd: Number(p.diveCd.toFixed(1)),
         ramActive: p.ramActive > 0,
         speedBoost: p.speedBoost > 0,
         slowTimer: p.slowTimer > 0,

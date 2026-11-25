@@ -545,7 +545,7 @@ input:focus { border-color: var(--aqua); }
   align-items: center;
   gap: 8px;
   z-index: 5;
-  width: min(640px, 96vw);
+  width: min(760px, 96vw);
   pointer-events: none;
 }
 
@@ -593,7 +593,7 @@ input:focus { border-color: var(--aqua); }
 
 .slots-bar {
   display: grid;
-  grid-template-columns: 1fr 1fr 0.85fr;
+  grid-template-columns: 1fr 1fr 0.85fr 0.85fr;
   gap: 8px;
   width: 100%;
   pointer-events: auto;
@@ -602,8 +602,8 @@ input:focus { border-color: var(--aqua); }
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 9px;
+  padding: 9px 11px;
   border-radius: 13px;
   background: rgba(6, 21, 37, 0.9);
   border: 2px solid rgba(125, 211, 252, 0.35);
@@ -613,6 +613,12 @@ input:focus { border-color: var(--aqua); }
 }
 .hud-item-slot.firearm { border-color: rgba(255, 183, 3, 0.65); }
 .hud-item-slot.space { border-color: rgba(56, 189, 248, 0.45); }
+.hud-item-slot.dive { border-color: rgba(14, 165, 233, 0.55); }
+.hud-item-slot.active-dive {
+  border-color: #ffd166;
+  background: rgba(8, 47, 73, 0.95);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
+}
 .hud-item-slot.cooldown { opacity: 0.62; }
 .hud-item-slot.depleted {
   opacity: 0.48;

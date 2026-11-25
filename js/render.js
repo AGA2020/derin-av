@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=2.9';
-import { hasLineOfSight } from './sim.js?v=2.9';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=3.0';
+import { hasLineOfSight } from './sim.js?v=3.0';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -83,10 +83,22 @@ export class SeaRenderer {
         sp.aim = p.id === myId && Number.isFinite(localAim) ? localAim : p.aim;
       }
 
-      // Spawn foam wakes behind moving alive boats
+      // Spawn foam wakes behind moving alive boats (su altındayken köpük değil hava kabarcığı çıkar!)
       if (p.alive) {
         const spd = Math.hypot(p.vx || 0, p.vy || 0);
-        if (spd > 40 && Math.random() < dt * 26) {
+        if (p.submerged) {
+          if (Math.random() < dt * (spd > 30 ? 14 : 6)) {
+            this.bubbles.push({
+              x: sp.x + (Math.random() - 0.5) * 18,
+              y: sp.y + (Math.random() - 0.5) * 18,
+              r: 2.5 + Math.random() * 3.5,
+              life: 0.65,
+              maxLife: 0.65,
+              subId: p.id,
+              subTeam: p.team
+            });
+          }
+        } else if (spd > 40 && Math.random() < dt * 26) {
           this.wakes.push({
             x: sp.x - Math.cos(sp.aim) * 16 + (Math.random() - 0.5) * 8,
             y: sp.y - Math.sin(sp.aim) * 16 + (Math.random() - 0.5) * 8,
@@ -170,7 +182,7 @@ export class SeaRenderer {
     this._drawZones(ctx, state.zones || []);
     this._drawFogs(ctx, map, me);
     this._drawStorm(ctx, state.storm);
-    this._drawBubbles(ctx);
+    this._drawBubbles(ctx, me);
     this._drawFloatTexts(ctx, state.floatTexts || []);
 
     // Subtle sea border buoys
@@ -200,6 +212,30 @@ export class SeaRenderer {
         const a = Math.min(0.92, me.blindTimer * 0.75);
         ctx.fillStyle = `rgba(240, 250, 255, ${a})`;
         ctx.fillRect(0, 0, this.viewW, this.viewH);
+      }
+
+      // 🤿 Su altı dalış ekran atmosferi!
+      if (me.submerged) {
+        ctx.fillStyle = 'rgba(3, 38, 66, 0.36)';
+        ctx.fillRect(0, 0, this.viewW, this.viewH);
+        const uwGrad = ctx.createRadialGradient(
+          this.viewW / 2, this.viewH / 2, Math.min(this.viewW, this.viewH) * 0.22,
+          this.viewW / 2, this.viewH / 2, Math.max(this.viewW, this.viewH) * 0.68
+        );
+        uwGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        uwGrad.addColorStop(1, 'rgba(2, 24, 48, 0.62)');
+        ctx.fillStyle = uwGrad;
+        ctx.fillRect(0, 0, this.viewW, this.viewH);
+
+        ctx.textAlign = 'center';
+        ctx.font = '900 15px system-ui, sans-serif';
+        if (me.diveTime >= 1.0) {
+          ctx.fillStyle = '#ffd166';
+          ctx.fillText('🦈 SÜRPRİZ ÇIKIŞ HAZIR! Düşmanın dibinde [SHIFT / E] bas!', this.viewW / 2, 118);
+        } else {
+          ctx.fillStyle = '#7dd3fc';
+          ctx.fillText('🤿 SU ALTINDASIN — Gizleniyorsun (Çıkış: SHIFT / E)', this.viewW / 2, 118);
+        }
       }
 
       // Low buoyancy / sinking / storm danger edge pulse
@@ -339,9 +375,14 @@ export class SeaRenderer {
     }
   }
 
-  _drawBubbles(ctx) {
+  _drawBubbles(ctx, me) {
+    const myPos = me ? (this.smoothPos.get(me.id) || me) : null;
     for (const b of this.bubbles) {
-      const a = Math.max(0, b.life / b.maxLife) * 0.7;
+      // Düşman su altı kabarcıkları sadece 150px yakından fark edilir!
+      if (b.subTeam && me && me.alive && b.subTeam !== me.team && myPos) {
+        if (dist(myPos.x, myPos.y, b.x, b.y) > 150) continue;
+      }
+      const a = Math.max(0, b.life / b.maxLife) * 0.72;
       ctx.strokeStyle = `rgba(200, 244, 255, ${a})`;
       ctx.fillStyle = `rgba(180, 235, 255, ${a * 0.35})`;
       ctx.lineWidth = 1.4;
@@ -556,6 +597,7 @@ export class SeaRenderer {
     const tch = CHAR_MAP[target.charId];
     const d = dist(myPos.x, myPos.y, tPos.x, tPos.y);
 
+    if (target.submerged) return false;
     if (target.inInk && d > 75) return false;
     if (target.inFog) {
       const fogDetect = tch?.stealthBonus ? 88 : 138;
@@ -593,11 +635,26 @@ export class SeaRenderer {
       if (!this._canViewerSee(me, p, map)) continue;
       const sp = this.smoothPos.get(p.id) || p;
       const isMe = me && p.id === me.id;
-      const alpha = (p.inFog || p.inInk) && me && p.team === me.team ? 0.62 : 1.0;
+      const alpha = p.submerged
+        ? 0.42
+        : ((p.inFog || p.inInk) && me && p.team === me.team ? 0.62 : 1.0);
 
-      // Aiming indicator for local player if holding a ready single-use firearm!
+      // Aiming indicator for local player (sürpriz çıkış halkası su altındayken görünür!)
       if (isMe) {
-        this._drawAimGuide(ctx, p, sp);
+        if (p.submerged) {
+          ctx.save();
+          ctx.translate(sp.x, sp.y);
+          ctx.strokeStyle = p.diveTime >= 1.0 ? 'rgba(255, 209, 102, 0.55)' : 'rgba(56, 189, 248, 0.35)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([7, 7]);
+          ctx.beginPath();
+          ctx.arc(0, 0, 108, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+        } else {
+          this._drawAimGuide(ctx, p, sp);
+        }
       }
 
       this._drawVessel(ctx, {
