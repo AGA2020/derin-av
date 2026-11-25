@@ -1913,3 +1913,62 @@ kbd {
   45% { transform: translateX(6px) scale(1.06); }
   70% { transform: translateX(-4px) scale(1.02); }
 }
+
+
+/* === v4.3d: DRAFT MODAL SINGLE-SCREEN FIT, PINNED FOOTER & DARK SCROLLBAR === */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.4) rgba(4, 15, 28, 0.4);
+}
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: rgba(4, 15, 28, 0.45); border-radius: 999px; }
+::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.38); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.65); }
+
+.modal.draft-modal {
+  width: min(1160px, 96vw);
+  max-height: 94vh;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.draft-modal .draft-header { margin-bottom: 6px; flex-shrink: 0; }
+.draft-modal .draft-header h2 { font-size: 20px; margin: 2px 0 0; }
+.draft-modal .role-banner { padding: 8px 12px; margin-bottom: 8px; font-size: 13px; flex-shrink: 0; }
+.draft-modal .event-pill-inline { margin-top: 5px; padding: 4px 10px; font-size: 12px; }
+.draft-modal .draft-skill-tree { padding: 8px 10px; margin-bottom: 8px; flex-shrink: 0; }
+.draft-modal .skill-tree-head { margin-bottom: 6px; font-size: 12px; }
+.draft-modal .skill-node { padding: 5px 8px; }
+.draft-modal .draft-toolbar { margin-bottom: 8px; flex-shrink: 0; }
+
+.draft-modal .draft-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 2px 4px 4px 2px;
+  align-content: start;
+}
+@media (max-width: 1020px) {
+  .draft-modal .draft-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  .draft-modal .draft-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.draft-modal .item-card {
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+.draft-modal .item-top { margin-bottom: 5px; }
+.draft-modal .item-ico { font-size: 20px; }
+.draft-modal .item-name { font-size: 13.5px; margin-bottom: 3px; }
+.draft-modal .item-desc { font-size: 11px; line-height: 1.32; }
+
+.draft-modal .draft-footer {
+  flex-shrink: 0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(125, 211, 252, 0.16);
+}
