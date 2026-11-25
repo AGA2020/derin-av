@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.62';
-import { sfx } from './audio.js?v=4.62';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.62';
-import { GameSim } from './sim.js?v=4.62';
-import { SeaRenderer } from './render.js?v=4.62';
+} from './data.js?v=4.63';
+import { sfx } from './audio.js?v=4.63';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.63';
+import { GameSim } from './sim.js?v=4.63';
+import { SeaRenderer } from './render.js?v=4.63';
 
 const $ = (id) => document.getElementById(id);
 
@@ -619,11 +619,15 @@ function handleClientReceive(msg) {
   switch (msg.type) {
     case 'lobby': {
       if (app.joinTimeout) { clearTimeout(app.joinTimeout); app.joinTimeout = null; }
+      const prevJson = app.lobbyState ? JSON.stringify(app.lobbyState) : '';
       app.lobbyState = msg.data;
       checkVersionMismatch(app.lobbyState?.version);
       syncPhaseScreens(app.lobbyState.phase);
-      if (app.lobbyState.phase === 'lobby') renderLobby();
-      else if (app.lobbyState.phase === 'draft') renderDraftUI();
+      if (app.lobbyState.phase === 'lobby') {
+        if (JSON.stringify(app.lobbyState) !== prevJson) renderLobby();
+      } else if (app.lobbyState.phase === 'draft') {
+        renderDraftUI();
+      }
       break;
     }
     case 'state': {
@@ -770,6 +774,7 @@ function broadcastState() {
 
 function syncPhaseScreens(phase) {
   if (phase === 'lobby') {
+    app.hudCache = {};
     setScreen('lobby');
     $('overlay-draft').classList.remove('active');
     $('overlay-intro').classList.remove('active');
@@ -978,24 +983,29 @@ function renderDraftUI() {
   $('draft-round-badge').textContent = `TUR ${st.round} / ${st.totalRounds} · ${map.name.toUpperCase()}`;
   $('draft-timer').textContent = `${Math.max(0, st.phaseTimer)}s`;
 
-  const ev = st.roundEvent ? ROUND_EVENT_MAP[st.roundEvent] : null;
-  const evHtml = ev ? `<div class="event-pill-inline" style="border-color:${ev.color};color:${ev.color}">🎲 TUR OLAYI: ${ev.icon} <b>${ev.name}</b> — ${ev.desc}</div>` : '';
-  const roleBox = $('draft-role-banner');
-  roleBox.className = `role-banner ${isFfa ? 'hunter' : myRole}`;
-  roleBox.innerHTML = (isCrown
-    ? `<strong>👑 ALTIN TAÇ</strong> — Tacı kap, <b>100 puana</b> ilk ulaşan kazanır.`
-    : isFfa
-      ? `<strong>💀 HERKES TEK</strong> — Son ayakta kalan kazanır.`
-      : myRole === 'hunter'
-        ? `<strong>🎯 AVCISIN</strong> — ${st.settings?.mode === '1v1' ? 'Avı' : 'Avları'} suya göm!`
-        : `<strong>🌊 AVSIN</strong> — Süreyi tamamla veya ${st.settings?.mode === '1v1' ? 'Avcıyı' : 'Avcıları'} batır!`) + evHtml;
+  const bannerKey = `${st.round}_${st.settings?.mode}_${myRole}_${st.roundEvent || ''}`;
+  setIfChanged('draftBanner', bannerKey, () => {
+    const ev = st.roundEvent ? ROUND_EVENT_MAP[st.roundEvent] : null;
+    const evHtml = ev ? `<div class="event-pill-inline" style="border-color:${ev.color};color:${ev.color}">🎲 TUR OLAYI: ${ev.icon} <b>${ev.name}</b> — ${ev.desc}</div>` : '';
+    const roleBox = $('draft-role-banner');
+    roleBox.className = `role-banner ${isFfa ? 'hunter' : myRole}`;
+    roleBox.innerHTML = (isCrown
+      ? `<strong>👑 ALTIN TAÇ</strong> — Tacı kap, <b>100 puana</b> ilk ulaşan kazanır.`
+      : isFfa
+        ? `<strong>💀 HERKES TEK</strong> — Son ayakta kalan kazanır.`
+        : myRole === 'hunter'
+          ? `<strong>🎯 AVCISIN</strong> — ${st.settings?.mode === '1v1' ? 'Avı' : 'Avları'} suya göm!`
+          : `<strong>🌊 AVSIN</strong> — Süreyi tamamla veya ${st.settings?.mode === '1v1' ? 'Avcıyı' : 'Avcıları'} batır!`) + evHtml;
+  });
 
-  // 🌿 Yetenek Ağacı (Skill Tree) paneli — ayarda açıksa göster!
-  const treeWrap = $('draft-skill-tree');
-  if (treeWrap) {
+  // 🌿 Yetenek Ağacı (Skill Tree) paneli — sadece puan/yetenek değiştiğinde yeniden çiz (sıfır titreşim!)
+  const mySkills = mySlot.skills || [];
+  const pts = mySlot.skillPoints || 0;
+  const treeKey = `${st.round}_${Boolean(st.settings?.skillTree)}_${pts}_${mySkills.join(',')}`;
+  setIfChanged('draftTree', treeKey, () => {
+    const treeWrap = $('draft-skill-tree');
+    if (!treeWrap) return;
     if (st.settings?.skillTree) {
-      const mySkills = mySlot.skills || [];
-      const pts = mySlot.skillPoints || 0;
       treeWrap.style.display = 'block';
       treeWrap.innerHTML = `
         <div class="skill-tree-head">
@@ -1041,94 +1051,99 @@ function renderDraftUI() {
     } else {
       treeWrap.style.display = 'none';
     }
-  }
+  });
 
   const locked = mySlot.readyItems && mySlot.items.length === 2;
   const picks = locked ? mySlot.items : app.draftPicks;
 
-  // Live 2-Slot Loadout Preview bar!
-  const renderSlotChip = (slotNum) => {
-    const id = picks[slotNum];
-    if (!id) return `<div class="preview-slot empty">SLOT ${slotNum + 1}: Boş</div>`;
-    const def = ALL_ITEMS[id];
-    return `
-      <div class="preview-slot filled ${def.firearm ? 'firearm' : ''}">
-        <span><b>${slotNum + 1}.</b> ${def.icon} ${def.name}</span>
-        ${!locked ? `<button class="preview-x" data-rm-slot="${slotNum}" title="Kaldır">✕</button>` : ''}
-      </div>
-    `;
-  };
-  $('draft-loadout-preview').innerHTML = renderSlotChip(0) + renderSlotChip(1);
-  document.querySelectorAll('[data-rm-slot]').forEach(btn => {
-    btn.onclick = () => {
-      app.draftPicks.splice(Number(btn.dataset.rmSlot), 1);
-      sfx.play('ui');
-      renderDraftUI();
-    };
-  });
-
-  // Apply category filter
-  document.querySelectorAll('[data-dfilter]').forEach(b => {
-    b.classList.toggle('active', b.dataset.dfilter === app.draftFilter);
-  });
-  const visiblePool = pool.filter(it => {
-    if (app.draftFilter === 'firearm') return it.firearm;
-    if (app.draftFilter === 'util') return !it.firearm;
-    return true;
-  });
-
-  $('draft-grid').innerHTML = visiblePool.map(it => {
-    const idx = picks.indexOf(it.id);
-    const isPicked = idx >= 0;
-    return `
-      <button class="item-card ${isPicked ? 'picked' : ''} ${it.firearm ? 'firearm' : ''}" data-item="${it.id}" ${locked ? 'disabled' : ''}>
-        <div class="item-top">
-          <span class="item-ico">${it.icon}</span>
-          <div class="item-badges">
-            ${it.firearm
-              ? '<span class="badge-firearm">🔥 TEK KULLANIM</span>'
-              : `<span class="badge-util">${it.category} · ${it.uses}x</span>`}
-          </div>
+  // İtem kartları & önizleme çubuğu: sadece seçim/filtre/rol değiştiğinde yeniden çiz (hover asla titremez!)
+  const gridKey = `${st.round}_${myRole}_${app.draftFilter}_${locked}_${picks.join(',')}`;
+  setIfChanged('draftGrid', gridKey, () => {
+    const renderSlotChip = (slotNum) => {
+      const id = picks[slotNum];
+      if (!id) return `<div class="preview-slot empty">SLOT ${slotNum + 1}: Boş</div>`;
+      const def = ALL_ITEMS[id];
+      return `
+        <div class="preview-slot filled ${def.firearm ? 'firearm' : ''}">
+          <span><b>${slotNum + 1}.</b> ${def.icon} ${def.name}</span>
+          ${!locked ? `<button class="preview-x" data-rm-slot="${slotNum}" title="Kaldır">✕</button>` : ''}
         </div>
-        <div class="item-name">${it.name}</div>
-        <p class="item-desc">${it.desc}</p>
-        ${isPicked ? `<div class="slot-badge">SLOT ${idx + 1} (${idx === 0 ? 'Sol Tık / 1' : 'Sağ Tık / 2'})</div>` : ''}
-      </button>
-    `;
-  }).join('');
-
-  document.querySelectorAll('[data-item]').forEach(btn => {
-    btn.onclick = () => {
-      if (locked) return;
-      const id = btn.dataset.item;
-      const idx = app.draftPicks.indexOf(id);
-      if (idx >= 0) {
-        app.draftPicks.splice(idx, 1);
-      } else if (app.draftPicks.length < 2) {
-        app.draftPicks.push(id);
-      } else {
-        app.draftPicks[1] = id;
-      }
-      sfx.play('ui');
-      renderDraftUI();
+      `;
     };
+    $('draft-loadout-preview').innerHTML = renderSlotChip(0) + renderSlotChip(1);
+    document.querySelectorAll('[data-rm-slot]').forEach(btn => {
+      btn.onclick = () => {
+        app.draftPicks.splice(Number(btn.dataset.rmSlot), 1);
+        sfx.play('ui');
+        renderDraftUI();
+      };
+    });
+
+    document.querySelectorAll('[data-dfilter]').forEach(b => {
+      b.classList.toggle('active', b.dataset.dfilter === app.draftFilter);
+    });
+    const visiblePool = pool.filter(it => {
+      if (app.draftFilter === 'firearm') return it.firearm;
+      if (app.draftFilter === 'util') return !it.firearm;
+      return true;
+    });
+
+    $('draft-grid').innerHTML = visiblePool.map(it => {
+      const idx = picks.indexOf(it.id);
+      const isPicked = idx >= 0;
+      return `
+        <button class="item-card ${isPicked ? 'picked' : ''} ${it.firearm ? 'firearm' : ''}" data-item="${it.id}" ${locked ? 'disabled' : ''}>
+          <div class="item-top">
+            <span class="item-ico">${it.icon}</span>
+            <div class="item-badges">
+              ${it.firearm
+                ? '<span class="badge-firearm">🔥 TEK KULLANIM</span>'
+                : `<span class="badge-util">${it.category} · ${it.uses}x</span>`}
+            </div>
+          </div>
+          <div class="item-name">${it.name}</div>
+          <p class="item-desc">${it.desc}</p>
+          ${isPicked ? `<div class="slot-badge">SLOT ${idx + 1} (${idx === 0 ? 'Sol Tık / 1' : 'Sağ Tık / 2'})</div>` : ''}
+        </button>
+      `;
+    }).join('');
+
+    document.querySelectorAll('[data-item]').forEach(btn => {
+      btn.onclick = () => {
+        if (locked) return;
+        const id = btn.dataset.item;
+        const idx = app.draftPicks.indexOf(id);
+        if (idx >= 0) {
+          app.draftPicks.splice(idx, 1);
+        } else if (app.draftPicks.length < 2) {
+          app.draftPicks.push(id);
+        } else {
+          app.draftPicks[1] = id;
+        }
+        sfx.play('ui');
+        renderDraftUI();
+      };
+    });
+
+    const btnLock = $('btn-lock-items');
+    if (locked) {
+      btnLock.disabled = true;
+      btnLock.textContent = '✓ Onaylandı — Bekleniyor...';
+    } else {
+      btnLock.disabled = app.draftPicks.length !== 2;
+      btnLock.textContent = app.draftPicks.length === 2
+        ? '✓ Onayla ve Başla'
+        : `2 İtem Seç (${app.draftPicks.length}/2)`;
+    }
   });
 
-  const btnLock = $('btn-lock-items');
-  if (locked) {
-    btnLock.disabled = true;
-    btnLock.textContent = '✓ Onaylandı — Bekleniyor...';
-  } else {
-    btnLock.disabled = app.draftPicks.length !== 2;
-    btnLock.textContent = app.draftPicks.length === 2
-      ? '✓ Onayla ve Başla'
-      : `2 İtem Seç (${app.draftPicks.length}/2)`;
-  }
-
-  $('draft-ready-list').innerHTML = st.slots.map(s => {
-    const r = isFfa ? 'FFA' : ((s.team === 'A') ? (teamAIsHunter ? 'Avcı' : 'Av') : (teamAIsHunter ? 'Av' : 'Avcı'));
-    return `<span class="ready-pill ${s.readyItems ? 'ok' : ''}">${s.name} (${r}) ${s.readyItems ? '✓' : '...'}</span>`;
-  }).join('');
+  const readyKey = st.slots.map(s => `${s.id}:${s.readyItems}`).join('|') + `_${st.round}`;
+  setIfChanged('draftReady', readyKey, () => {
+    $('draft-ready-list').innerHTML = st.slots.map(s => {
+      const r = isFfa ? 'FFA' : ((s.team === 'A') ? (teamAIsHunter ? 'Avcı' : 'Av') : (teamAIsHunter ? 'Av' : 'Avcı'));
+      return `<span class="ready-pill ${s.readyItems ? 'ok' : ''}">${s.name} (${r}) ${s.readyItems ? '✓' : '...'}</span>`;
+    }).join('');
+  });
 }
 
 // ============================================================
