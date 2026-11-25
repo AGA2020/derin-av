@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=3.2';
-import { hasLineOfSight } from './sim.js?v=3.2';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, SEA_MAPS } from './data.js?v=3.3';
+import { hasLineOfSight } from './sim.js?v=3.3';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -764,8 +764,8 @@ export class SeaRenderer {
     ctx.fill();
 
     // Pointed boat hull
-    ctx.fillStyle = p.role === 'hunter' ? '#2c1810' : '#0f2936';
-    ctx.strokeStyle = p.role === 'hunter' ? '#ffb703' : '#06d6a0';
+    ctx.fillStyle = p.role === 'hunter' ? '#2c1810' : p.role === 'ffa' ? '#1a1b2e' : '#0f2936';
+    ctx.strokeStyle = p.role === 'hunter' ? '#ffb703' : p.role === 'ffa' ? ch.color : '#06d6a0';
     ctx.lineWidth = p.isMe ? 3 : 2;
     ctx.beginPath();
     ctx.moveTo(25, 0);
@@ -816,7 +816,7 @@ export class SeaRenderer {
     }
 
     // Name & Buoyancy bar ("Su Üstü Direnci")
-    ctx.fillStyle = p.role === 'hunter' ? '#ffd166' : '#80ffdb';
+    ctx.fillStyle = p.role === 'hunter' ? '#ffd166' : p.role === 'ffa' ? ch.accent : '#80ffdb';
     ctx.font = '700 12px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(p.name || '', 0, -28);
@@ -1210,7 +1210,7 @@ export class SeaRenderer {
     for (const p of state.players || []) {
       if (!p.alive) continue;
       if (!this._canViewerSee(me, p, map)) continue;
-      ctx.fillStyle = p.id === me?.id ? '#ffffff' : p.role === 'hunter' ? '#ffb703' : '#06d6a0';
+      ctx.fillStyle = p.id === me?.id ? '#ffffff' : p.role === 'hunter' ? '#ffb703' : p.role === 'ffa' ? '#ff6b6b' : '#06d6a0';
       ctx.beginPath();
       ctx.arc(p.x * sx, p.y * sy, p.id === me?.id ? 4.5 : 3.5, 0, Math.PI * 2);
       ctx.fill();

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>DERİN AV — 1v1 & 2v2 Denizde Av & Avcı</title>
-  <link rel="stylesheet" href="./styles.css?v=3.2" />
+  <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
+  <link rel="stylesheet" href="./styles.css?v=3.3" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -78,16 +78,16 @@
         <div class="lobby-teams">
           <div class="team-panel team-a">
             <div class="team-head">
-              <h3>TAKIM A (ALTIN)</h3>
-              <span>1. Tur: Avcılar 🎯</span>
+              <h3 id="team-a-title">TAKIM A (ALTIN)</h3>
+              <span id="team-a-role">1. Tur: Avcılar 🎯</span>
             </div>
             <div id="team-a-slots" class="slots-col"></div>
           </div>
 
           <div class="team-panel team-b">
             <div class="team-head">
-              <h3>TAKIM B (TURKUAZ)</h3>
-              <span>1. Tur: Avlar 🌊</span>
+              <h3 id="team-b-title">TAKIM B (TURKUAZ)</h3>
+              <span id="team-b-role">1. Tur: Avlar 🌊</span>
             </div>
             <div id="team-b-slots" class="slots-col"></div>
           </div>
@@ -123,7 +123,7 @@
     <!-- ÜST HUD -->
     <div class="hud-top">
       <div class="hud-team-col left">
-        <div class="score-badge a">TAKIM A <b id="hud-score-a">0</b></div>
+        <div id="hud-score-badge-a" class="score-badge a">TAKIM A <b id="hud-score-a">0</b></div>
         <div id="hud-team-a" class="mini-team"></div>
       </div>
 
@@ -135,7 +135,7 @@
 
       <div class="hud-team-col right">
         <div class="score-row-right">
-          <div class="score-badge b"><b id="hud-score-b">0</b> TAKIM B</div>
+          <div id="hud-score-badge-b" class="score-badge b"><b id="hud-score-b">0</b> TAKIM B</div>
           <button id="btn-guide-game" class="btn-icon" title="Nasıl Oynanır? (Rehber)">❓</button>
           <button id="btn-mute" class="btn-icon" title="Sesi Aç/Kapat">🔊</button>
         </div>
@@ -215,7 +215,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.2</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.3</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -237,6 +237,7 @@
           <div class="seg-group" data-setting="mode">
             <button class="seg-btn" data-val="2v2">👥 2v2 Takım</button>
             <button class="seg-btn" data-val="1v1">⚔️ 1v1 Düello</button>
+            <button class="seg-btn" data-val="ffa">💀 Herkes Tek (FFA)</button>
           </div>
         </div>
 
@@ -407,7 +408,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=3.2"></script>
+  <script type="module" src="./js/main.js?v=3.3"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

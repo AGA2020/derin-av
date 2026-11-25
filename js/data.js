@@ -1,8 +1,16 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v3.2';
+export const GAME_VERSION = 'v3.3';
 export const CHANGELOG = [
+  {
+    ver: 'v3.3',
+    notes: [
+      '💀 YENİ MOD: Herkes Tek (Deathmatch / FFA)! 2, 3 veya 4 kişi botsuz birbirine girebilir — son hayatta kalan turu kazanır!',
+      'Ortak 16 itemlik deniz cephaneliğinden istediğin 2 itemi kombinle (ör. Gemi Pompalısı + Mürekkep Bulutu).',
+      'Deathmatch’te birini suya gömünce +40 Batma Direnci ve tam Nefes ödülü kazanırsın!'
+    ]
+  },
   {
     ver: 'v3.2',
     notes: [
@@ -508,8 +516,10 @@ export const PREY_ITEMS = [
   }
 ];
 
+export const FFA_ITEMS = [...HUNTER_ITEMS, ...PREY_ITEMS];
+
 export const ALL_ITEMS = Object.fromEntries(
-  [...HUNTER_ITEMS, ...PREY_ITEMS].map(i => [i.id, i])
+  FFA_ITEMS.map(i => [i.id, i])
 );
 
 // 3 DÖNÜŞÜMLÜ DENİZ HARİTASI (Turbo Deniz Akıntıları & Power-up noktaları)

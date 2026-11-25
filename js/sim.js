@@ -10,11 +10,12 @@ import {
   CHAR_MAP,
   HUNTER_ITEMS,
   PREY_ITEMS,
+  FFA_ITEMS,
   ALL_ITEMS,
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=3.2';
+} from './data.js?v=3.3';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -87,7 +88,7 @@ export class GameSim {
     this.onEvent = onEvent || (() => {});
     this.phase = 'lobby'; // lobby | draft | playing | round_end | match_end
     this.settings = {
-      mode: '2v2', // '2v2' | '1v1'
+      mode: '2v2', // '2v2' | '1v1' | 'ffa'
       totalRounds: 4,
       roundDuration: ROUND_DURATION,
       hpMult: 1.0,
@@ -102,11 +103,14 @@ export class GameSim {
     this.round = 1;
     this.mapIndex = 0;
     this.scores = { A: 0, B: 0 };
+    this.ffaScores = {}; // playerId -> round wins in FFA
     this.phaseTimer = 0;
     this.roundWinnerRole = null;
     this.roundWinnerTeam = null;
+    this.roundWinnerName = '';
     this.roundReason = '';
     this.matchWinnerTeam = null;
+    this.matchWinnerName = '';
     this.matchTime = 0;
 
     // 4 Lobby Slots: 0,1 = Takım A | 2,3 = Takım B
@@ -141,14 +145,18 @@ export class GameSim {
     return SEA_MAPS[this.mapIndex % SEA_MAPS.length];
   }
 
-  getActiveSlots() {
+  getActiveSlots(forMatch = false) {
     if (this.settings.mode === '1v1') {
       return [this.slots[0], this.slots[2]];
+    }
+    if (this.settings.mode === 'ffa' && forMatch) {
+      return this.slots.filter(s => Boolean(s.id));
     }
     return this.slots;
   }
 
   getTeamRole(team) {
+    if (this.settings.mode === 'ffa') return 'ffa';
     // HER TUR ROLLER DEĞİŞİR!
     // Tek turlar (1, 3, 5): Takım A = Avcı, Takım B = Av
     // Çift turlar (2, 4, 6): Takım B = Avcı, Takım A = Av
@@ -259,7 +267,7 @@ export class GameSim {
 
   updateSettings(patch) {
     if (this.phase !== 'lobby' || !patch) return;
-    if (['2v2', '1v1'].includes(String(patch.mode))) {
+    if (['2v2', '1v1', 'ffa'].includes(String(patch.mode))) {
       this.settings.mode = String(patch.mode);
       if (this.settings.mode === '1v1') {
         // 1v1'e geçince 2. slotlardaki (idx 1,3) botları temizle, insan varsa boş 0/2 slotuna taşı
@@ -303,11 +311,22 @@ export class GameSim {
   }
 
   startMatch() {
-    this.fillEmptyWithBots();
+    if (this.settings.mode === 'ffa') {
+      // FFA'da 2-4 arkadaş botsuz direkt oynayabilir; sadece tek kişi varsa botlarla 4'e tamamla!
+      const occupied = this.slots.filter(s => Boolean(s.id)).length;
+      if (occupied < 2) this.fillEmptyWithBots();
+    } else {
+      this.fillEmptyWithBots();
+    }
     this.totalRounds = this.settings.totalRounds;
     this.round = 1;
     this.scores = { A: 0, B: 0 };
+    this.ffaScores = {};
+    for (const s of this.getActiveSlots(true)) {
+      if (s.id) this.ffaScores[s.id] = 0;
+    }
     this.matchWinnerTeam = null;
+    this.matchWinnerName = '';
     this.feed = [];
     this.startDraft();
   }
@@ -332,7 +351,7 @@ export class GameSim {
     this.roundWinnerRole = null;
     this.roundWinnerTeam = null;
 
-    for (const s of this.getActiveSlots()) {
+    for (const s of this.getActiveSlots(true)) {
       const role = this.getTeamRole(s.team);
       if (s.isBot) {
         s.items = this._botPickItems(role);
@@ -346,7 +365,7 @@ export class GameSim {
   }
 
   _botPickItems(role) {
-    const pool = role === 'hunter' ? HUNTER_ITEMS : PREY_ITEMS;
+    const pool = role === 'ffa' ? FFA_ITEMS : (role === 'hunter' ? HUNTER_ITEMS : PREY_ITEMS);
     const firearms = pool.filter(i => i.firearm);
     const utils = pool.filter(i => !i.firearm);
     // Bots usually pick 1 single-use firearm + 1 utility/trap
@@ -360,24 +379,25 @@ export class GameSim {
     const slot = this.slots.find(s => s.id === playerId);
     if (!slot) return false;
     const role = this.getTeamRole(slot.team);
-    const validIds = new Set((role === 'hunter' ? HUNTER_ITEMS : PREY_ITEMS).map(i => i.id));
+    const pool = role === 'ffa' ? FFA_ITEMS : (role === 'hunter' ? HUNTER_ITEMS : PREY_ITEMS);
+    const validIds = new Set(pool.map(i => i.id));
     const cleaned = (items || []).filter(id => validIds.has(id)).slice(0, 2);
     slot.items = cleaned;
     slot.readyItems = ready && cleaned.length === 2;
 
     // Eğer tüm aktif oyuncular 2 itemini seçtiyse hemen turu başlat!
-    if (this.getActiveSlots().every(s => s.readyItems && s.items.length === 2)) {
+    if (this.getActiveSlots(true).every(s => s.readyItems && s.items.length === 2)) {
       this.startRound();
     }
     return true;
   }
 
   startRound() {
-    const activeSlots = this.getActiveSlots();
+    const activeSlots = this.getActiveSlots(true);
     // Eksik seçimi olanlara otomatik 2 item tamamla
     for (const s of activeSlots) {
       const role = this.getTeamRole(s.team);
-      const pool = role === 'hunter' ? HUNTER_ITEMS : PREY_ITEMS;
+      const pool = role === 'ffa' ? FFA_ITEMS : (role === 'hunter' ? HUNTER_ITEMS : PREY_ITEMS);
       while (s.items.length < 2) {
         const pick = pool.find(i => !s.items.includes(i.id)) || pool[0];
         s.items.push(pick.id);
@@ -409,13 +429,24 @@ export class GameSim {
     this.feed = [];
 
     const map = this.currentMap;
+    const ffaSpawns = [
+      map.hunterSpawns[0],
+      map.preySpawns[0],
+      map.hunterSpawns[1],
+      map.preySpawns[1]
+    ];
     let hIdx = 0;
     let pIdx = 0;
+    let fIdx = 0;
 
     this.players = activeSlots.map(s => {
-      const role = this.getTeamRole(s.team);
+      const isFfa = this.settings.mode === 'ffa';
+      const role = isFfa ? 'ffa' : this.getTeamRole(s.team);
+      const teamId = isFfa ? `F${s.idx}` : s.team;
       const ch = CHAR_MAP[s.charId] || CHARACTERS[0];
-      const sp = role === 'hunter' ? map.hunterSpawns[hIdx++ % 2] : map.preySpawns[pIdx++ % 2];
+      const sp = isFfa
+        ? ffaSpawns[fIdx++ % ffaSpawns.length]
+        : (role === 'hunter' ? map.hunterSpawns[hIdx++ % 2] : map.preySpawns[pIdx++ % 2]);
       const itemStates = s.items.map(itemId => {
         const def = ALL_ITEMS[itemId];
         const longCdMode = def.firearm && this.settings.firearmMode === 'long_cd';
@@ -433,7 +464,7 @@ export class GameSim {
         id: s.id,
         slotIdx: s.idx,
         name: s.name,
-        team: s.team,
+        team: teamId,
         role,
         isBot: s.isBot,
         charId: ch.id,
@@ -956,8 +987,8 @@ export class GameSim {
     p.aim = angle;
     const boost = ch.dashBoost || 1.0;
 
-    if (p.role === 'hunter') {
-      // AVCI: DALGA HAMLESİ / SUYA BASTIRMA (Ram & Submerge)
+    if (p.role === 'hunter' || p.role === 'ffa') {
+      // AVCI / DEATHMATCH: DALGA HAMLESİ / SUYA BASTIRMA (Ram & Submerge)
       p.spaceCd = 2.3 * (ch.turnBonus ? 0.8 : 1);
       p.ramActive = 0.28;
       p.ramHitIds = new Set();
@@ -1125,7 +1156,17 @@ export class GameSim {
       target.diveTime = 0;
       target.sinkingAnim = 1.0;
       const attacker = this.players.find(p => p.id === attackerId);
-      if (attacker) attacker.sinks += 1;
+      if (attacker) {
+        attacker.sinks += 1;
+        // 💀 Deathmatch Kill Ödülü: third-party dengesini korur!
+        if (this.settings.mode === 'ffa' && attacker.alive && attacker.id !== target.id) {
+          attacker.hp = Math.min(attacker.maxHp, attacker.hp + 40);
+          attacker.breath = attacker.maxBreath;
+          attacker.breathRegenDelay = 0;
+          this._addPulse(attacker.x, attacker.y, 95, 'heal', attacker.team);
+          this._addFloatText(attacker.x, attacker.y - 30, '💀 ÖDÜL: +40 CAN & NEFES!', '#06d6a0');
+        }
+      }
       this.sinkEffects.push({
         id: this._nextEntityId++,
         x: target.x,
@@ -1460,8 +1501,8 @@ export class GameSim {
         }
       }
 
-      // Hunter Ram (Suya Bastırma) collision check
-      if (p.role === 'hunter' && p.ramActive > 0) {
+      // Hunter & FFA Ram (Suya Bastırma) collision check
+      if ((p.role === 'hunter' || p.role === 'ffa') && p.ramActive > 0) {
         for (const other of this.players) {
           if (!other.alive || other.submerged || other.team === p.team || p.ramHitIds.has(other.id)) continue;
           if (dist(p.x, p.y, other.x, other.y) <= p.r + other.r + 14) {
@@ -1674,6 +1715,25 @@ export class GameSim {
     }
 
     // Check Round Win Conditions
+    if (this.settings.mode === 'ffa') {
+      const aliveAll = this.players.filter(p => p.alive);
+      if (aliveAll.length <= 1) {
+        const win = aliveAll[0] || null;
+        if (win) {
+          this.ffaScores[win.id] = (this.ffaScores[win.id] || 0) + 1;
+          this._endRound('ffa', win.id, `${win.name} son ayakta kalan oldu!`, win.name);
+        } else {
+          this._endRound('ffa', null, 'Herkes aynı anda suya gömüldü — Berabere!', 'Berabere');
+        }
+      } else if (this.phaseTimer <= 0) {
+        aliveAll.sort((a, b) => (b.hp + b.breath) - (a.hp + a.breath));
+        const win = aliveAll[0];
+        this.ffaScores[win.id] = (this.ffaScores[win.id] || 0) + 1;
+        this._endRound('ffa', win.id, `Süre doldu — en sağlam kalan ${win.name} kazandı!`, win.name);
+      }
+      return;
+    }
+
     const aliveHunters = this.players.filter(p => p.role === 'hunter' && p.alive);
     const alivePrey = this.players.filter(p => p.role === 'prey' && p.alive);
 
@@ -1735,18 +1795,41 @@ export class GameSim {
     }
   }
 
-  _endRound(winnerRole, winnerTeam, reason) {
+  _endRound(winnerRole, winnerTeam, reason, winnerName = '') {
     this.phase = 'round_end';
     this.phaseTimer = 5.2;
     this.roundWinnerRole = winnerRole;
     this.roundWinnerTeam = winnerTeam;
+    this.roundWinnerName = winnerName;
     this.roundReason = reason;
-    this.scores[winnerTeam] += 1;
+    if (winnerRole !== 'ffa' && (winnerTeam === 'A' || winnerTeam === 'B')) {
+      this.scores[winnerTeam] += 1;
+    }
     this.onEvent({ type: 'sfx', name: 'round_end' });
     this.onEvent({ type: 'phase', phase: 'round_end', round: this.round });
   }
 
   _advanceAfterRound() {
+    if (this.settings.mode === 'ffa') {
+      if (this.round >= this.totalRounds) {
+        const ranked = this.getActiveSlots(true)
+          .map(s => ({ id: s.id, name: s.name, pts: this.ffaScores[s.id] || 0 }))
+          .sort((a, b) => b.pts - a.pts);
+        if (ranked.length >= 2 && ranked[0].pts === ranked[1].pts) {
+          this.totalRounds = this.round + 1;
+        } else {
+          this.phase = 'match_end';
+          this.matchWinnerTeam = ranked[0]?.id || null;
+          this.matchWinnerName = ranked[0]?.name || 'Şampiyon';
+          this.onEvent({ type: 'phase', phase: 'match_end', round: this.round });
+          return;
+        }
+      }
+      this.round += 1;
+      this.startDraft();
+      return;
+    }
+
     // Check if match is over
     if (this.round >= this.totalRounds) {
       if (this.scores.A !== this.scores.B) {
@@ -1876,7 +1959,7 @@ export class GameSim {
       return;
     }
 
-    if (bot.role === 'hunter') {
+    if (bot.role === 'hunter' || bot.role === 'ffa') {
       if (target) {
         const a = angleBetween(bot.x, bot.y, target.x, target.y);
         bot.aim = a;
@@ -2031,8 +2114,9 @@ export class GameSim {
       round: this.round,
       mapIndex: this.mapIndex,
       scores: { ...this.scores },
+      ffaScores: { ...this.ffaScores },
       phaseTimer: Math.ceil(this.phaseTimer),
-      slots: this.getActiveSlots().map(s => ({
+      slots: this.getActiveSlots(this.phase !== 'lobby').map(s => ({
         idx: s.idx,
         team: s.team,
         id: s.id,
@@ -2048,15 +2132,19 @@ export class GameSim {
   getStateSnapshot() {
     return {
       phase: this.phase,
+      mode: this.settings.mode,
       round: this.round,
       totalRounds: this.totalRounds,
       mapIndex: this.mapIndex,
       scores: { ...this.scores },
+      ffaScores: { ...this.ffaScores },
       phaseTimer: Number(this.phaseTimer.toFixed(1)),
       roundWinnerRole: this.roundWinnerRole,
       roundWinnerTeam: this.roundWinnerTeam,
+      roundWinnerName: this.roundWinnerName,
       roundReason: this.roundReason,
       matchWinnerTeam: this.matchWinnerTeam,
+      matchWinnerName: this.matchWinnerName,
       players: this.players.map(p => ({
         id: p.id,
         slotIdx: p.slotIdx,

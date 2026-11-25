@@ -9,13 +9,14 @@ import {
   CHAR_MAP,
   HUNTER_ITEMS,
   PREY_ITEMS,
+  FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=3.2';
-import { sfx } from './audio.js?v=3.2';
-import { NetClient, generateRoomCode } from './net.js?v=3.2';
-import { GameSim } from './sim.js?v=3.2';
-import { SeaRenderer } from './render.js?v=3.2';
+} from './data.js?v=3.3';
+import { sfx } from './audio.js?v=3.3';
+import { NetClient, generateRoomCode } from './net.js?v=3.3';
+import { GameSim } from './sim.js?v=3.3';
+import { SeaRenderer } from './render.js?v=3.3';
 
 const $ = (id) => document.getElementById(id);
 
@@ -515,8 +516,18 @@ function renderLobby() {
     return;
   }
 
-  const is1v1 = st.settings?.mode === '1v1';
-  $('lobby-mode-kicker').textContent = `DERİN AV · ${is1v1 ? '1v1 DÜELLO' : '2v2 TAKIM'} LOBİSİ`;
+  const mode = st.settings?.mode || '2v2';
+  const isFfa = mode === 'ffa';
+  $('lobby-mode-kicker').textContent = mode === '1v1'
+    ? 'DERİN AV · 1v1 DÜELLO LOBİSİ'
+    : isFfa
+      ? 'DERİN AV · HERKES TEK (DEATHMATCH)'
+      : 'DERİN AV · 2v2 TAKIM LOBİSİ';
+  $('btn-switch-team').style.display = isFfa ? 'none' : '';
+  $('team-a-title').textContent = isFfa ? 'OYUNCULAR (1-2)' : 'TAKIM A (ALTIN)';
+  $('team-a-role').textContent = isFfa ? '💀 Herkes Tek' : '1. Tur: Avcılar 🎯';
+  $('team-b-title').textContent = isFfa ? 'OYUNCULAR (3-4)' : 'TAKIM B (TURKUAZ)';
+  $('team-b-role').textContent = isFfa ? '💀 Son Kalan Kazanır' : '1. Tur: Avlar 🌊';
   renderLobbyRulesSummary(st);
 
   const renderSlot = (s) => {
@@ -612,19 +623,24 @@ function renderDraftUI() {
   const mySlot = st.slots.find(s => s.id === app.myId);
   if (!mySlot) return;
 
+  const isFfa = st.settings?.mode === 'ffa';
   const teamAIsHunter = st.round % 2 === 1;
-  const myRole = (mySlot.team === 'A') ? (teamAIsHunter ? 'hunter' : 'prey') : (teamAIsHunter ? 'prey' : 'hunter');
-  const pool = myRole === 'hunter' ? HUNTER_ITEMS : PREY_ITEMS;
+  const myRole = isFfa
+    ? 'ffa'
+    : ((mySlot.team === 'A') ? (teamAIsHunter ? 'hunter' : 'prey') : (teamAIsHunter ? 'prey' : 'hunter'));
+  const pool = isFfa ? FFA_ITEMS : (myRole === 'hunter' ? HUNTER_ITEMS : PREY_ITEMS);
   const map = SEA_MAPS[(st.mapIndex || 0) % SEA_MAPS.length];
 
   $('draft-round-badge').textContent = `TUR ${st.round} / ${st.totalRounds} · ${map.name.toUpperCase()}`;
   $('draft-timer').textContent = `${Math.max(0, st.phaseTimer)}s`;
 
   const roleBox = $('draft-role-banner');
-  roleBox.className = `role-banner ${myRole}`;
-  roleBox.innerHTML = myRole === 'hunter'
-    ? `<strong>🎯 BU TUR AVCISIN!</strong> — Görevin: İki Avı da <b>suya gömmek</b>! 2 item seç (Ateşli silahlar <b>TEK KULLANIMLIKTIR</b>, denizdeki sandıkları kap!).`
-    : `<strong>🌊 BU TUR AVSIN!</strong> — Görevin: <b>Suya gömülmeden</b> süreyi tamamla veya Avcıları batır! 2 item seç (Ateşli silahlar <b>TEK KULLANIMLIKTIR</b>).`;
+  roleBox.className = `role-banner ${isFfa ? 'hunter' : myRole}`;
+  roleBox.innerHTML = isFfa
+    ? `<strong>💀 HERKES TEK (DEATHMATCH)!</strong> — Herkes rakip! Ortak cephanelikten istediğin <b>2 itemi</b> seç, son ayakta kalan turu kazanır! (Batırma ödülü: +40 Can &amp; Tam Nefes)`
+    : myRole === 'hunter'
+      ? `<strong>🎯 BU TUR AVCISIN!</strong> — Görevin: ${st.settings?.mode === '1v1' ? 'Avı' : 'İki Avı da'} <b>suya gömmek</b>! 2 item seç (Ateşli silahlar <b>TEK KULLANIMLIKTIR</b>).`
+      : `<strong>🌊 BU TUR AVSIN!</strong> — Görevin: <b>Suya gömülmeden</b> süreyi tamamla veya ${st.settings?.mode === '1v1' ? 'Avcıyı' : 'Avcıları'} batır! 2 item seç.`;
 
   const locked = mySlot.readyItems && mySlot.items.length === 2;
   const picks = locked ? mySlot.items : app.draftPicks;
@@ -678,7 +694,7 @@ function renderDraftUI() {
   }
 
   $('draft-ready-list').innerHTML = st.slots.map(s => {
-    const r = (s.team === 'A') ? (teamAIsHunter ? 'Avcı' : 'Av') : (teamAIsHunter ? 'Av' : 'Avcı');
+    const r = isFfa ? 'FFA' : ((s.team === 'A') ? (teamAIsHunter ? 'Avcı' : 'Av') : (teamAIsHunter ? 'Av' : 'Avcı'));
     return `<span class="ready-pill ${s.readyItems ? 'ok' : ''}">${s.name} (${r}) ${s.readyItems ? '✓' : '...'}</span>`;
   }).join('');
 }
@@ -699,6 +715,11 @@ function updateHudFromState(st) {
   const map = SEA_MAPS[(st.mapIndex || 0) % SEA_MAPS.length];
   const roundStr = `TUR ${st.round}/${st.totalRounds} · ${map.name}`;
   setIfChanged('round', roundStr, () => { $('hud-round').textContent = roundStr; });
+  const isFfa = st.mode === 'ffa';
+  setIfChanged('scoreMode', isFfa, () => {
+    $('hud-score-badge-a').style.display = isFfa ? 'none' : '';
+    $('hud-score-badge-b').style.display = isFfa ? 'none' : '';
+  });
   setIfChanged('scoreA', st.scores.A, () => { $('hud-score-a').textContent = st.scores.A; });
   setIfChanged('scoreB', st.scores.B, () => { $('hud-score-b').textContent = st.scores.B; });
 
@@ -716,9 +737,13 @@ function updateHudFromState(st) {
     const roleKey = `${me.role}_${me.alive}`;
     setIfChanged('role', roleKey, () => {
       $('hud-role-pill').textContent = me.alive
-        ? (me.role === 'hunter' ? '🎯 AVCISIN — AVI SUYA GÖM!' : '🌊 AVSIN — SU ÜSTÜNDE KAL!')
+        ? (me.role === 'ffa'
+          ? '💀 HERKES TEK — SON KALAN KAZANIR!'
+          : me.role === 'hunter'
+            ? '🎯 AVCISIN — AVI SUYA GÖM!'
+            : '🌊 AVSIN — SU ÜSTÜNDE KAL!')
         : '🌊 SUYA GÖMÜLDÜN (İZLEYİCİ)';
-      $('hud-role-pill').className = `hud-role-pill ${me.role} ${me.alive ? '' : 'dead'}`;
+      $('hud-role-pill').className = `hud-role-pill ${me.role === 'ffa' ? 'hunter' : me.role} ${me.alive ? '' : 'dead'}`;
     });
 
     const hpKey = `${me.hp}_${me.maxHp}_${me.breath}_${me.maxBreath}_${me.breathRegen}_${me.shield || 0}`;
@@ -769,12 +794,13 @@ function updateHudFromState(st) {
     setIfChanged('space', spKey, () => {
       const spEl = $('hud-slot-space');
       const spReady = me.spaceCd <= 0;
+      const isRam = me.role === 'hunter' || me.role === 'ffa';
       spEl.className = `hud-item-slot space ${spReady ? '' : 'cooldown'}`;
       spEl.innerHTML = `
         <div class="slot-key">SPACE</div>
-        <div class="slot-ico">${me.role === 'hunter' ? '🌊' : '💨'}</div>
+        <div class="slot-ico">${isRam ? '🌊' : '💨'}</div>
         <div class="slot-meta">
-          <div class="slot-title">${me.role === 'hunter' ? 'Suya Bastır' : 'Dalga Kaçışı'}</div>
+          <div class="slot-title">${isRam ? 'Suya Bastır' : 'Dalga Kaçışı'}</div>
           <div class="slot-uses">${spReady ? 'HAZIR' : `${me.spaceCd.toFixed(1)}s`}</div>
         </div>
       `;
@@ -799,12 +825,18 @@ function updateHudFromState(st) {
     });
   }
 
-  const teamKey = (st.players || []).map(p => `${p.id}:${p.alive}`).join('|');
+  const teamKey = (st.players || []).map(p => `${p.id}:${p.alive}:${st.ffaScores?.[p.id] || 0}`).join('|') + `_${isFfa}`;
   setIfChanged('teams', teamKey, () => {
-    const teamA = (st.players || []).filter(p => p.team === 'A');
-    const teamB = (st.players || []).filter(p => p.team === 'B');
-    $('hud-team-a').innerHTML = teamA.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}</span>`).join('');
-    $('hud-team-b').innerHTML = teamB.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}</span>`).join('');
+    if (isFfa) {
+      const all = (st.players || []).slice().sort((a, b) => (st.ffaScores?.[b.id] || 0) - (st.ffaScores?.[a.id] || 0));
+      $('hud-team-a').innerHTML = all.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}">💀 ${p.name}: <b>${st.ffaScores?.[p.id] || 0}</b></span>`).join('');
+      $('hud-team-b').innerHTML = '';
+    } else {
+      const teamA = (st.players || []).filter(p => p.team === 'A');
+      const teamB = (st.players || []).filter(p => p.team === 'B');
+      $('hud-team-a').innerHTML = teamA.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}</span>`).join('');
+      $('hud-team-b').innerHTML = teamB.map(p => `<span class="mini-p ${p.alive ? 'alive' : 'sunk'}" title="${p.name}">${p.role === 'hunter' ? '🎯' : '🌊'} ${p.name}</span>`).join('');
+    }
   });
 
   const feedKey = (st.feed || []).map(f => f.id).join(',');
@@ -814,6 +846,16 @@ function updateHudFromState(st) {
 }
 
 function renderRoundEnd(st) {
+  if (st.mode === 'ffa') {
+    $('round-end-title').textContent = `💀 ${st.roundWinnerName || 'TUR BİTTİ'} KAZANDI!`;
+    $('round-end-reason').textContent = st.roundReason;
+    const board = (st.players || [])
+      .map(p => `${p.name}: ${st.ffaScores?.[p.id] || 0}`)
+      .join('  ·  ');
+    $('round-end-score').textContent = board;
+    $('round-end-next').textContent = `Yeni Deathmatch turu başlıyor! (${Math.max(0, Math.ceil(st.phaseTimer))}s)`;
+    return;
+  }
   const winTeamLabel = st.roundWinnerTeam === 'A' ? 'TAKIM A (ALTIN)' : 'TAKIM B (TURKUAZ)';
   const winRoleLabel = st.roundWinnerRole === 'hunter' ? 'AVCILAR KAZANDI!' : 'AVLAR KAZANDI!';
   $('round-end-title').textContent = `${winTeamLabel} — ${winRoleLabel}`;
@@ -823,20 +865,38 @@ function renderRoundEnd(st) {
 }
 
 function renderMatchEnd(st) {
-  const winTeamLabel = st.matchWinnerTeam === 'A' ? 'TAKIM A (ALTIN)' : 'TAKIM B (TURKUAZ)';
-  $('match-end-title').textContent = `🏆 ${winTeamLabel} ŞAMPİYON!`;
-  $('match-end-score').textContent = `FİNAL SKORU: TAKIM A ${st.scores.A} - ${st.scores.B} TAKIM B`;
+  if (st.mode === 'ffa') {
+    $('match-end-title').textContent = `🏆 ${st.matchWinnerName || 'ŞAMPİYON'} KAZANDI!`;
+    $('match-end-score').textContent = 'DEATHMATCH SIRALAMASI';
+    const rows = (st.players || [])
+      .slice()
+      .sort((a, b) => (st.ffaScores?.[b.id] || 0) - (st.ffaScores?.[a.id] || 0))
+      .map((p, idx) => {
+        const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
+        return `
+          <div class="stat-row">
+            <span>#${idx + 1} ${ch.icon} <b>${p.name}</b></span>
+            <span>🏆 <b>${st.ffaScores?.[p.id] || 0}</b> Tur · 🌊 <b>${p.sinks}</b> Batırma</span>
+          </div>
+        `;
+      }).join('');
+    $('match-end-stats').innerHTML = rows;
+  } else {
+    const winTeamLabel = st.matchWinnerTeam === 'A' ? 'TAKIM A (ALTIN)' : 'TAKIM B (TURKUAZ)';
+    $('match-end-title').textContent = `🏆 ${winTeamLabel} ŞAMPİYON!`;
+    $('match-end-score').textContent = `FİNAL SKORU: TAKIM A ${st.scores.A} - ${st.scores.B} TAKIM B`;
 
-  const rows = (st.players || []).map(p => {
-    const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
-    return `
-      <div class="stat-row">
-        <span>${ch.icon} <b>${p.name}</b> (Takım ${p.team})</span>
-        <span>🌊 Suya Gömme: <b>${p.sinks}</b></span>
-      </div>
-    `;
-  }).join('');
-  $('match-end-stats').innerHTML = rows;
+    const rows = (st.players || []).map(p => {
+      const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
+      return `
+        <div class="stat-row">
+          <span>${ch.icon} <b>${p.name}</b> (Takım ${p.team})</span>
+          <span>🌊 Suya Gömme: <b>${p.sinks}</b></span>
+        </div>
+      `;
+    }).join('');
+    $('match-end-stats').innerHTML = rows;
+  }
 
   const isHostLike = app.mode === 'host' || app.mode === 'offline';
   $('btn-rematch').style.display = isHostLike ? '' : 'none';
@@ -969,7 +1029,7 @@ function renderLobbyRulesSummary(st) {
     : (SEA_MAPS[Number(s.mapMode)]?.name || 'Harita');
   const hpLabel = `%${Math.round((s.hpMult || 1) * 100)} Can`;
   const gunLabel = s.firearmMode === 'long_cd' ? '⏳ Silah 30s CD' : '🔥 Tek Atım (Ağır)';
-  const modeLabel = s.mode === '1v1' ? '⚔️ 1v1 Düello' : '👥 2v2 Takım';
+  const modeLabel = s.mode === '1v1' ? '⚔️ 1v1 Düello' : s.mode === 'ffa' ? '💀 Herkes Tek (FFA)' : '👥 2v2 Takım';
   const pills = [
     modeLabel,
     `🏁 ${s.totalRounds} Tur`,
@@ -980,7 +1040,7 @@ function renderLobbyRulesSummary(st) {
     `📦 Sandık ${s.powerups ? '✓' : '✕'}`,
     `🧨 Fıçı ${s.barrels ? '✓' : '✕'}`,
     `🌪️ Fırtına ${s.storm ? '✓' : '✕'}`,
-    ...(s.mode === '1v1' ? [] : [`🛟 Kurtarma ${s.rescue ? '✓' : '✕'}`])
+    ...(s.mode !== '2v2' ? [] : [`🛟 Kurtarma ${s.rescue ? '✓' : '✕'}`])
   ];
   $('lobby-rules-summary').innerHTML = pills.map(p => `<span class="rule-chip">${p}</span>`).join('');
 }
