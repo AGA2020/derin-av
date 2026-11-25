@@ -2058,3 +2058,62 @@ kbd {
   background: rgba(6, 22, 38, 0.72);
   backdrop-filter: blur(8px);
 }
+
+
+/* === v4.52: FULLSCREEN & WIDE-SCREEN ADAPTIVE UI === */
+#screen-lobby.active {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+}
+.lobby-shell {
+  width: min(1540px, 95vw);
+  margin: auto;
+  padding: 18px 16px;
+}
+.lobby-grid {
+  grid-template-columns: clamp(370px, 28vw, 470px) 1fr;
+  gap: clamp(14px, 1.4vw, 22px);
+  align-items: stretch;
+}
+.lobby-teams, .lobby-chars {
+  display: flex;
+  flex-direction: column;
+  background: rgba(7, 22, 39, 0.8);
+  backdrop-filter: blur(12px);
+}
+.lobby-controls {
+  margin-top: auto;
+  padding-top: 10px;
+}
+.lobby-chars .rules-section {
+  margin-top: auto;
+}
+.lobby-header {
+  background: rgba(7, 22, 39, 0.82);
+  backdrop-filter: blur(12px);
+}
+
+.modal.draft-modal {
+  width: min(1420px, 95vw);
+}
+.vs-modal {
+  width: min(1160px, 95vw);
+}
+
+@media (min-width: 1500px) {
+  .home-shell { width: min(880px, 94vw); }
+  .home-card { max-width: 540px; padding: 26px; }
+  .char-card { padding: 14px; }
+  .char-title { font-size: 16px; }
+  .char-passive { font-size: 13px; }
+  .slot-card { padding: 10px 12px; }
+  .slot-name { font-size: 15px; }
+  .skin-chip { padding: 8px 10px; font-size: 13px; }
+  .rule-chip { font-size: 12px; padding: 5px 10px; }
+}
+@media (max-width: 900px) {
+  .lobby-grid { grid-template-columns: 1fr; }
+  #screen-lobby.active { justify-content: flex-start; }
+}

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — Online Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=4.51" />
+  <link rel="stylesheet" href="./styles.css?v=4.52" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
   <!-- LOBİ & 6 ÇAR SEÇİMİ -->
   <section id="screen-lobby" class="screen">
     <div class="ocean-bg"></div>
+    <canvas id="lobby-canvas" class="home-canvas"></canvas>
     <div class="lobby-shell">
       <header class="lobby-header">
         <div>
@@ -76,6 +77,7 @@
         <div class="lobby-header-right">
           <button id="btn-guide-lobby" class="btn-mini">📖 Rehber</button>
           <span id="net-status" class="net-pill">Bağlanıyor...</span>
+          <button id="btn-lobby-fs" class="btn-mini" title="Tam Ekran">⛶</button>
           <button id="btn-leave-lobby" class="btn-mini danger">Odadan Çık</button>
         </div>
       </header>
@@ -281,7 +283,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.51</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.52</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -520,7 +522,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=4.51"></script>
+  <script type="module" src="./js/main.js?v=4.52"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

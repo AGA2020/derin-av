@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.51';
-import { sfx } from './audio.js?v=4.51';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.51';
-import { GameSim } from './sim.js?v=4.51';
-import { SeaRenderer } from './render.js?v=4.51';
+} from './data.js?v=4.52';
+import { sfx } from './audio.js?v=4.52';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.52';
+import { GameSim } from './sim.js?v=4.52';
+import { SeaRenderer } from './render.js?v=4.52';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1653,6 +1653,8 @@ function renderLoop(now) {
   // Render canvas & HUD when tab is visible
   if (app.renderer && $('screen-home').classList.contains('active')) {
     app.renderer.renderHomeBg($('home-canvas'), dt);
+  } else if (app.renderer && $('screen-lobby').classList.contains('active')) {
+    app.renderer.renderHomeBg($('lobby-canvas'), dt);
   } else if (app.renderer && app.liveState && $('screen-game').classList.contains('active')) {
     if (app.sim) {
       updateHudFromState(app.liveState);
@@ -2001,6 +2003,7 @@ function init() {
   };
   if ($('btn-fullscreen')) $('btn-fullscreen').onclick = toggleFullscreen;
   if ($('btn-home-fs')) $('btn-home-fs').onclick = toggleFullscreen;
+  if ($('btn-lobby-fs')) $('btn-lobby-fs').onclick = toggleFullscreen;
 
   // Lobide 1-tıkla Hızlı Mod Seçici (2v2 / 1v1 / Herkes Tek / Altın Taç)
   document.querySelectorAll('[data-qmode]').forEach(btn => {
