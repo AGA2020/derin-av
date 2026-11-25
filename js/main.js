@@ -12,11 +12,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=3.3';
-import { sfx } from './audio.js?v=3.3';
-import { NetClient, generateRoomCode } from './net.js?v=3.3';
-import { GameSim } from './sim.js?v=3.3';
-import { SeaRenderer } from './render.js?v=3.3';
+} from './data.js?v=3.4';
+import { sfx } from './audio.js?v=3.4';
+import { NetClient, generateRoomCode } from './net.js?v=3.4';
+import { GameSim } from './sim.js?v=3.4';
+import { SeaRenderer } from './render.js?v=3.4';
 
 const $ = (id) => document.getElementById(id);
 
@@ -65,6 +65,7 @@ const app = {
   pred: null, // { x, y, vx, vy, round }
   lastSentMoveKey: '',
   draftPicks: [],
+  draftFilter: 'all',
   draftRoundSeen: -1,
   lastBroadcast: 0,
   lastInputSend: 0,
@@ -528,6 +529,10 @@ function renderLobby() {
   $('team-a-role').textContent = isFfa ? '💀 Herkes Tek' : '1. Tur: Avcılar 🎯';
   $('team-b-title').textContent = isFfa ? 'OYUNCULAR (3-4)' : 'TAKIM B (TURKUAZ)';
   $('team-b-role').textContent = isFfa ? '💀 Son Kalan Kazanır' : '1. Tur: Avlar 🌊';
+  document.querySelectorAll('[data-qmode]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.qmode === mode);
+    btn.disabled = !isHostLike;
+  });
   renderLobbyRulesSummary(st);
 
   const renderSlot = (s) => {
@@ -645,7 +650,38 @@ function renderDraftUI() {
   const locked = mySlot.readyItems && mySlot.items.length === 2;
   const picks = locked ? mySlot.items : app.draftPicks;
 
-  $('draft-grid').innerHTML = pool.map(it => {
+  // Live 2-Slot Loadout Preview bar!
+  const renderSlotChip = (slotNum) => {
+    const id = picks[slotNum];
+    if (!id) return `<div class="preview-slot empty">SLOT ${slotNum + 1}: Boş</div>`;
+    const def = ALL_ITEMS[id];
+    return `
+      <div class="preview-slot filled ${def.firearm ? 'firearm' : ''}">
+        <span><b>${slotNum + 1}.</b> ${def.icon} ${def.name}</span>
+        ${!locked ? `<button class="preview-x" data-rm-slot="${slotNum}" title="Kaldır">✕</button>` : ''}
+      </div>
+    `;
+  };
+  $('draft-loadout-preview').innerHTML = renderSlotChip(0) + renderSlotChip(1);
+  document.querySelectorAll('[data-rm-slot]').forEach(btn => {
+    btn.onclick = () => {
+      app.draftPicks.splice(Number(btn.dataset.rmSlot), 1);
+      sfx.play('ui');
+      renderDraftUI();
+    };
+  });
+
+  // Apply category filter
+  document.querySelectorAll('[data-dfilter]').forEach(b => {
+    b.classList.toggle('active', b.dataset.dfilter === app.draftFilter);
+  });
+  const visiblePool = pool.filter(it => {
+    if (app.draftFilter === 'firearm') return it.firearm;
+    if (app.draftFilter === 'util') return !it.firearm;
+    return true;
+  });
+
+  $('draft-grid').innerHTML = visiblePool.map(it => {
     const idx = picks.indexOf(it.id);
     const isPicked = idx >= 0;
     return `
@@ -759,6 +795,21 @@ function updateHudFromState(st) {
       $('hud-hp-text').textContent = `${ch.icon} ${ch.name} · 🌊 Batma Direnci: ${me.hp}/${me.maxHp}${shTxt}`;
     });
 
+    // Active Buff / Debuff Status Pills!
+    const effList = [];
+    if (me.alive) {
+      if (me.submerged) effList.push({ cls: 'dive', txt: me.diveTime >= 1.0 ? '🦈 SÜRPRİZ HAZIR' : '🤿 SU ALTINDA' });
+      if (me.shield > 0) effList.push({ cls: 'shield', txt: `🛡️ KALKAN ${me.shield}` });
+      if (me.speedBoostSec > 0) effList.push({ cls: 'buff', txt: `⚡ HIZ ${me.speedBoostSec.toFixed(1)}s` });
+      if (me.slowSec > 0) effList.push({ cls: 'debuff', txt: `🕸️ YAVAŞ ${me.slowSec.toFixed(1)}s` });
+      if (me.rootSec > 0) effList.push({ cls: 'debuff', txt: `⚓ ÇAPA ${me.rootSec.toFixed(1)}s` });
+      if (me.stunSec > 0) effList.push({ cls: 'debuff', txt: `⚡ SERSEM ${me.stunSec.toFixed(1)}s` });
+    }
+    const effKey = effList.map(e => e.txt).join('|');
+    setIfChanged('effects', effKey, () => {
+      $('hud-effects').innerHTML = effList.map(e => `<span class="eff-pill ${e.cls}">${e.txt}</span>`).join('');
+    });
+
     for (let i = 0; i < 2; i++) {
       const it = me.items[i];
       if (!it) continue;
@@ -768,8 +819,10 @@ function updateHudFromState(st) {
         const def = ALL_ITEMS[it.id];
         const depleted = it.usesLeft <= 0;
         const onCd = it.cd > 0 && !depleted;
+        const cdPct = onCd ? Math.min(100, Math.round((it.cd / (it.maxCd || 1)) * 100)) : 0;
         slotEl.className = `hud-item-slot ${depleted ? 'depleted' : ''} ${it.firearm ? 'firearm' : ''} ${onCd ? 'cooldown' : ''}`;
         slotEl.innerHTML = `
+          ${onCd ? `<div class="cd-sweep" style="height:${cdPct}%"></div>` : ''}
           <div class="slot-key">${i === 0 ? '1 / SOL' : '2 / SAĞ'}</div>
           <div class="slot-ico">${def.icon}</div>
           <div class="slot-meta">
@@ -780,7 +833,7 @@ function updateHudFromState(st) {
                 : onCd
                   ? `<span>${it.cd.toFixed(1)}s</span>`
                   : it.longCd
-                    ? '<span class="txt-firearm">🔥 HAZIR (30s CD)</span>'
+                    ? '<span class="txt-firearm">🔥 HAZIR</span>'
                     : it.firearm
                       ? `<span class="txt-firearm">${it.usesLeft}/1 TEK ATIM</span>`
                       : `<span>${it.usesLeft}/${it.maxUses} HAZIR</span>`}
@@ -794,9 +847,11 @@ function updateHudFromState(st) {
     setIfChanged('space', spKey, () => {
       const spEl = $('hud-slot-space');
       const spReady = me.spaceCd <= 0;
+      const spPct = spReady ? 0 : Math.min(100, Math.round((me.spaceCd / (me.spaceMaxCd || 2.3)) * 100));
       const isRam = me.role === 'hunter' || me.role === 'ffa';
       spEl.className = `hud-item-slot space ${spReady ? '' : 'cooldown'}`;
       spEl.innerHTML = `
+        ${!spReady ? `<div class="cd-sweep" style="height:${spPct}%"></div>` : ''}
         <div class="slot-key">SPACE</div>
         <div class="slot-ico">${isRam ? '🌊' : '💨'}</div>
         <div class="slot-meta">
@@ -811,9 +866,11 @@ function updateHudFromState(st) {
       const dEl = $('hud-slot-dive');
       if (!dEl) return;
       const ready = !me.submerged && (me.diveCd || 0) <= 0 && me.breath >= 15;
+      const dPct = (!me.submerged && (me.diveCd || 0) > 0) ? Math.min(100, Math.round((me.diveCd / 3.5) * 100)) : 0;
       dEl.className = `hud-item-slot dive ${me.submerged ? 'active-dive' : (ready ? '' : 'cooldown')}`;
       dEl.innerHTML = `
-        <div class="slot-key">SHIFT / E</div>
+        ${dPct > 0 ? `<div class="cd-sweep" style="height:${dPct}%"></div>` : ''}
+        <div class="slot-key">SHIFT/E</div>
         <div class="slot-ico">${me.submerged ? (me.diveTime >= 1.0 ? '🦈' : '🤿') : '🤿'}</div>
         <div class="slot-meta">
           <div class="slot-title">${me.submerged ? 'Yüzeye Çık' : 'Su Altı Dal'}</div>
@@ -1268,6 +1325,39 @@ function init() {
     sfx.setMuted(next);
     $('btn-mute').textContent = next ? '🔇' : '🔊';
   };
+
+  // ⛶ Tam Ekran Butonu
+  const fsBtn = $('btn-fullscreen');
+  if (fsBtn) {
+    fsBtn.onclick = () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+      }
+      sfx.play('ui');
+    };
+  }
+
+  // Lobide 1-tıkla Hızlı Mod Seçici (2v2 / 1v1 / Herkes Tek)
+  document.querySelectorAll('[data-qmode]').forEach(btn => {
+    btn.onclick = () => {
+      if (!app.sim) return;
+      app.sim.updateSettings({ mode: btn.dataset.qmode });
+      broadcastLobby();
+      renderLobby();
+      sfx.play('ui');
+    };
+  });
+
+  // Draft kategori filtreleri
+  document.querySelectorAll('[data-dfilter]').forEach(btn => {
+    btn.onclick = () => {
+      app.draftFilter = btn.dataset.dfilter;
+      sfx.play('ui');
+      renderDraftUI();
+    };
+  });
 
   // 📖 Oyun İçi Rehber Modalı (Ana menü, lobi ve oyun içinden açılır)
   const openGuide = () => {

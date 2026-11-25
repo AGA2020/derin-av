@@ -1,8 +1,17 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v3.3';
+export const GAME_VERSION = 'v3.4';
 export const CHANGELOG = [
+  {
+    ver: 'v3.4',
+    notes: [
+      '✨ Arayüz yenilemesi: Alt HUD sıkılaştırıldı, slotlara kayan görsel bekleme (CD) dolumu ve canlı etki rozetleri (Hız, Kalkan, Yavaş, Su Altı) eklendi.',
+      '⛶ Sağ üste tek tıkla Tam Ekran butonu eklendi.',
+      '🎒 Draft ekranına Tümü / Ateşli / Yardımcı filtresi ve canlı [SLOT 1] + [SLOT 2] önizleme çubuğu eklendi.',
+      '⚔️ Lobi üstüne tek tıkla 2v2 / 1v1 / Herkes Tek hızlı mod seçici eklendi.'
+    ]
+  },
   {
     ver: 'v3.3',
     notes: [

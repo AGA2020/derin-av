@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>DERİN AV — 1v1 · 2v2 · Herkes Tek Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=3.3" />
+  <link rel="stylesheet" href="./styles.css?v=3.4" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -76,6 +76,12 @@
 
       <div class="lobby-grid">
         <div class="lobby-teams">
+          <div id="lobby-quick-mode" class="quick-mode-bar">
+            <button class="qmode-btn" data-qmode="2v2">👥 2v2 Takım</button>
+            <button class="qmode-btn" data-qmode="1v1">⚔️ 1v1 Düello</button>
+            <button class="qmode-btn" data-qmode="ffa">💀 Herkes Tek</button>
+          </div>
+
           <div class="team-panel team-a">
             <div class="team-head">
               <h3 id="team-a-title">TAKIM A (ALTIN)</h3>
@@ -136,6 +142,7 @@
       <div class="hud-team-col right">
         <div class="score-row-right">
           <div id="hud-score-badge-b" class="score-badge b"><b id="hud-score-b">0</b> TAKIM B</div>
+          <button id="btn-fullscreen" class="btn-icon" title="Tam Ekran">⛶</button>
           <button id="btn-guide-game" class="btn-icon" title="Nasıl Oynanır? (Rehber)">❓</button>
           <button id="btn-mute" class="btn-icon" title="Sesi Aç/Kapat">🔊</button>
         </div>
@@ -146,23 +153,25 @@
     <!-- OLAY AKIŞI -->
     <div id="hud-feed" class="hud-feed"></div>
 
-    <!-- ALT HUD (NEFES + BATMA DİRENCİ + 2 İTEM + SPACE) -->
+    <!-- ALT HUD (KOMPAKT TAKTİKSEL BAR + CANLI ETKİ ROZETLERİ) -->
     <div class="hud-bottom">
-      <div class="hp-wrap">
-        <div class="bars-head">
-          <div id="hud-hp-text" class="hp-text">Batma Direnci: 120/120</div>
-          <div id="hud-breath-text" class="breath-text">🫁 Nefes: 70/70</div>
+      <div id="hud-effects" class="hud-effects"></div>
+      <div class="hud-dock">
+        <div class="hp-wrap">
+          <div class="bars-head">
+            <div id="hud-hp-text" class="hp-text">Batma Direnci: 120/120</div>
+            <div id="hud-breath-text" class="breath-text">🫁 Nefes: 70/70</div>
+          </div>
+          <div class="hp-bar breath-bar"><div id="hud-breath-fill" class="breath-fill" style="width:100%"></div></div>
+          <div class="hp-bar"><div id="hud-hp-fill" class="hp-fill" style="width:100%"></div></div>
         </div>
-        <div class="hp-bar breath-bar"><div id="hud-breath-fill" class="breath-fill" style="width:100%"></div></div>
-        <div class="hp-bar"><div id="hud-hp-fill" class="hp-fill" style="width:100%"></div></div>
+        <div class="slots-bar">
+          <button id="hud-slot-0" class="hud-item-slot"></button>
+          <button id="hud-slot-1" class="hud-item-slot"></button>
+          <button id="hud-slot-space" class="hud-item-slot space"></button>
+          <button id="hud-slot-dive" class="hud-item-slot dive"></button>
+        </div>
       </div>
-      <div class="slots-bar">
-        <button id="hud-slot-0" class="hud-item-slot"></button>
-        <button id="hud-slot-1" class="hud-item-slot"></button>
-        <button id="hud-slot-space" class="hud-item-slot space"></button>
-        <button id="hud-slot-dive" class="hud-item-slot dive"></button>
-      </div>
-      <div class="controls-hint">WASD: Hareket · Sol/Sağ Tık: İtem 1-2 · SPACE: Hamle/Kaçış · SHIFT / E: Su Altına Dal (Sürpriz Çıkış!)</div>
     </div>
 
     <!-- 2 İTEM SEÇİM OVERLAY -->
@@ -176,6 +185,14 @@
           <div id="draft-timer" class="draft-timer">22s</div>
         </div>
         <div id="draft-role-banner" class="role-banner hunter"></div>
+        <div class="draft-toolbar">
+          <div class="draft-filters">
+            <button class="dfilter-btn active" data-dfilter="all">Tümü</button>
+            <button class="dfilter-btn" data-dfilter="firearm">🔥 Ateşli Silahlar</button>
+            <button class="dfilter-btn" data-dfilter="util">🎒 Yardımcı &amp; Tuzak</button>
+          </div>
+          <div id="draft-loadout-preview" class="draft-loadout-preview"></div>
+        </div>
         <div id="draft-grid" class="draft-grid"></div>
         <div class="draft-footer">
           <div id="draft-ready-list" class="ready-list"></div>
@@ -215,7 +232,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.3</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v3.4</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -408,7 +425,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=3.3"></script>
+  <script type="module" src="./js/main.js?v=3.4"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

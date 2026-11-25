@@ -15,7 +15,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=3.3';
+} from './data.js?v=3.4';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -2172,17 +2172,23 @@ export class GameSim {
           maxUses: it.maxUses,
           firearm: it.firearm,
           longCd: Boolean(it.longCd),
-          cd: Number(it.cd.toFixed(1))
+          cd: Number(it.cd.toFixed(1)),
+          maxCd: it.longCd ? 30 : (ALL_ITEMS[it.id]?.cooldown || 1)
         })),
         spaceCd: Number(p.spaceCd.toFixed(1)),
+        spaceMaxCd: (p.role === 'hunter' || p.role === 'ffa') ? 2.3 : 4.4,
         submerged: p.submerged,
         diveTime: Number(p.diveTime.toFixed(1)),
         diveCd: Number(p.diveCd.toFixed(1)),
         ramActive: p.ramActive > 0,
         speedBoost: p.speedBoost > 0,
+        speedBoostSec: Number(p.speedBoost.toFixed(1)),
         slowTimer: p.slowTimer > 0,
+        slowSec: Number(p.slowTimer.toFixed(1)),
         rootTimer: p.rootTimer > 0,
+        rootSec: Number(p.rootTimer.toFixed(1)),
         stunTimer: p.stunTimer > 0,
+        stunSec: Number(p.stunTimer.toFixed(1)),
         blindTimer: Number(p.blindTimer.toFixed(2)),
         revealTimer: p.revealTimer > 0,
         inFog: p.inFog,
