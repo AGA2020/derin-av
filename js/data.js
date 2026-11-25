@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.6';
+export const GAME_VERSION = 'v4.61';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.61',
+    notes: [
+      '⏱️ TUR SÜRESİ SEÇENEKLERİ ARTIRILDI: Maç Ayarlarına 5 süre seçeneği eklendi — 45 sn (Blitz) · 60 sn · 85 sn · 120 sn (2 dk) · 180 sn (3 dk)!',
+      '🌊 SPACE (SUYA BASTIR) GÜÇLENDİRİLDİ: Yakın temas darbesi 26 → 42 Hasar (hız takviyesiyle 34 → 52 Hasar) oldu — silah bittiğinde yakın dövüş artık çok daha etkili!'
+    ]
+  },
   {
     ver: 'v4.6',
     notes: [

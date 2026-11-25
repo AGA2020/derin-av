@@ -21,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=4.6';
+} from './data.js?v=4.61';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -325,7 +325,7 @@ export class GameSim {
       this.settings.totalRounds = Number(patch.totalRounds);
       this.totalRounds = this.settings.totalRounds;
     }
-    if ([60, 85, 110].includes(Number(patch.roundDuration))) {
+    if ([45, 60, 85, 120, 180].includes(Number(patch.roundDuration))) {
       this.settings.roundDuration = Number(patch.roundDuration);
     }
     if ([0.75, 1, 1.4].includes(Number(patch.hpMult))) {
@@ -1599,8 +1599,8 @@ export class GameSim {
 
     this.phaseTimer -= dt;
 
-    // 🌪️ Son 25 saniyede Dev Fırtına Çemberi daralır! (ayar açıksa)
-    const stormWindow = Math.min(25, Math.round((this.settings.roundDuration || ROUND_DURATION) * 0.35));
+    // 🌪️ Son bölümde Dev Fırtına Çemberi daralır! (süreye göre dengeli: 14sn–40sn arası)
+    const stormWindow = Math.min(40, Math.round((this.settings.roundDuration || ROUND_DURATION) * 0.30));
     if (this.settings.storm && this.phaseTimer <= stormWindow) {
       if (!this.storm.announced) {
         this.storm.announced = true;
@@ -2090,7 +2090,7 @@ export class GameSim {
       if ((p.role === 'hunter' || p.role === 'ffa') && p.ramActive > 0) {
         if (this.kraken && !p.ramHitIds.has('kraken') && dist(p.x, p.y, this.kraken.x, this.kraken.y) <= p.r + this.kraken.r + 16) {
           p.ramHitIds.add('kraken');
-          this._damageKraken(36, p.id);
+          this._damageKraken(46, p.id);
         }
         // 🪵 SPACE darbesiyle kırılabilir barikatları parçala!
         for (let bi = this.breakables.length - 1; bi >= 0; bi--) {
@@ -2098,7 +2098,7 @@ export class GameSim {
           const bKey = `br_${br.id}`;
           if (!p.ramHitIds.has(bKey) && dist(p.x, p.y, br.x, br.y) <= p.r + br.r + 14) {
             p.ramHitIds.add(bKey);
-            this._damageBreakable(br, 38);
+            this._damageBreakable(br, 42);
           }
         }
         for (const other of this.players) {
@@ -2106,8 +2106,8 @@ export class GameSim {
           if (dist(p.x, p.y, other.x, other.y) <= p.r + other.r + 14) {
             p.ramHitIds.add(other.id);
             const pushA = angleBetween(p.x, p.y, other.x, other.y);
-            const dmg = p.speedBoost > 0 ? 34 : 26;
-            const kb = p.speedBoost > 0 ? 430 : 340;
+            const dmg = p.speedBoost > 0 ? 52 : 42;
+            const kb = p.speedBoost > 0 ? 450 : 360;
             this._applyDamage(other, dmg, p.id, Math.cos(pushA) * kb, Math.sin(pushA) * kb, 'Suya Bastırma');
             other.slowTimer = Math.max(other.slowTimer, 0.8);
             other.slowFactor = Math.min(other.slowFactor, 0.65);
