@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.32';
-import { sfx } from './audio.js?v=4.32';
-import { NetClient, generateRoomCode, fetchCloudTelemetry } from './net.js?v=4.32';
-import { GameSim } from './sim.js?v=4.32';
-import { SeaRenderer } from './render.js?v=4.32';
+} from './data.js?v=4.33';
+import { sfx } from './audio.js?v=4.33';
+import { NetClient, generateRoomCode, fetchCloudTelemetry } from './net.js?v=4.33';
+import { GameSim } from './sim.js?v=4.33';
+import { SeaRenderer } from './render.js?v=4.33';
 
 const $ = (id) => document.getElementById(id);
 
@@ -87,7 +87,8 @@ const app = {
 // ============================================================
 
 const CAREER_KEY = 'derinav_career_v1';
-const TELEM_KEY = 'derinav_telemetry_v1';
+const TELEM_KEY = 'derinav_telemetry_pvp_v2'; // ☁️ Sadece online PvP (≥2 gerçek oyuncu) — buluta gider
+const TELEM_SOLO_KEY = 'derinav_telemetry_solo_v2'; // 🤖 Solo/bot testleri — sadece bu tarayıcıda kalır
 const HOST_UID_KEY = 'derinav_uid_v1';
 const TELEM_PREFIX = 'derinav2v2/telemetry/aga2020/v4';
 
@@ -159,9 +160,9 @@ function recordCareerMatch(st, awards) {
   try { localStorage.setItem(CAREER_KEY, JSON.stringify(c)); } catch (_) {}
 }
 
-function loadTelemetry() {
+function loadTelemetry(key = TELEM_KEY) {
   try {
-    const raw = JSON.parse(localStorage.getItem(TELEM_KEY) || 'null');
+    const raw = JSON.parse(localStorage.getItem(key) || 'null');
     if (raw && raw.items) return raw;
   } catch (_) {}
   return { version: GAME_VERSION, updatedAt: '', rounds: 0, roles: { hunterWins: 0, preyWins: 0, ffaRounds: 0 }, items: {}, chars: {}, maps: {}, skills: {} };
@@ -169,7 +170,10 @@ function loadTelemetry() {
 
 function recordRoundTelemetry(ev) {
   if (!ev || !ev.humans || ev.humans.length === 0) return;
-  const t = loadTelemetry();
+  // Gerçek PvP = online oda + en az 2 gerçek oyuncu. Diğer her şey solo test sayılır ve buluta GİTMEZ.
+  const isPvp = app.mode === 'host' && ev.humans.length >= 2;
+  const key = isPvp ? TELEM_KEY : TELEM_SOLO_KEY;
+  const t = loadTelemetry(key);
   t.version = GAME_VERSION;
   t.updatedAt = new Date().toISOString();
   t.rounds += 1;
@@ -192,9 +196,9 @@ function recordRoundTelemetry(ev) {
       t.skills[skId] = (t.skills[skId] || 0) + 1;
     }
   }
-  try { localStorage.setItem(TELEM_KEY, JSON.stringify(t)); } catch (_) {}
-  // Cloud retained MQTT sync (host başına ayrı kanal, kimse başkasının verisini ezmez!)
-  app.net?.publishRetained(`${TELEM_PREFIX}/${getHostUid()}`, t);
+  try { localStorage.setItem(key, JSON.stringify(t)); } catch (_) {}
+  // Cloud retained MQTT sync — SADECE gerçek PvP (host başına ayrı kanal, kimse başkasının verisini ezmez!)
+  if (isPvp) app.net?.publishRetained(`${TELEM_PREFIX}/${getHostUid()}`, t);
 }
 
 function openCareerModal() {
@@ -259,25 +263,61 @@ function renderTelemetryBody(t, cloudStatus) {
 }
 
 let lastDisplayedTelem = null;
+let telemTab = 'pvp'; // 'pvp' | 'solo'
+let cloudTelemCache = null; // { merged, hosts } | { error: true }
+
+function renderTelemetryTabs() {
+  const pvpLabel = cloudTelemCache === null
+    ? '☁️ Online PvP (yükleniyor...)'
+    : cloudTelemCache.error
+      ? '☁️ Online PvP (bulut okunamadı)'
+      : `☁️ Online PvP (${cloudTelemCache.merged.rounds} tur · ${cloudTelemCache.hosts} host)`;
+  const solo = loadTelemetry(TELEM_SOLO_KEY);
+  return `
+    <div class="telem-tabs">
+      <button class="telem-tab ${telemTab === 'pvp' ? 'active' : ''}" data-telem-tab="pvp">${pvpLabel}</button>
+      <button class="telem-tab ${telemTab === 'solo' ? 'active' : ''}" data-telem-tab="solo">🤖 Solo Testler (${solo.rounds} tur · sadece bu tarayıcı)</button>
+    </div>
+  `;
+}
+
+function refreshTelemetryView() {
+  if (!$('overlay-admin').classList.contains('active')) return;
+  let data;
+  let source;
+  if (telemTab === 'solo') {
+    data = loadTelemetry(TELEM_SOLO_KEY);
+    source = '🤖 Solo / Bot Testleri (buluta gönderilmez)';
+  } else if (cloudTelemCache && !cloudTelemCache.error && cloudTelemCache.merged.rounds > 0) {
+    data = cloudTelemCache.merged;
+    source = `☁️ Bulut — ${cloudTelemCache.hosts} host birleşik`;
+  } else {
+    // Bulut boş/okunamadı: bu tarayıcının kendi PvP kaydını göster
+    data = loadTelemetry(TELEM_KEY);
+    source = cloudTelemCache === null
+      ? '⏳ Bulut okunuyor...'
+      : cloudTelemCache.error
+        ? '⚠️ Bulut okunamadı — bu tarayıcının PvP kaydı'
+        : 'ℹ️ Henüz online PvP turu yok (en az 2 gerçek oyuncu gerekir)';
+  }
+  lastDisplayedTelem = data;
+  renderTelemetryBody(data, source);
+  $('admin-telem-body').insertAdjacentHTML('afterbegin', renderTelemetryTabs());
+  document.querySelectorAll('[data-telem-tab]').forEach(btn => {
+    btn.onclick = () => { telemTab = btn.dataset.telemTab; refreshTelemetryView(); };
+  });
+}
 
 function openTelemetryAdmin() {
-  const local = loadTelemetry();
-  lastDisplayedTelem = local;
-  renderTelemetryBody(local, 'Yerel (Bulut yükleniyor...)');
+  cloudTelemCache = null;
   $('overlay-admin').classList.add('active');
-
-  fetchCloudTelemetry(TELEM_PREFIX, 1600).then((cloudList) => {
-    if (!$('overlay-admin').classList.contains('active')) return;
-    if (cloudList.length > 0) {
-      const merged = mergeTelemetryList(cloudList);
-      // Eğer yerel tur sayısı buluttan büyükse (ör. çevrimdışı oynandıysa) local'i göster
-      if (merged.rounds >= local.rounds) {
-        lastDisplayedTelem = merged;
-        renderTelemetryBody(merged, `☁️ Bulut (${cloudList.length} host)`);
-        return;
-      }
-    }
-    renderTelemetryBody(local, '💻 Yerel Tarayıcı');
+  refreshTelemetryView();
+  fetchCloudTelemetry(TELEM_PREFIX, 3200).then((cloudList) => {
+    cloudTelemCache = { merged: mergeTelemetryList(cloudList), hosts: cloudList.length };
+    refreshTelemetryView();
+  }).catch(() => {
+    cloudTelemCache = { error: true };
+    refreshTelemetryView();
   });
 }
 
@@ -1752,9 +1792,14 @@ function init() {
     catch (_) { prompt('Telemetri JSON:', json); }
   };
   $('btn-reset-telem').onclick = () => {
-    localStorage.removeItem(TELEM_KEY);
-    openTelemetryAdmin();
-    showToast('Yerel telemetri sıfırlandı');
+    if (telemTab === 'solo') {
+      localStorage.removeItem(TELEM_SOLO_KEY);
+      showToast('Solo test kayıtları sıfırlandı');
+    } else {
+      localStorage.removeItem(TELEM_KEY);
+      showToast('Bu tarayıcının PvP kaydı sıfırlandı (bulut verisi korunur)');
+    }
+    refreshTelemetryView();
   };
 
   $('btn-copy-link').onclick = async () => {

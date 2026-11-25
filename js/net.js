@@ -156,47 +156,59 @@ export class NetClient {
   }
 }
 
-export function fetchCloudTelemetry(topicPrefix, timeoutMs = 1500) {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined' || typeof window.mqtt === 'undefined') {
-      resolve([]);
-      return;
-    }
+// Retained telemetri kanalını okur. Telemetri her zaman BROKERS[0]'a yazılır (host o sunucudaysa);
+// yine de iki sunucuyu da deneyip bulunan tüm host kayıtlarını birleştirir.
+// Hiçbir sunucuya bağlanılamazsa reject eder (panel "bulut okunamadı" der).
+export function fetchCloudTelemetry(topicPrefix, timeoutMs = 3000) {
+  const readOne = (url) => new Promise((resolve) => {
     const collected = new Map();
+    let connected = false;
     let done = false;
     let cli = null;
     const finish = () => {
       if (done) return;
       done = true;
       try { cli?.end(true); } catch (_) {}
-      resolve([...collected.values()]);
+      resolve({ connected, list: [...collected.entries()] });
     };
     const timer = setTimeout(finish, timeoutMs);
     try {
-      cli = window.mqtt.connect(BROKERS[0], {
+      cli = window.mqtt.connect(url, {
         clientId: `derinav_adm_${Math.random().toString(36).slice(2, 8)}`,
         clean: true,
-        connectTimeout: 2500,
+        connectTimeout: Math.min(2800, timeoutMs),
         reconnectPeriod: 0
       });
       cli.on('connect', () => {
+        connected = true;
         cli.subscribe(`${topicPrefix}/#`, { qos: 0 });
       });
       cli.on('message', (topic, payload) => {
         try {
           const obj = JSON.parse(payload.toString());
-          if (obj && typeof obj === 'object' && obj.items) {
-            collected.set(topic, obj);
-          }
+          if (obj && typeof obj === 'object' && obj.items) collected.set(topic, obj);
         } catch (_) {}
       });
-      cli.on('error', () => {
-        clearTimeout(timer);
-        finish();
-      });
+      cli.on('error', () => { clearTimeout(timer); finish(); });
     } catch (_) {
       clearTimeout(timer);
       finish();
     }
+  });
+
+  if (typeof window === 'undefined' || typeof window.mqtt === 'undefined') {
+    return Promise.reject(new Error('mqtt yok'));
+  }
+  return Promise.all(BROKERS.map(readOne)).then((results) => {
+    if (!results.some(r => r.connected)) throw new Error('bulut okunamadı');
+    // Aynı host kanalı iki sunucuda varsa daha güncel olanı al
+    const byTopic = new Map();
+    for (const r of results) {
+      for (const [topic, obj] of r.list) {
+        const prev = byTopic.get(topic);
+        if (!prev || (obj.updatedAt || '') > (prev.updatedAt || '')) byTopic.set(topic, obj);
+      }
+    }
+    return [...byTopic.values()];
   });
 }

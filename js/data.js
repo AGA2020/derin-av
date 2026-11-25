@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.32';
+export const GAME_VERSION = 'v4.33';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -65,6 +65,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.33',
+    notes: [
+      '🔒 Denge logu ayrıldı: Online PvP turları (en az 2 gerçek oyuncu) buluta gider; Solo/bot test turları sadece kendi tarayıcında kalır ve denge verisini bozmaz.',
+      '📊 Gizli panelde ☁️ Online PvP / 🤖 Solo Testler sekmeleri; bulut okuma iki sunucuyu da dener.'
+    ]
+  },
   {
     ver: 'v4.32',
     notes: [
