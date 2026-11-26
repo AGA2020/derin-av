@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v8.6';
+export const GAME_VERSION = 'v8.7';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -67,6 +67,12 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v8.7',
+    notes: [
+      '🧹 PERFORMANS: 3D modda uzun maçlarda biriken bellek sızıntısı giderildi — her tur rol değişiminde yeniden oluşturulan çar modelleri, batma animasyonları, mermiler, tuzaklar ve harita yeniden kurulumu artık GPU belleğini düzgün boşaltıyor. Özellikle telefonda uzun oturumlarda yavaşlama/çökme riski ortadan kalktı.'
+    ]
+  },
   {
     ver: 'v8.6',
     notes: [

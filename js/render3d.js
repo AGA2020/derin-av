@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.6';
-import { hasLineOfSight } from './sim.js?v=8.6';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.7';
+import { hasLineOfSight } from './sim.js?v=8.7';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -754,6 +754,7 @@ export class SeaRenderer3D {
     };
     this._sharedGeo.ring.rotateX(-Math.PI / 2);
     this._sharedGeo.plane.rotateX(-Math.PI / 2);
+    for (const g of Object.values(this._sharedGeo)) g.userData.shared = true;
 
     this._initPersistentHelpers();
     this.setQuality(this.quality, true);
@@ -819,9 +820,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=8.6'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=8.6'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=8.6'],
+      ['chest', './vendor/models/pirate/chest.glb?v=8.7'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=8.7'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=8.7'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -833,6 +834,9 @@ export class SeaRenderer3D {
           if (o.isMesh) {
             o.castShadow = true;
             o.receiveShadow = true;
+            // Şablon kaynakları tüm klonlarca paylaşılır — asla dispose edilmez
+            if (o.geometry) o.geometry.userData.shared = true;
+            if (o.material) o.material.userData.shared = true;
             if (o.material) {
               o.material.roughness = Math.min(0.85, (o.material.roughness ?? 0.7));
               o.material.envMapIntensity = 0.85;
@@ -848,7 +852,7 @@ export class SeaRenderer3D {
       // Clear cached dynamic props so they respawn using crisp GLB models immediately!
       for (const mapPool of [this.playerRigs, this.barrelMeshes, this.powerupMeshes, this.breakableMeshes, this.buoyMeshes]) {
         for (const v of mapPool.values()) {
-          this.dynamicGroup.remove(v.root || v);
+          this._removeFrom(this.dynamicGroup, v.root || v);
         }
         mapPool.clear();
       }
@@ -868,6 +872,7 @@ export class SeaRenderer3D {
       clone.traverse((o) => {
         if (o.isMesh && o.material) {
           o.material = o.material.clone();
+          o.material.userData.shared = false;
           // Gently blend skin color into bright sail/hull accents
           o.material.color.lerp(tintCol, 0.35);
         }
@@ -917,6 +922,8 @@ export class SeaRenderer3D {
     group.traverse((o) => {
       if (!o.isMesh || !o.geometry) return;
       const geo = o.geometry.clone();
+      // BufferGeometry.clone userData'yı referansla paylaşır: klonun kendi (paylaşılmayan) userData'sı olsun
+      geo.userData = {};
       geo.computeVertexNormals();
       const pos = geo.attributes.position;
       const norm = geo.attributes.normal;
@@ -1112,8 +1119,29 @@ export class SeaRenderer3D {
   // ============================================================
   _clearGroup(group) {
     while (group.children.length > 0) {
-      group.remove(group.children[0]);
+      this._removeFrom(group, group.children[0]);
     }
+  }
+
+  // ♻️ Sahneden çıkarılan nesnenin GPU belleğini serbest bırak.
+  // Paylaşılan geometri (_sharedGeo), GLB şablonları ve Sprite'ın dahili geometrisi atlanır.
+  // Dokular varsayılan olarak paylaşılan önbellektir; sadece userData.owned işaretli olanlar silinir.
+  _disposeObject(obj) {
+    if (!obj) return;
+    obj.traverse((o) => {
+      if (o.geometry && !o.isSprite && !o.geometry.userData?.shared) o.geometry.dispose();
+      const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+      for (const m of mats) {
+        if (m.map?.userData?.owned) m.map.dispose();
+        if (!m.userData?.shared) m.dispose();
+      }
+    });
+  }
+
+  _removeFrom(group, obj) {
+    if (!obj) return;
+    group.remove(obj);
+    this._disposeObject(obj);
   }
 
   _buildMap(map) {
@@ -1188,6 +1216,7 @@ export class SeaRenderer3D {
     })();
     const addEdge = (bx, bz, len, horiz) => {
       const t = dashTex.clone();
+      t.userData.owned = true; // bu haritaya ait — harita temizlenirken dispose edilir
       t.needsUpdate = true;
       t.repeat.set(Math.round(len / 44), 1);
       const m = new THREE.Mesh(
@@ -1393,6 +1422,7 @@ export class SeaRenderer3D {
     for (const cur of map.currents || []) {
       const horizontal = Math.abs(cur.dirX) >= Math.abs(cur.dirY);
       const tex = this.currentTex.clone();
+      tex.userData.owned = true; // bu haritaya ait — harita temizlenirken dispose edilir
       tex.needsUpdate = true;
       tex.wrapS = THREE.RepeatWrapping;
       tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -1617,6 +1647,7 @@ export class SeaRenderer3D {
       ctx.fill();
       const t = new THREE.CanvasTexture(c);
       t.needsUpdate = true;
+      t.userData.owned = true; // bu haritaya ait — harita temizlenirken dispose edilir
       return t;
     })();
     const levMesh = new THREE.Mesh(
@@ -1892,7 +1923,7 @@ export class SeaRenderer3D {
       const it = items[s.idx];
       const wantId = it ? it.id : null;
       if (rig[s.key]?.id !== wantId) {
-        while (s.hand.children.length > 0) s.hand.remove(s.hand.children[0]);
+        while (s.hand.children.length > 0) this._removeFrom(s.hand, s.hand.children[0]);
         if (wantId) {
           const mesh = this._createHandheldItem3D(wantId);
           s.hand.add(mesh);
@@ -2800,7 +2831,7 @@ export class SeaRenderer3D {
       const sr = this.sinkingRigs[i];
       sr.life -= dt;
       if (sr.life <= 0) {
-        this.fxGroup.remove(sr.rig.root);
+        this._removeFrom(this.fxGroup, sr.rig.root);
         this.sinkingRigs.splice(i, 1);
         continue;
       }
@@ -3177,7 +3208,7 @@ export class SeaRenderer3D {
 
       let rig = this.playerRigs.get(p.id);
       if (!rig || rig.charId !== p.charId || rig.hullHex !== hullHex || rig.roleHex !== roleHex || rig.modelsReady !== this.modelsReady) {
-        if (rig) this.dynamicGroup.remove(rig.root);
+        if (rig) this._removeFrom(this.dynamicGroup, rig.root);
         rig = this._createCharRig(p.charId, hullHex, roleHex, Boolean(skin.hull));
         this.dynamicGroup.add(rig.root);
         this.playerRigs.set(p.id, rig);
@@ -3510,7 +3541,7 @@ export class SeaRenderer3D {
     }
     for (const [id, rig] of this.decoyRigs.entries()) {
       if (!seen.has(id)) {
-        this.dynamicGroup.remove(rig.root);
+        this._removeFrom(this.dynamicGroup, rig.root);
         this.decoyRigs.delete(id);
       }
     }
@@ -3590,7 +3621,7 @@ export class SeaRenderer3D {
     }
     for (const [id, m] of this.projMeshes.entries()) {
       if (!seen.has(id)) {
-        this.dynamicGroup.remove(m);
+        this._removeFrom(this.dynamicGroup, m);
         this.projMeshes.delete(id);
       }
     }
@@ -3630,7 +3661,7 @@ export class SeaRenderer3D {
     }
     for (const [id, m] of this.barrelMeshes.entries()) {
       if (!seen.has(id)) {
-        this.dynamicGroup.remove(m);
+        this._removeFrom(this.dynamicGroup, m);
         this.barrelMeshes.delete(id);
       }
     }
@@ -3680,7 +3711,7 @@ export class SeaRenderer3D {
     }
     for (const [id, m] of this.powerupMeshes.entries()) {
       if (!seen.has(id)) {
-        this.dynamicGroup.remove(m);
+        this._removeFrom(this.dynamicGroup, m);
         this.powerupMeshes.delete(id);
       }
     }
@@ -3731,7 +3762,7 @@ export class SeaRenderer3D {
         // Shattered wooden crate barricade -> scatter bobbing 3D wood planks!
         this._spawnWoodDebris(m.position.x, m.position.z, 4);
         this._spawnBurst(m.position.x, m.position.z, '#d97706', 8, 95, 70);
-        this.dynamicGroup.remove(m);
+        this._removeFrom(this.dynamicGroup, m);
         this.breakableMeshes.delete(id);
       }
     }
@@ -3768,7 +3799,7 @@ export class SeaRenderer3D {
     }
     for (const [id, m] of this.trapMeshes.entries()) {
       if (!seen.has(id)) {
-        this.dynamicGroup.remove(m);
+        this._removeFrom(this.dynamicGroup, m);
         this.trapMeshes.delete(id);
       }
     }
@@ -3832,7 +3863,7 @@ export class SeaRenderer3D {
     }
     for (const [id, m] of this.zoneMeshes.entries()) {
       if (!seen.has(id)) {
-        this.dynamicGroup.remove(m);
+        this._removeFrom(this.dynamicGroup, m);
         this.zoneMeshes.delete(id);
       }
     }
@@ -3872,7 +3903,7 @@ export class SeaRenderer3D {
     }
     for (const [id, m] of this.buoyMeshes.entries()) {
       if (!seen.has(id)) {
-        this.dynamicGroup.remove(m);
+        this._removeFrom(this.dynamicGroup, m);
         this.buoyMeshes.delete(id);
       }
     }
@@ -3915,7 +3946,7 @@ export class SeaRenderer3D {
     }
     for (const [k, m] of this.geyserMeshes.entries()) {
       if (!seen.has(k)) {
-        this.dynamicGroup.remove(m);
+        this._removeFrom(this.dynamicGroup, m);
         this.geyserMeshes.delete(k);
       }
     }
@@ -4110,7 +4141,7 @@ export class SeaRenderer3D {
 
     for (const [id, rig] of this.edgeTentMeshes.entries()) {
       if (!seen.has(id)) {
-        this.dynamicGroup.remove(rig.root);
+        this._removeFrom(this.dynamicGroup, rig.root);
         this.edgeTentMeshes.delete(id);
       }
     }

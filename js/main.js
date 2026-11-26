@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=8.6';
-import { sfx } from './audio.js?v=8.6';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.6';
-import { GameSim } from './sim.js?v=8.6';
-import { SeaRenderer } from './render.js?v=8.6';
+} from './data.js?v=8.7';
+import { sfx } from './audio.js?v=8.7';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.7';
+import { GameSim } from './sim.js?v=8.7';
+import { SeaRenderer } from './render.js?v=8.7';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1878,7 +1878,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=8.6');
+        const mod = await import('./render3d.js?v=8.7');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
         app.renderer3d.setQuality(app.gfxQuality, true);
       } catch (err) {
