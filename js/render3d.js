@@ -6,8 +6,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.35';
-import { hasLineOfSight } from './sim.js?v=5.35';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.36';
+import { hasLineOfSight } from './sim.js?v=5.36';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -543,9 +543,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=5.35'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=5.35'],
-      ['barricade', './vendor/models/pirate/barricade.glb?v=5.35'],
+      ['chest', './vendor/models/pirate/chest.glb?v=5.36'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=5.36'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=5.36'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -845,28 +845,43 @@ export class SeaRenderer3D {
     shadowCatcher.receiveShadow = true;
     this.mapGroup.add(shadowCatcher);
 
-    // Nautical floating perimeter buoys (replaces harsh CAD wireframe border line!)
-    const buoyColMat = new THREE.MeshStandardMaterial({ color: '#f59e0b', roughness: 0.45 });
-    const buoyCapMat = new THREE.MeshBasicMaterial({ color: '#fef08a' });
-    const addBorderBuoy = (bx, bz) => {
-      const bg = new THREE.Group();
-      bg.position.set(bx, 1.5, bz);
-      const b1 = new THREE.Mesh(this._sharedGeo.cyl, buoyColMat);
-      b1.scale.set(3.2, 7, 3.2);
-      b1.position.y = 3;
-      const cap = new THREE.Mesh(this._sharedGeo.sphere, buoyCapMat);
-      cap.scale.setScalar(2.2);
-      cap.position.y = 7.5;
-      bg.add(b1, cap);
-      this.mapGroup.add(bg);
+    // Clean nautical dashed sea boundary + 4 corner sea buoys (NO stray floating yellow pills!)
+    const dashTex = (() => {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 8;
+      const g = c.getContext('2d');
+      g.fillStyle = 'rgba(255, 209, 102, 0.55)';
+      g.fillRect(4, 1, 30, 6);
+      const t = new THREE.CanvasTexture(c);
+      t.wrapS = THREE.RepeatWrapping;
+      t.wrapT = THREE.ClampToEdgeWrapping;
+      return t;
+    })();
+    const addEdge = (bx, bz, len, horiz) => {
+      const t = dashTex.clone();
+      t.needsUpdate = true;
+      t.repeat.set(Math.round(len / 44), 1);
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(len, 4.5),
+        new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.42, depthWrite: false })
+      );
+      m.rotation.x = -Math.PI / 2;
+      if (!horiz) m.rotation.z = Math.PI / 2;
+      m.position.set(bx, 3.0, bz);
+      this.mapGroup.add(m);
     };
-    for (let x = 20; x <= WORLD_W - 20; x += 170) {
-      addBorderBuoy(x, 14);
-      addBorderBuoy(x, WORLD_H - 14);
-    }
-    for (let z = 140; z <= WORLD_H - 140; z += 170) {
-      addBorderBuoy(14, z);
-      addBorderBuoy(WORLD_W - 14, z);
+    addEdge(WORLD_W / 2, 10, WORLD_W - 20, true);
+    addEdge(WORLD_W / 2, WORLD_H - 10, WORLD_W - 20, true);
+    addEdge(10, WORLD_H / 2, WORLD_H - 20, false);
+    addEdge(WORLD_W - 10, WORLD_H / 2, WORLD_H - 20, false);
+
+    // 4 real maritime buoys at arena corners
+    for (const [cx, cz] of [[24, 24], [WORLD_W - 24, 24], [24, WORLD_H - 24], [WORLD_W - 24, WORLD_H - 24]]) {
+      const cb = this._cloneGLB('buoy', 32, -2, 0);
+      if (cb) {
+        cb.position.set(cx, 0, cz);
+        this.mapGroup.add(cb);
+      }
     }
 
     // 2. Mercan Plajı Beach + Feathered Lagoon + Real GLB Palm Trees!
@@ -1690,7 +1705,10 @@ export class SeaRenderer3D {
       }
       this.prevHpTotal.set(p.id, curTot);
 
-      if (p.alive && !p.submerged && Math.hypot(p.vx || 0, p.vy || 0) > 42 && Math.random() < dt * 12) {
+      if (p.alive && p.submerged && (this._canViewerSee(me, p, map, state.roundEvent) || p.id === myId) && Math.random() < dt * 11) {
+        // Rising white air bubbles while prowling underwater!
+        this._spawnBurst(sp.x + (Math.random() - 0.5) * 14, sp.y + (Math.random() - 0.5) * 14, '#bae6fd', 1, 14, 28);
+      } else if (p.alive && !p.submerged && Math.hypot(p.vx || 0, p.vy || 0) > 42 && Math.random() < dt * 12) {
         this._spawnVWake(sp.x, sp.y, sp.aim);
       }
     }
@@ -1814,10 +1832,15 @@ export class SeaRenderer3D {
       rig.root.visible = true;
       rig.root.position.set(sp.x, 0, sp.y);
 
-      const targetY = p.submerged ? -16 : (Math.sin(this.time * 3.8 + sp.x * 0.02) * 1.6);
+      // When submerged, keep a recognizable shadowy silhouette skimming just under the waves (NEVER vanish under opaque water!)
+      const targetY = p.submerged ? -5.5 : (Math.sin(this.time * 3.8 + sp.x * 0.02) * 1.6);
       rig.diveY += (targetY - rig.diveY) * 0.22;
       rig.body.position.y = rig.diveY;
+      const targetSy = p.submerged ? 0.45 : 1.0;
+      rig.body.scale.y += (targetSy - rig.body.scale.y) * 0.2;
       rig.body.rotation.y = -sp.aim;
+      rig.ring.material.opacity = p.submerged ? 0.92 : 0.78;
+      rig.ring.material.color.set(p.submerged ? '#38bdf8' : rig.roleHex);
 
       const spd = Math.hypot(p.vx || 0, p.vy || 0);
       rig.body.rotation.x = Math.sin(this.time * 4.5 + sp.y * 0.02) * 0.05;
@@ -1842,6 +1865,9 @@ export class SeaRenderer3D {
           if (hf > 0) {
             obj.material.emissive.set('#ffffff');
             obj.material.emissiveIntensity = 0.85;
+          } else if (p.submerged) {
+            obj.material.emissive.set('#0284c7');
+            obj.material.emissiveIntensity = 0.55;
           } else {
             obj.material.emissive.set('#000000');
             obj.material.emissiveIntensity = 0;
@@ -2061,18 +2087,28 @@ export class SeaRenderer3D {
       if (!m) {
         const g = new THREE.Group();
         const rad = br.r || 28;
-        // Real crossed wooden pirate palisade barricade (NOT giant rum bottles!)
-        const glb1 = this._cloneGLB('barricade', rad * 1.7, -2, (br.id * 1.1) % 6.28);
-        const glb2 = this._cloneGLB('barricade', rad * 1.7, -2, ((br.id * 1.1) + Math.PI / 2) % 6.28);
-        if (glb1) {
-          g.add(glb1);
-          if (glb2) g.add(glb2);
-        } else {
+        // Realistic floating wooden sea-barricade cluster (3 tilted pirate crates lashed together — NO giant dining table!)
+        const offsets = [
+          [-rad * 0.34, -rad * 0.2, 0.25, 22],
+          [rad * 0.32, -rad * 0.14, 1.4, 20],
+          [0, rad * 0.32, 0.8, 21]
+        ];
+        let added = 0;
+        for (const [ox, oz, rot, sz] of offsets) {
+          const c = this._cloneGLB('barricade', sz, -3, rot + (br.id % 4));
+          if (c) {
+            c.position.set(ox, 0, oz);
+            c.rotation.z = (added - 1) * 0.12;
+            g.add(c);
+            added++;
+          }
+        }
+        if (added === 0) {
           const fb = new THREE.Mesh(
-            new THREE.BoxGeometry(rad * 1.4, 22, rad * 1.4),
+            new THREE.BoxGeometry(rad * 1.2, 14, rad * 1.2),
             new THREE.MeshStandardMaterial({ color: '#92400e', roughness: 0.8 })
           );
-          fb.position.y = 11;
+          fb.position.y = 6;
           g.add(fb);
         }
         this.dynamicGroup.add(g);

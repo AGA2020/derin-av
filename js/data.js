@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v5.35';
+export const GAME_VERSION = 'v5.36';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,14 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v5.36',
+    notes: [
+      '📦 Kırılabilir barikatlardaki dev 4 ayaklı masa görünümü yerine suda yüzen 3’lü korsan ahşap sandık barikatı (crate.glb) kondu!',
+      '🤿 3D’de su altına dalınca geminin tamamen kaybolma sorunu giderildi — artık su yüzeyinin hemen altında parlayan mavi siluet + yükselen hava kabarcıklarıyla net görünür!',
+      '🛟 Harita kenarındaki dağınık sarı silindirler yerine temiz kesikli deniz sınırı + 4 köşede gerçek deniz şamandırası eklendi.'
+    ]
+  },
   {
     ver: 'v5.35',
     notes: [
