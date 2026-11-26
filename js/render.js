@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=7.2';
-import { hasLineOfSight } from './sim.js?v=7.2';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.0';
+import { hasLineOfSight } from './sim.js?v=8.0';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -1302,462 +1302,214 @@ export class SeaRenderer {
     ctx.restore();
   }
 
+  _drawHandheldItem2D(ctx, itemId, hx, hy) {
+    if (!itemId) return;
+    ctx.save();
+    ctx.translate(hx, hy);
+    const def = ALL_ITEMS[itemId];
+    if (def?.firearm) {
+      // Silah namlusu (Pompalı / Zıpkın / Tabanca / Top)
+      ctx.fillStyle = itemId === 'flare_gun' ? '#ef4444' : (itemId === 'blunderbuss' ? '#fbbf24' : '#cbd5e1');
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.4;
+      const len = itemId === 'harpoon_cannon' ? 18 : 13;
+      const w = itemId === 'blunderbuss' || itemId === 'hand_cannon' ? 5.2 : 3.4;
+      ctx.fillRect(-1, -w / 2, len, w);
+      ctx.strokeRect(-1, -w / 2, len, w);
+      if (itemId === 'harpoon_cannon') {
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.moveTo(len + 5, 0); ctx.lineTo(len - 1, -3.2); ctx.lineTo(len - 1, 3.2);
+        ctx.closePath(); ctx.fill();
+      }
+    } else if (itemId === 'mirror_shield') {
+      ctx.fillStyle = '#e0f2fe';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(4, 0, 3.5, 8, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    } else if (itemId === 'grapple_hook' || itemId === 'anchor_trap') {
+      ctx.strokeStyle = itemId === 'grapple_hook' ? '#fbbf24' : '#94a3b8';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(11, 0);
+      ctx.moveTo(8, -4.5); ctx.lineTo(12, 0); ctx.lineTo(8, 4.5);
+      ctx.stroke();
+    } else if (itemId === 'gravity_bomb' || itemId === 'ink_cloud' || itemId === 'sea_mine') {
+      ctx.fillStyle = itemId === 'gravity_bomb' ? '#c084fc' : (itemId === 'sea_mine' ? '#e11d48' : '#4c1d95');
+      ctx.strokeStyle = '#f5d0fe';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(5, 0, 4.6, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    } else {
+      ctx.fillStyle = itemId === 'buoyancy_kit' || itemId === 'kelp_trail' ? '#10b981' : (itemId === 'decoy_buoy' ? '#f97316' : '#38bdf8');
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.roundRect(0, -3.4, 10, 6.8, 3);
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   _drawCharacterBody(ctx, p, ch, mainColor, roleColor, spd, seed) {
     const t = this.time;
     const strokeW = p.isMe ? 2.6 : 1.9;
+    const kickSpd = 6.5 + Math.min(7, spd * 0.035);
+    const stroke = Math.sin(t * kickSpd + seed);
+    const swimAmp = spd > 35 ? 4.5 : 1.2;
+    const skinTone = p.charId === 'hayalet' ? '#a5f3fc' : '#f6c39b';
 
-    switch (p.charId) {
-      case 'kopekbaligi': {
-        // 🦈 GERÇEK YÜZEN KÖPEKBALIĞI (hareketli kuyruk + sırt yüzgeci!)
-        const wagFreq = 6.5 + Math.min(7, spd * 0.035);
-        const wagAmp = 5.5 + Math.min(5.5, spd * 0.025);
-        const wag = Math.sin(t * wagFreq + seed) * wagAmp;
+    // Fenerci forward headlamp beam (hidden when submerged)
+    if (p.charId === 'fenerci' && !p.submerged) {
+      const beam = ctx.createRadialGradient(12, 0, 4, 12, 0, 96);
+      beam.addColorStop(0, 'rgba(255, 240, 170, 0.34)');
+      beam.addColorStop(1, 'rgba(255, 214, 102, 0)');
+      ctx.fillStyle = beam;
+      ctx.beginPath();
+      ctx.moveTo(12, 0);
+      ctx.arc(12, 0, 96, -0.32, 0.32);
+      ctx.closePath();
+      ctx.fill();
+    }
 
-        // Shadow
-        ctx.fillStyle = 'rgba(0, 8, 18, 0.42)';
-        ctx.beginPath();
-        ctx.ellipse(0, 4, 24, 11, 0, 0, Math.PI * 2);
-        ctx.fill();
+    // Underwater shadow + white swimming ripple collar
+    ctx.fillStyle = 'rgba(0, 8, 18, 0.42)';
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 21, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (!p.submerged) {
+      ctx.strokeStyle = 'rgba(224, 248, 255, 0.42)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 21 + Math.sin(t * 4.5 + seed) * 1.8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
-        // Pectoral side fins (swept back)
-        ctx.fillStyle = mainColor;
-        ctx.strokeStyle = '#0c1c2e';
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        ctx.moveTo(6, -7);
-        ctx.quadraticCurveTo(-2, -21, -10, -18);
-        ctx.quadraticCurveTo(-5, -10, -5, -7);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+    // Kicking swimmer legs trailing behind
+    ctx.strokeStyle = skinTone;
+    ctx.lineWidth = 4.2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-8, -4.5); ctx.lineTo(-19 - stroke * swimAmp * 0.7, -5.5);
+    ctx.moveTo(-8, 4.5); ctx.lineTo(-19 + stroke * swimAmp * 0.7, 5.5);
+    ctx.stroke();
 
-        ctx.beginPath();
-        ctx.moveTo(6, 7);
-        ctx.quadraticCurveTo(-2, 21, -10, 18);
-        ctx.quadraticCurveTo(-5, 10, -5, 7);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Animated crescent caudal tail fin
-        ctx.fillStyle = mainColor;
-        ctx.beginPath();
-        ctx.moveTo(-16, wag * 0.35);
-        ctx.lineTo(-29, wag - 10);
-        ctx.quadraticCurveTo(-23, wag, -28, wag + 9);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Sleek torpedo shark body
-        ctx.fillStyle = '#1e3a5f';
-        ctx.strokeStyle = roleColor;
-        ctx.lineWidth = strokeW;
-        ctx.beginPath();
-        ctx.moveTo(27, 0);
-        ctx.quadraticCurveTo(15, -12, -3, -10);
-        ctx.quadraticCurveTo(-13, -7, -20, wag * 0.35);
-        ctx.quadraticCurveTo(-13, 7, -3, 10);
-        ctx.quadraticCurveTo(15, 12, 27, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Colored back stripe & dorsal fin
-        ctx.fillStyle = mainColor;
-        ctx.beginPath();
-        ctx.ellipse(2, 0, 16, 6.5, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Raised curved dorsal fin
-        ctx.fillStyle = '#e0f2fe';
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(6, 0);
-        ctx.quadraticCurveTo(-1, -4, -9, -1);
-        ctx.quadraticCurveTo(-2, 3, 6, 0);
-        ctx.fill();
-        ctx.stroke();
-
-        // Gill slits
-        ctx.strokeStyle = 'rgba(15, 23, 42, 0.7)';
-        ctx.lineWidth = 1.2;
-        for (let g = 0; g < 3; g++) {
-          const gx = 9 - g * 3;
-          ctx.beginPath();
-          ctx.moveTo(gx, -7.5); ctx.lineTo(gx - 1, -5.5);
-          ctx.moveTo(gx, 7.5); ctx.lineTo(gx - 1, 5.5);
-          ctx.stroke();
-        }
-
-        // Fierce eyes
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.arc(17, -4.5, 2, 0, Math.PI * 2);
-        ctx.arc(17, 4.5, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(17.7, -4.8, 0.7, 0, Math.PI * 2);
-        ctx.arc(17.7, 4.2, 0.7, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-
-      case 'ahtapot': {
-        // 🐙 GERÇEK DEV AHTAPOT (6 hareketli dalgalanan dokunaç!)
-        const waveSpd = 4.8 + Math.min(5, spd * 0.025);
-
-        // Shadow
-        ctx.fillStyle = 'rgba(0, 8, 18, 0.4)';
-        ctx.beginPath();
-        ctx.ellipse(-2, 4, 21, 16, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 6 sinuous trailing tentacles
-        const angles = [-2.55, -2.85, -3.05, 3.05, 2.85, 2.55];
-        for (let k = 0; k < 6; k++) {
-          const baseA = angles[k];
-          const phase = t * waveSpd + k * 1.15 + seed;
-          const sway1 = Math.sin(phase) * 6;
-          const sway2 = Math.cos(phase * 1.15) * 8;
-          const sx = Math.cos(baseA) * 8;
-          const sy = Math.sin(baseA) * 9;
-          const mx = Math.cos(baseA) * 18 + Math.sin(baseA) * sway1 * 0.5;
-          const my = Math.sin(baseA) * 18 + sway1 * 0.6;
-          const ex = -25 - (k === 2 || k === 3 ? 5 : 0);
-          const ey = (k - 2.5) * 6.5 + sway2 * 0.55;
-
-          ctx.strokeStyle = mainColor;
-          ctx.lineWidth = 4.6;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(sx, sy);
-          ctx.quadraticCurveTo(mx, my, ex, ey);
-          ctx.stroke();
-
-          // Pale suction accent dots
-          ctx.fillStyle = 'rgba(255, 240, 245, 0.55)';
-          ctx.beginPath();
-          ctx.arc((sx + mx) * 0.5, (sy + my) * 0.5, 1.4, 0, Math.PI * 2);
-          ctx.arc((mx + ex) * 0.5, (my + ey) * 0.5, 1.2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        // Bulbous octopus head / mantle
-        ctx.fillStyle = mainColor;
-        ctx.strokeStyle = roleColor;
-        ctx.lineWidth = strokeW;
-        ctx.beginPath();
-        ctx.ellipse(5, 0, 16, 13.5, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Mantle sheen & spots
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
-        ctx.beginPath();
-        ctx.ellipse(1, -4, 7, 4, -0.3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-        ctx.beginPath();
-        ctx.arc(-4, 4, 2.5, 0, Math.PI * 2);
-        ctx.arc(-1, -6, 2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Glowing golden predator eyes
-        ctx.fillStyle = '#fef08a';
-        ctx.strokeStyle = '#1e1b4b';
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.ellipse(13, -5.2, 3.4, 2.6, 0.25, 0, Math.PI * 2);
-        ctx.ellipse(13, 5.2, 3.4, 2.6, -0.25, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(13, -6.2, 1.6, 2.2);
-        ctx.fillRect(13, 4.0, 1.6, 2.2);
-        break;
-      }
-
-      case 'kaptan': {
-        // ⚓ KAPTAN KARA — ZIRHLI KORSAN KALYONU (top mazgallı + demir koçbaşı!)
-        ctx.fillStyle = 'rgba(0, 8, 18, 0.48)';
-        ctx.beginPath();
-        ctx.ellipse(2, 5, 26, 16, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 4 protruding side cannon barrels
-        ctx.fillStyle = '#334155';
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 1.2;
-        for (const cx of [-4, 6]) {
-          ctx.fillRect(cx - 2, -18, 4.5, 6);
-          ctx.strokeRect(cx - 2, -18, 4.5, 6);
-          ctx.fillRect(cx - 2, 12, 4.5, 6);
-          ctx.strokeRect(cx - 2, 12, 4.5, 6);
-        }
-
-        // Broad armored oak hull
-        ctx.fillStyle = '#451a03';
-        ctx.strokeStyle = roleColor;
-        ctx.lineWidth = strokeW;
-        ctx.beginPath();
-        ctx.moveTo(25, 0);
-        ctx.quadraticCurveTo(16, 15, -14, 14);
-        ctx.lineTo(-22, 10);
-        ctx.lineTo(-22, -10);
-        ctx.lineTo(-14, -14);
-        ctx.quadraticCurveTo(16, -15, 25, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Deck planks
-        ctx.fillStyle = '#78350f';
-        ctx.beginPath();
-        ctx.roundRect(-18, -10, 32, 20, 6);
-        ctx.fill();
-
-        // Iron ramming prow plating
-        ctx.fillStyle = '#cbd5e1';
-        ctx.strokeStyle = '#334155';
-        ctx.lineWidth = 1.3;
-        ctx.beginPath();
-        ctx.moveTo(27, 0);
-        ctx.lineTo(15, 7);
-        ctx.lineTo(15, -7);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Billowed pirate square sail (tinted by skin / char color)
-        const billow = Math.sin(t * 3.5 + seed) * 1.5;
-        ctx.fillStyle = mainColor;
-        ctx.strokeStyle = '#fef3c7';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(4 + billow, -13);
-        ctx.quadraticCurveTo(10 + billow, 0, 4 + billow, 13);
-        ctx.lineTo(-2, 11);
-        ctx.quadraticCurveTo(3, 0, -2, -11);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Center mast cap
-        ctx.fillStyle = '#fbbf24';
-        ctx.beginPath();
-        ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-
-      case 'hayalet': {
-        // 👻 SİS HAYALETİ — YARI SAYDAM HAYALET KORSAN GEMİSİ!
-        const shimmer = 0.78 + Math.sin(t * 5 + seed) * 0.14;
-        ctx.save();
-        ctx.globalAlpha *= shimmer;
-
-        // Ectoplasm spectral glow
-        const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 29);
-        g.addColorStop(0, 'rgba(168, 85, 247, 0.38)');
-        g.addColorStop(1, 'rgba(56, 189, 248, 0)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(0, 0, 29, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Ethereal wispy stern trails
-        for (let k = -1; k <= 1; k++) {
-          const w = Math.sin(t * 6 + k * 2 + seed) * 4;
-          ctx.strokeStyle = mainColor;
-          ctx.lineWidth = 2.6;
-          ctx.beginPath();
-          ctx.moveTo(-16, k * 6);
-          ctx.quadraticCurveTo(-24, k * 7 + w, -31, k * 5 - w * 0.5);
-          ctx.stroke();
-        }
-
-        // Skeletal dark hull
-        ctx.fillStyle = 'rgba(20, 14, 42, 0.85)';
+    // Ahtapot back mini tentacles
+    if (p.charId === 'ahtapot') {
+      for (let k = 0; k < 4; k++) {
+        const yOff = (k - 1.5) * 5.2;
+        const sw = Math.sin(t * 6 + k * 1.2 + seed) * 4.5;
         ctx.strokeStyle = mainColor;
-        ctx.lineWidth = strokeW;
+        ctx.lineWidth = 3.6;
         ctx.beginPath();
-        ctx.moveTo(26, 0);
-        ctx.quadraticCurveTo(10, 14, -18, 11);
-        ctx.lineTo(-14, 0);
-        ctx.lineTo(-18, -11);
-        ctx.quadraticCurveTo(10, -14, 26, 0);
-        ctx.closePath();
-        ctx.fill();
+        ctx.moveTo(-6, yOff);
+        ctx.quadraticCurveTo(-16, yOff + sw, -25, yOff - sw * 0.5);
         ctx.stroke();
-
-        // Glowing ribs inside deck
-        ctx.strokeStyle = 'rgba(216, 180, 254, 0.55)';
-        ctx.lineWidth = 1.5;
-        for (const rx of [-10, -3, 4, 11]) {
-          ctx.beginPath();
-          ctx.moveTo(rx, -7);
-          ctx.lineTo(rx, 7);
-          ctx.stroke();
-        }
-
-        // Tattered fluttering ghost sail
-        const fl = Math.sin(t * 7 + seed) * 2.5;
-        ctx.fillStyle = mainColor;
-        ctx.beginPath();
-        ctx.moveTo(4, -13);
-        ctx.quadraticCurveTo(10 + fl, 0, 4, 13);
-        ctx.lineTo(-5, 9);
-        ctx.lineTo(-1, 3);
-        ctx.lineTo(-6, -2);
-        ctx.lineTo(-2, -8);
-        ctx.closePath();
-        ctx.fill();
-
-        // Spectral bowsprit lantern orb
-        ctx.fillStyle = '#e0f2fe';
-        ctx.beginPath();
-        ctx.arc(23, 0, 3.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-        break;
       }
+    }
 
-      case 'fenerci': {
-        // 🔦 FENERCİ — IŞILDAKLI ÇİFT GÖVDELİ GÖZCÜ KATAMARANI!
-        // Subtle forward searchlight beam (hidden when submerged)
-        if (!p.submerged) {
-          const beam = ctx.createRadialGradient(14, 0, 4, 14, 0, 96);
-          beam.addColorStop(0, 'rgba(255, 240, 170, 0.34)');
-          beam.addColorStop(1, 'rgba(255, 214, 102, 0)');
-          ctx.fillStyle = beam;
-          ctx.beginPath();
-          ctx.moveTo(14, 0);
-          ctx.arc(14, 0, 96, -0.3, 0.3);
-          ctx.closePath();
-          ctx.fill();
-        }
+    // 💪 Right & Left swimming arms + REAL 2 HELD ITEMS!
+    const rHandX = 11 + stroke * swimAmp;
+    const rHandY = 13.5;
+    const lHandX = 11 - stroke * swimAmp;
+    const lHandY = -13.5;
+    ctx.strokeStyle = skinTone;
+    ctx.lineWidth = 5.2;
+    ctx.beginPath();
+    ctx.moveTo(1, 10); ctx.lineTo(rHandX, rHandY);
+    ctx.moveTo(1, -10); ctx.lineTo(lHandX, lHandY);
+    ctx.stroke();
 
-        // Shadow
-        ctx.fillStyle = 'rgba(0, 8, 18, 0.42)';
-        ctx.beginPath();
-        ctx.ellipse(1, 4, 24, 15, 0, 0, Math.PI * 2);
-        ctx.fill();
+    const it0 = p.items?.[0];
+    const it1 = p.items?.[1];
+    if (it0 && it0.usesLeft > 0) this._drawHandheldItem2D(ctx, it0.id, rHandX + 2, rHandY);
+    if (it1 && it1.usesLeft > 0) this._drawHandheldItem2D(ctx, it1.id, lHandX + 2, lHandY);
 
-        // Twin catamaran pontoons (top & bottom)
-        ctx.fillStyle = '#0f2936';
-        ctx.strokeStyle = roleColor;
-        ctx.lineWidth = strokeW;
-        for (const py of [-11, 11]) {
-          ctx.beginPath();
-          ctx.moveTo(25, py);
-          ctx.quadraticCurveTo(10, py + (py > 0 ? 4.5 : -4.5), -20, py + (py > 0 ? 3.5 : -3.5));
-          ctx.lineTo(-22, py);
-          ctx.lineTo(-20, py - (py > 0 ? 3.5 : -3.5));
-          ctx.quadraticCurveTo(10, py - (py > 0 ? 4.5 : -4.5), 25, py);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-        }
+    // Broad swimmer shoulders / wetsuit torso
+    ctx.fillStyle = mainColor;
+    ctx.strokeStyle = roleColor;
+    ctx.lineWidth = strokeW;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 10.5, 14.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
 
-        // Central reinforced bridge deck
-        ctx.fillStyle = mainColor;
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        ctx.roundRect(-12, -10, 22, 20, 5);
-        ctx.fill();
-        ctx.stroke();
+    // Stylized human head
+    ctx.fillStyle = skinTone;
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(3, 0, 8.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
 
-        // Brass spotlight turret
-        ctx.fillStyle = '#fef3c7';
-        ctx.strokeStyle = '#d97706';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(4, 0, 6.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Bright lens gleam facing forward
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(9, 0, 2.8, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-
-      case 'dalgabinici':
-      default: {
-        // 🌊 DALGA BİNİCİSİ — ÇEVİK SÖRF TAHTASI / HYDRO JET-SKİ!
-        // Twin speed spray arcs when moving
-        if (spd > 45) {
-          ctx.strokeStyle = 'rgba(186, 245, 255, 0.65)';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(8, -9); ctx.quadraticCurveTo(-8, -16, -22, -19);
-          ctx.moveTo(8, 9); ctx.quadraticCurveTo(-8, 16, -22, 19);
-          ctx.stroke();
-        }
-
-        // Shadow
-        ctx.fillStyle = 'rgba(0, 8, 18, 0.4)';
-        ctx.beginPath();
-        ctx.ellipse(1, 4, 24, 10, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Rear twin hydro-fins
-        ctx.fillStyle = '#e0f2fe';
-        ctx.beginPath();
-        ctx.moveTo(-14, -7); ctx.lineTo(-24, -12); ctx.lineTo(-19, -5); ctx.closePath();
-        ctx.moveTo(-14, 7); ctx.lineTo(-24, 12); ctx.lineTo(-19, 5); ctx.closePath();
-        ctx.fill();
-
-        // Sleek narrow surfboard / jet-ski hull
-        ctx.fillStyle = '#0c2736';
-        ctx.strokeStyle = roleColor;
-        ctx.lineWidth = strokeW;
-        ctx.beginPath();
-        ctx.moveTo(27, 0);
-        ctx.quadraticCurveTo(12, 11, -18, 8);
-        ctx.lineTo(-23, 0);
-        ctx.lineTo(-18, -8);
-        ctx.quadraticCurveTo(12, -11, 27, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Neon center racing stripe
-        ctx.fillStyle = mainColor;
-        ctx.beginPath();
-        ctx.moveTo(22, 0);
-        ctx.quadraticCurveTo(6, 5.5, -16, 4);
-        ctx.lineTo(-19, 0);
-        ctx.lineTo(-16, -4);
-        ctx.quadraticCurveTo(6, -5.5, 22, 0);
-        ctx.closePath();
-        ctx.fill();
-
-        // Stylized crouched surfer / rider shoulders & helmet
-        ctx.fillStyle = '#0f172a';
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.ellipse(-2, 0, 5.5, 7.5, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(1, 0, 4.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = mainColor;
-        ctx.beginPath();
-        ctx.arc(3.2, 0, 2.2, -0.9, 0.9);
-        ctx.fill();
-        break;
-      }
+    // 🎭 Character-specific hat / hood / goggles from top-down!
+    if (p.charId === 'kaptan') {
+      // Pirate tricorn hat + golden badge
+      ctx.fillStyle = '#1c1917';
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(13, 0); ctx.lineTo(-5, -11); ctx.lineTo(-5, 11);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    } else if (p.charId === 'kopekbaligi') {
+      // Shark hood + dorsal fin on top
+      ctx.fillStyle = mainColor;
+      ctx.beginPath();
+      ctx.arc(1.5, 0, 8.8, Math.PI * 0.45, Math.PI * 1.55);
+      ctx.fill();
+      ctx.fillStyle = '#e0f2fe';
+      ctx.beginPath();
+      ctx.moveTo(2, 0); ctx.lineTo(-9, -2.5); ctx.lineTo(-9, 2.5);
+      ctx.closePath(); ctx.fill();
+    } else if (p.charId === 'hayalet') {
+      // Glowing hooded diver
+      ctx.fillStyle = '#0f766e';
+      ctx.strokeStyle = '#67e8f9';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(1, 0, 9.2, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#67e8f9';
+      ctx.beginPath();
+      ctx.arc(6.5, -3, 1.8, 0, Math.PI * 2);
+      ctx.arc(6.5, 3, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.charId === 'fenerci') {
+      // Yellow rain hat + glowing headlamp
+      ctx.fillStyle = '#facc15';
+      ctx.strokeStyle = '#a16207';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(2.5, 0, 9.2, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(10.5, 0, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.charId === 'ahtapot') {
+      // Purple octopus cap with yellow eyes
+      ctx.fillStyle = '#9333ea';
+      ctx.beginPath();
+      ctx.arc(2.5, 0, 9.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(7, -3.2, 2.1, 0, Math.PI * 2);
+      ctx.arc(7, 3.2, 2.1, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Surf goggles + bandana
+      ctx.fillStyle = '#38bdf8';
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.roundRect(7.5, -5.5, 4.2, 11, 2);
+      ctx.fill(); ctx.stroke();
     }
   }
 

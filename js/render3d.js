@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=7.2';
-import { hasLineOfSight } from './sim.js?v=7.2';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.0';
+import { hasLineOfSight } from './sim.js?v=8.0';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -817,9 +817,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=7.2'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=7.2'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=7.2'],
+      ['chest', './vendor/models/pirate/chest.glb?v=8.0'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=8.0'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=8.0'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -1628,22 +1628,305 @@ export class SeaRenderer3D {
   }
 
   // ============================================================
-  // 🚢 6 DISTINCT 3D CHARACTERS (Real Kenney GLB Ships + Smooth Marine Creatures!)
+  // 🏊‍♂️ 6 DISTINCT 3D SWIMMING HUMANS HOLDING THEIR REAL 2 ITEMS!
   // ============================================================
+  _createHandheldItem3D(itemId) {
+    const g = new THREE.Group();
+    const wood = new THREE.MeshStandardMaterial({ color: '#7c3f17', roughness: 0.72 });
+    const steel = new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.28, metalness: 0.72 });
+    const darkIron = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.38, metalness: 0.65 });
+    const gold = new THREE.MeshStandardMaterial({ color: '#fbbf24', roughness: 0.25, metalness: 0.8 });
+
+    switch (itemId) {
+      case 'harpoon_cannon': {
+        // 🎯 Zıpkın Topu: Uzun çelik zıpkın + parlayan mızrak ucu!
+        const stock = new THREE.Mesh(new THREE.BoxGeometry(10, 3.2, 3.2), wood);
+        stock.position.x = 3;
+        g.add(stock);
+        const rail = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 22, 8), steel);
+        rail.rotation.z = -Math.PI / 2;
+        rail.position.x = 13;
+        g.add(rail);
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(3.6, 8, 6), new THREE.MeshBasicMaterial({ color: '#38bdf8' }));
+        tip.rotation.z = -Math.PI / 2;
+        tip.position.x = 26;
+        g.add(tip);
+        break;
+      }
+      case 'blunderbuss': {
+        // 💥 Gemi Pompalısı: Geniş ağızlı pirinç korsan pompalısı!
+        const stock = new THREE.Mesh(new THREE.BoxGeometry(10, 3.8, 3.5), wood);
+        stock.position.x = 3;
+        g.add(stock);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 2.2, 16, 10), gold);
+        barrel.rotation.z = -Math.PI / 2;
+        barrel.position.x = 13;
+        g.add(barrel);
+        break;
+      }
+      case 'flare_gun': {
+        // 🔥 İşaret Tabancası: Parlak kırmızı kalın fişek tabancası!
+        const red = new THREE.MeshStandardMaterial({ color: '#ef4444', roughness: 0.4 });
+        const grip = new THREE.Mesh(new THREE.BoxGeometry(3.5, 6.5, 3), darkIron);
+        grip.position.set(2, -2, 0);
+        g.add(grip);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.4, 13, 10), red);
+        barrel.rotation.z = -Math.PI / 2;
+        barrel.position.set(8, 1.2, 0);
+        g.add(barrel);
+        const tip = new THREE.Mesh(new THREE.SphereGeometry(2.4, 8, 8), new THREE.MeshBasicMaterial({ color: '#fde047' }));
+        tip.position.set(15, 1.2, 0);
+        g.add(tip);
+        break;
+      }
+      case 'flintlock': {
+        // 🔫 Korsan Tabancası: Klasik ahşap + altın şeritli çakmaklı tabanca!
+        const grip = new THREE.Mesh(new THREE.BoxGeometry(5, 4.5, 2.6), wood);
+        grip.position.set(2, -1.2, 0);
+        g.add(grip);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 2.0, 15, 8), steel);
+        barrel.rotation.z = -Math.PI / 2;
+        barrel.position.set(9.5, 1, 0);
+        g.add(barrel);
+        const band = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.1, 2.5, 8), gold);
+        band.rotation.z = -Math.PI / 2;
+        band.position.set(13, 1, 0);
+        g.add(band);
+        break;
+      }
+      case 'hand_cannon': {
+        // 💣 Kısa Namlu Top: İri demir el topu + parlayan fitil!
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(4.4, 3.6, 15, 10), darkIron);
+        body.rotation.z = -Math.PI / 2;
+        body.position.x = 9;
+        g.add(body);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(4.3, 0.9, 6, 12), gold);
+        ring.rotation.y = Math.PI / 2;
+        ring.position.x = 15.5;
+        g.add(ring);
+        const spark = new THREE.Mesh(new THREE.SphereGeometry(2.0, 8, 8), new THREE.MeshBasicMaterial({ color: '#fb923c' }));
+        spark.position.set(3, 5.2, 0);
+        g.add(spark);
+        break;
+      }
+      case 'grapple_hook': {
+        // 🪝 Çekiş Kancası: 3 çengelli çelik fırlatma kancası!
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.5, 16, 8), steel);
+        shaft.rotation.z = -Math.PI / 2;
+        shaft.position.x = 9;
+        g.add(shaft);
+        for (let k = 0; k < 3; k++) {
+          const a = (k / 3) * Math.PI * 2;
+          const prong = new THREE.Mesh(new THREE.ConeGeometry(1.8, 8.5, 6), gold);
+          prong.position.set(15, Math.sin(a) * 4.2, Math.cos(a) * 4.2);
+          prong.rotation.z = 0.85;
+          prong.rotation.x = a;
+          g.add(prong);
+        }
+        break;
+      }
+      case 'sonar': {
+        // 📡 Denizaltı Sonarı: Parlayan mavi radar çanağı!
+        const handle = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 9, 8), darkIron);
+        handle.rotation.z = -Math.PI / 2;
+        handle.position.x = 4;
+        g.add(handle);
+        const dish = new THREE.Mesh(new THREE.ConeGeometry(6.5, 5, 12, 1, true), new THREE.MeshBasicMaterial({ color: '#38bdf8', side: THREE.DoubleSide }));
+        dish.rotation.z = Math.PI / 2;
+        dish.position.x = 10;
+        g.add(dish);
+        const core = new THREE.Mesh(new THREE.SphereGeometry(2.5, 8, 8), new THREE.MeshBasicMaterial({ color: '#e0f2fe' }));
+        core.position.x = 11.5;
+        g.add(core);
+        break;
+      }
+      case 'net_launcher':
+      case 'electric_net': {
+        // 🕸️/⚡ Ağ Fırlatıcı / Elektrik Ağı: Geniş namlulu ağ tüfeği!
+        const col = itemId === 'electric_net' ? '#38bdf8' : '#2dd4bf';
+        const tube = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 2.2, 15, 10), darkIron);
+        tube.rotation.z = -Math.PI / 2;
+        tube.position.x = 9;
+        g.add(tube);
+        const coil = new THREE.Mesh(new THREE.TorusGeometry(4.2, 1.0, 8, 12), new THREE.MeshBasicMaterial({ color: col }));
+        coil.rotation.y = Math.PI / 2;
+        coil.position.x = 15.5;
+        g.add(coil);
+        break;
+      }
+      case 'anchor_trap': {
+        // ⚓ Ağır Çapa: Çelik gemi çapası!
+        const shank = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 17, 8), darkIron);
+        shank.rotation.z = -Math.PI / 2;
+        shank.position.x = 9;
+        g.add(shank);
+        const fluke = new THREE.Mesh(new THREE.TorusGeometry(6.5, 1.8, 8, 12, Math.PI), steel);
+        fluke.rotation.z = -Math.PI / 2;
+        fluke.position.x = 16;
+        g.add(fluke);
+        break;
+      }
+      case 'storm_surge': {
+        // ⚡ Fırtına Hızı: Şimşekli enerji asası / şişesi!
+        const bolt = new THREE.Mesh(new THREE.OctahedronGeometry(5.2, 0), new THREE.MeshBasicMaterial({ color: '#fde047' }));
+        bolt.scale.set(1.6, 0.85, 0.85);
+        bolt.position.x = 9;
+        g.add(bolt);
+        const glow = this._makeGlowSprite('#38bdf8', 22, 0.65);
+        glow.position.x = 9;
+        g.add(glow);
+        break;
+      }
+      case 'gravity_bomb': {
+        // 🌀 Çekim Bombası: Parlayan mor girdap küresi!
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(5.2, 10, 8), new THREE.MeshBasicMaterial({ color: '#c084fc' }));
+        orb.position.x = 8;
+        g.add(orb);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(7.2, 0.9, 6, 14), new THREE.MeshBasicMaterial({ color: '#e879f9' }));
+        ring.rotation.x = Math.PI / 3;
+        ring.position.x = 8;
+        g.add(ring);
+        break;
+      }
+      case 'ink_cloud': {
+        // 🦑 Mürekkep Bulutu: Mor mürekkep şişesi!
+        const flask = new THREE.Mesh(new THREE.SphereGeometry(5.2, 10, 8), new THREE.MeshStandardMaterial({ color: '#4c1d95', roughness: 0.25 }));
+        flask.position.x = 7.5;
+        g.add(flask);
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.2, 4.5, 8), new THREE.MeshBasicMaterial({ color: '#c084fc' }));
+        neck.position.set(7.5, 5.5, 0);
+        g.add(neck);
+        break;
+      }
+      case 'flash_flare': {
+        // ✨ Kör Edici Fişek: Parlayan parlak sarı-beyaz flaş çubuğu!
+        const stick = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.0, 14, 8), new THREE.MeshBasicMaterial({ color: '#fef08a' }));
+        stick.rotation.z = -Math.PI / 2;
+        stick.position.x = 9;
+        g.add(stick);
+        const gl = this._makeGlowSprite('#ffffff', 22, 0.72);
+        gl.position.x = 15;
+        g.add(gl);
+        break;
+      }
+      case 'decoy_buoy': {
+        // 🛟 Sahte Şamandıra: Turuncu-beyaz can simidi / şamandıra!
+        const torus = new THREE.Mesh(new THREE.TorusGeometry(5.5, 2.1, 8, 14), new THREE.MeshStandardMaterial({ color: '#f97316', roughness: 0.4 }));
+        torus.rotation.x = Math.PI / 2;
+        torus.position.x = 8;
+        g.add(torus);
+        break;
+      }
+      case 'jet_stream': {
+        // 🚀 Jet Akıntısı: Parlak su altı jet motoru!
+        const jet = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 3.8, 15, 10), new THREE.MeshStandardMaterial({ color: '#06d6a0', roughness: 0.3, metalness: 0.4 }));
+        jet.rotation.z = -Math.PI / 2;
+        jet.position.x = 9;
+        g.add(jet);
+        const noz = new THREE.Mesh(new THREE.ConeGeometry(3.4, 6, 8), new THREE.MeshBasicMaterial({ color: '#7dd3fc' }));
+        noz.rotation.z = Math.PI / 2;
+        noz.position.x = 1;
+        g.add(noz);
+        break;
+      }
+      case 'sea_mine': {
+        // 💣 Su Altı Mayını: Dikenli kızıl deniz mayını!
+        const mine = new THREE.Mesh(new THREE.OctahedronGeometry(5.8, 0), new THREE.MeshStandardMaterial({ color: '#e11d48', roughness: 0.35, metalness: 0.4 }));
+        mine.position.x = 8;
+        g.add(mine);
+        break;
+      }
+      case 'buoyancy_kit': {
+        // 🩹 Can Yeleği Kiti: Zümrüt yeşil ilk yardım çantası!
+        const box = new THREE.Mesh(new THREE.BoxGeometry(9, 7, 5), new THREE.MeshStandardMaterial({ color: '#10b981', roughness: 0.4 }));
+        box.position.x = 7.5;
+        g.add(box);
+        const cross1 = new THREE.Mesh(new THREE.BoxGeometry(5, 1.8, 5.4), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+        cross1.position.x = 7.5;
+        g.add(cross1);
+        const cross2 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 5, 5.4), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+        cross2.position.x = 7.5;
+        g.add(cross2);
+        break;
+      }
+      case 'mirror_shield': {
+        // 🪞 Ayna Kalkanı: Parlayan altıgen ayna kalkan!
+        const sh = new THREE.Mesh(
+          new THREE.CylinderGeometry(8.5, 8.5, 2.2, 6),
+          new THREE.MeshStandardMaterial({ color: '#e0f2fe', emissive: '#38bdf8', emissiveIntensity: 0.35, metalness: 0.9, roughness: 0.12 })
+        );
+        sh.rotation.z = Math.PI / 2;
+        sh.position.x = 9;
+        g.add(sh);
+        break;
+      }
+      case 'kelp_trail': {
+        // 🌿 Yosun İzi: Parlak yeşil deniz yosunu demeti!
+        const kelpMat = new THREE.MeshStandardMaterial({ color: '#22c55e', roughness: 0.65 });
+        for (let k = -1; k <= 1; k++) {
+          const leaf = new THREE.Mesh(new THREE.ConeGeometry(2.6, 13, 6), kelpMat);
+          leaf.rotation.z = -Math.PI / 2 + k * 0.25;
+          leaf.position.set(9, k * 2, k * 2.5);
+          g.add(leaf);
+        }
+        break;
+      }
+      default: {
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(4, 8, 8), gold);
+        orb.position.x = 8;
+        g.add(orb);
+      }
+    }
+    return g;
+  }
+
+  _syncHandheldItems(rig, p) {
+    const items = p.items || [];
+    const slots = [
+      { idx: 0, hand: rig.rightHand, key: 'handItem0' },
+      { idx: 1, hand: rig.leftHand, key: 'handItem1' }
+    ];
+    for (const s of slots) {
+      const it = items[s.idx];
+      const wantId = it ? it.id : null;
+      if (rig[s.key]?.id !== wantId) {
+        while (s.hand.children.length > 0) s.hand.remove(s.hand.children[0]);
+        if (wantId) {
+          const mesh = this._createHandheldItem3D(wantId);
+          s.hand.add(mesh);
+          rig[s.key] = { id: wantId, mesh };
+        } else {
+          rig[s.key] = null;
+        }
+      }
+      if (rig[s.key]?.mesh) {
+        rig[s.key].mesh.visible = Boolean(it && it.usesLeft > 0);
+      }
+    }
+  }
+
   _createCharRig(charId, hullHex, roleHex, hasCustomSkin = false) {
     const root = new THREE.Group();
 
-    // Soft underwater contact shadow so every vessel sits solidly in the waves
-    const shadow = this._makeContactShadow(30, 0.58);
+    // Soft underwater contact shadow + lively white swimming ripple collar
+    const shadow = this._makeContactShadow(27, 0.56);
     root.add(shadow);
 
-    // Subtle crisp role ring right above wave crests for clean unbroken readability
+    const swimCollar = new THREE.Mesh(
+      new THREE.PlaneGeometry(54, 54),
+      new THREE.MeshBasicMaterial({ map: this.shoreFoamTex, color: '#e6fbff', transparent: true, opacity: 0.44, depthWrite: false })
+    );
+    swimCollar.rotation.x = -Math.PI / 2;
+    swimCollar.position.y = 2.05;
+    root.add(swimCollar);
+
+    // Subtle crisp role ring right above wave crests for instant team readability
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(21, 23.8, 32),
-      new THREE.MeshBasicMaterial({ color: roleHex, transparent: true, opacity: 0.78, side: THREE.DoubleSide, depthWrite: false })
+      new THREE.RingGeometry(21, 24.2, 32),
+      new THREE.MeshBasicMaterial({ color: roleHex, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false })
     );
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 3.6;
+    ring.position.y = 3.5;
     root.add(ring);
 
     const shield = new THREE.Mesh(
@@ -1654,7 +1937,6 @@ export class SeaRenderer3D {
     shield.visible = false;
     root.add(shield);
 
-    // 🪞 Crystal Faceted Mirror Shield Dome (rotates when Mirror Shield is active!)
     const mirrorDome = new THREE.Mesh(
       new THREE.IcosahedronGeometry(30, 1),
       new THREE.MeshBasicMaterial({ color: '#e0f2fe', wireframe: true, transparent: true, opacity: 0.78, depthWrite: false })
@@ -1663,7 +1945,6 @@ export class SeaRenderer3D {
     mirrorDome.visible = false;
     root.add(mirrorDome);
 
-    // ⚡ Electric Shock Cage (crackles around stunned vessels!)
     const shockCage = new THREE.Mesh(
       new THREE.IcosahedronGeometry(26, 0),
       new THREE.MeshBasicMaterial({ color: '#38bdf8', wireframe: true, transparent: true, opacity: 0.85, depthWrite: false })
@@ -1684,148 +1965,214 @@ export class SeaRenderer3D {
     const body = new THREE.Group();
     root.add(body);
 
-    const skinTint = hasCustomSkin ? hullHex : null;
-    let animParts = {};
+    const suitColor = hasCustomSkin ? hullHex : (charId === 'fenerci' ? '#eab308' : hullHex);
+    const suitMat = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.45, metalness: 0.08 });
+    const skinTone = charId === 'hayalet' ? '#a5f3fc' : '#f6c39b';
+    const skinMat = new THREE.MeshStandardMaterial({
+      color: skinTone,
+      roughness: 0.55,
+      emissive: charId === 'hayalet' ? '#0891b2' : '#000000',
+      emissiveIntensity: charId === 'hayalet' ? 0.35 : 0
+    });
+    const darkMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.5 });
 
-    if (charId === 'kaptan' && this.models.shipPirate) {
-      // ⚓ KAPTAN KARA — Real Kenney Pirate Galleon GLB!
-      const glb = this._cloneGLB('shipPirate', 66, -3, Math.PI / 2, skinTint);
-      if (glb) body.add(glb);
-    } else if (charId === 'hayalet' && this.models.shipGhost) {
-      // 👻 SİS HAYALETİ — Real Kenney Ghost Ship GLB!
-      const glb = this._cloneGLB('shipGhost', 66, -3, Math.PI / 2, skinTint || '#67e8f9');
-      if (glb) body.add(glb);
-    } else if (charId === 'fenerci' && this.models.boatTug) {
-      // 🔦 FENERCİ — Real Kenney Lighthouse Tender Tugboat GLB + Glowing Beacon!
-      const glb = this._cloneGLB('boatTug', 56, -2, Math.PI / 2, skinTint);
-      if (glb) body.add(glb);
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(4.5, 10, 8), new THREE.MeshBasicMaterial({ color: '#fde047' }));
-      lamp.position.set(2, 39, 0);
-      body.add(lamp);
-      const lampGlow = this._makeGlowSprite('#fde047', 34, 0.72);
-      lampGlow.position.set(2, 39, 0);
-      body.add(lampGlow);
-      animParts.lamp = lamp;
-    } else if (charId === 'dalgabinici' && this.models.boatSpeed) {
-      // 🌊 DALGA BİNİCİSİ — Real Kenney Racing Speedboat GLB!
-      const glb = this._cloneGLB('boatSpeed', 54, -2, Math.PI / 2, skinTint);
-      if (glb) body.add(glb);
+    // 🏊‍♂️ Swimmer Upper Torso & Broad Shoulders (treading/swimming in water!)
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(10.5, 9.2, 16, 12), suitMat);
+    torso.scale.set(0.86, 1, 1.32);
+    torso.position.set(0, 7.5, 0);
+    torso.castShadow = true;
+    body.add(torso);
+
+    // Life-vest / Wetsuit chest stripe
+    const vest = new THREE.Mesh(
+      new THREE.BoxGeometry(11.5, 8.5, 22),
+      new THREE.MeshStandardMaterial({ color: roleHex, roughness: 0.45 })
+    );
+    vest.position.set(0.5, 9.5, 0);
+    body.add(vest);
+
+    // Expressive Stylized Head (facing +X!)
+    const headGroup = new THREE.Group();
+    headGroup.position.set(2, 23, 0);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(9.4, 16, 14), skinMat);
+    head.castShadow = true;
+    headGroup.add(head);
+
+    // Cartoon Eyes facing +X
+    const eyeCol = charId === 'hayalet' ? '#67e8f9' : '#0f172a';
+    const eyeMat = new THREE.MeshBasicMaterial({ color: eyeCol });
+    for (const s of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(1.75, 8, 8), eyeMat);
+      eye.position.set(8.2, 1.2, s * 3.4);
+      headGroup.add(eye);
+    }
+
+    // Snorkel tube (pops visibly when diving underwater!)
+    const snorkel = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.1, 1.1, 15, 8),
+      new THREE.MeshBasicMaterial({ color: '#38bdf8' })
+    );
+    snorkel.position.set(2, 11, -7.5);
+    snorkel.visible = false;
+    headGroup.add(snorkel);
+
+    const animParts = { swimCollar, snorkel };
+
+    // 🎭 6 ICONIC SWIMMER COSTUMES & HEADPIECES!
+    if (charId === 'kaptan') {
+      // ⚓ Kaptan Kara: Korsan tricorn şapka + altın şerit + gür sakal + göz bandı!
+      const hatMat = new THREE.MeshStandardMaterial({ color: '#1c1917', roughness: 0.65 });
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(14.5, 15, 2.8, 3), hatMat);
+      brim.position.set(0, 8.2, 0);
+      brim.rotation.y = Math.PI;
+      brim.castShadow = true;
+      headGroup.add(brim);
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(8.2, 10, 7.5, 10), hatMat);
+      crown.position.set(0, 12.2, 0);
+      headGroup.add(crown);
+      const badge = new THREE.Mesh(new THREE.SphereGeometry(2.6, 8, 8), new THREE.MeshBasicMaterial({ color: '#ffd166' }));
+      badge.position.set(9.2, 11.5, 0);
+      headGroup.add(badge);
+      const beard = new THREE.Mesh(new THREE.SphereGeometry(6.5, 10, 8), hatMat);
+      beard.scale.set(0.85, 0.9, 1.1);
+      beard.position.set(5.5, -5.2, 0);
+      headGroup.add(beard);
     } else if (charId === 'kopekbaligi') {
-      // 🦈 KÖPEKBALIĞI — Smooth Glossy Wet-Skin Great White Shark!
-      const sharkMat = new THREE.MeshStandardMaterial({
-        color: hullHex,
-        roughness: 0.25,
-        metalness: 0.12
-      });
-      const torso = new THREE.Mesh(this._sharedGeo.sharkBody, sharkMat);
-      torso.position.set(2, 7, 0);
-      torso.castShadow = true;
-      body.add(torso);
-
-      const eyeMat = new THREE.MeshBasicMaterial({ color: '#fef08a' });
-      for (const s of [-1, 1]) {
-        const eye = new THREE.Mesh(new THREE.SphereGeometry(1.8, 8, 8), eyeMat);
-        eye.position.set(17.5, 9.8, s * 5.6);
-        body.add(eye);
-      }
-
-      const dorsal = new THREE.Mesh(new THREE.ConeGeometry(4.5, 18, 8), sharkMat);
-      dorsal.position.set(1, 17.5, 0);
-      dorsal.rotation.z = 0.34;
-      dorsal.scale.set(1.2, 1, 0.4);
-      dorsal.castShadow = true;
-      body.add(dorsal);
-
-      for (const s of [-1, 1]) {
-        const fin = new THREE.Mesh(new THREE.ConeGeometry(5.2, 15, 8), sharkMat);
-        fin.position.set(5, 5.5, s * 12.5);
-        fin.rotation.x = s * Math.PI * 0.45;
-        fin.rotation.z = 0.45;
-        fin.scale.set(0.7, 1, 0.32);
-        body.add(fin);
-      }
-
-      const tailGroup = new THREE.Group();
-      tailGroup.position.set(-15, 7, 0);
-      const tailTop = new THREE.Mesh(new THREE.ConeGeometry(4.4, 16, 8), sharkMat);
-      tailTop.position.set(-6, 5.5, 0);
-      tailTop.rotation.z = 0.7;
-      tailTop.scale.set(0.8, 1, 0.32);
-      tailGroup.add(tailTop);
-      const tailBot = new THREE.Mesh(new THREE.ConeGeometry(3.6, 12, 8), sharkMat);
-      tailBot.position.set(-5, -3.5, 0);
-      tailBot.rotation.z = 2.3;
-      tailBot.scale.set(0.8, 1, 0.32);
-      tailGroup.add(tailBot);
-      body.add(tailGroup);
-      animParts.tail = tailGroup;
+      // 🦈 Köpekbalığı: Köpekbalığı kapüşonu + sırt yüzgeci + beyaz dişler!
+      const hoodMat = new THREE.MeshStandardMaterial({ color: hasCustomSkin ? hullHex : '#2563eb', roughness: 0.35 });
+      const hood = new THREE.Mesh(new THREE.SphereGeometry(10.3, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.68), hoodMat);
+      hood.rotation.z = 0.25;
+      headGroup.add(hood);
+      const dorsal = new THREE.Mesh(new THREE.ConeGeometry(4.2, 14, 8), hoodMat);
+      dorsal.position.set(-4.5, 12.5, 0);
+      dorsal.rotation.z = 0.45;
+      dorsal.scale.set(1.2, 1, 0.36);
+      headGroup.add(dorsal);
+      const tailFin = new THREE.Mesh(new THREE.ConeGeometry(4.5, 14, 8), hoodMat);
+      tailFin.position.set(-14, 8, 0);
+      tailFin.rotation.z = 1.1;
+      tailFin.scale.set(0.8, 1, 0.35);
+      body.add(tailFin);
+      animParts.tail = tailFin;
+    } else if (charId === 'hayalet') {
+      // 👻 Sis Hayaleti: Gizemli hayalet dalgıç kapüşonu + parlayan gözler!
+      const cloakMat = new THREE.MeshStandardMaterial({ color: hasCustomSkin ? hullHex : '#0f766e', roughness: 0.5, transparent: true, opacity: 0.9 });
+      const hood = new THREE.Mesh(new THREE.ConeGeometry(12.2, 16, 10), cloakMat);
+      hood.position.set(-1.5, 9.5, 0);
+      hood.rotation.z = 0.28;
+      headGroup.add(hood);
+      const gHalo = this._makeGlowSprite('#67e8f9', 26, 0.55);
+      gHalo.position.set(7, 2, 0);
+      headGroup.add(gHalo);
+    } else if (charId === 'fenerci') {
+      // 🔦 Fenerci: Sarı yağmurluk şapkası + alında parlayan kafa feneri!
+      const rainMat = new THREE.MeshStandardMaterial({ color: '#facc15', roughness: 0.38 });
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(13.5, 14.5, 2.4, 14), rainMat);
+      brim.position.set(-0.5, 7.5, 0);
+      headGroup.add(brim);
+      const top = new THREE.Mesh(new THREE.SphereGeometry(9.2, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), rainMat);
+      top.position.set(0, 7.8, 0);
+      headGroup.add(top);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(3.4, 10, 8), new THREE.MeshBasicMaterial({ color: '#fef08a' }));
+      lamp.position.set(9.5, 5.5, 0);
+      headGroup.add(lamp);
+      const lampGlow = this._makeGlowSprite('#fde047', 34, 0.8);
+      lampGlow.position.set(11, 5.5, 0);
+      headGroup.add(lampGlow);
+      animParts.lamp = lamp;
     } else if (charId === 'ahtapot') {
-      // 🐙 AHTAPOT — Smooth Glossy Octopus with 6 Waving Curved Tentacles!
-      const octoMat = new THREE.MeshStandardMaterial({
-        color: hullHex,
-        roughness: 0.28,
-        metalness: 0.1
-      });
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(14.5, 18, 14), octoMat);
-      dome.scale.set(1.15, 0.94, 0.98);
-      dome.position.set(3, 13.5, 0);
-      dome.castShadow = true;
-      body.add(dome);
-
-      const eyeMat = new THREE.MeshBasicMaterial({ color: '#fef08a' });
+      // 🐙 Ahtapot: Mor ahtapot şapkası + sırtta sallanan 4 dokunaç!
+      const octoMat = new THREE.MeshStandardMaterial({ color: hasCustomSkin ? hullHex : '#9333ea', roughness: 0.32 });
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(10.8, 14, 12), octoMat);
+      cap.scale.set(1.05, 0.85, 1.05);
+      cap.position.set(-0.5, 8.2, 0);
+      headGroup.add(cap);
       for (const s of [-1, 1]) {
-        const eye = new THREE.Mesh(new THREE.SphereGeometry(3.2, 10, 10), eyeMat);
-        eye.position.set(14.5, 14.5, s * 6.5);
-        body.add(eye);
+        const ce = new THREE.Mesh(new THREE.SphereGeometry(2.1, 8, 8), new THREE.MeshBasicMaterial({ color: '#fef08a' }));
+        ce.position.set(8.5, 9.2, s * 4.2);
+        headGroup.add(ce);
       }
-
       animParts.tentacles = [];
-      for (let k = 0; k < 6; k++) {
-        const a = ((k - 2.5) / 5.5) * Math.PI * 1.2;
+      for (let k = 0; k < 4; k++) {
+        const a = ((k - 1.5) / 3) * 1.1;
         const tg = new THREE.Group();
-        tg.position.set(-3, 7, 0);
+        tg.position.set(-7, 8, 0);
         tg.rotation.y = a;
         const arm = new THREE.Mesh(this._sharedGeo.tentacle, octoMat);
-        arm.castShadow = true;
+        arm.scale.setScalar(0.72);
         tg.add(arm);
         body.add(tg);
         animParts.tentacles.push({ group: tg, baseA: a, idx: k });
       }
     } else {
-      // Smooth clean temporary hull during initial ~100ms GLB preload
-      const tmp = new THREE.Mesh(
-        new THREE.ConeGeometry(12, 38, 12),
-        new THREE.MeshStandardMaterial({ color: hullHex, roughness: 0.45 })
-      );
-      tmp.rotation.z = -Math.PI / 2;
-      tmp.position.y = 8;
-      body.add(tmp);
+      // 🌊 Dalga Binicisi: Sörf gözlüğü + dalgalanan bandana!
+      const bandMat = new THREE.MeshBasicMaterial({ color: hasCustomSkin ? hullHex : '#06d6a0' });
+      const band = new THREE.Mesh(new THREE.TorusGeometry(9.2, 1.9, 8, 16), bandMat);
+      band.rotation.x = Math.PI / 2;
+      band.position.set(0, 4.5, 0);
+      headGroup.add(band);
+      const goggles = new THREE.Mesh(new THREE.BoxGeometry(4.5, 4.2, 12.5), new THREE.MeshBasicMaterial({ color: '#38bdf8' }));
+      goggles.position.set(8.2, 4.2, 0);
+      headGroup.add(goggles);
     }
+    body.add(headGroup);
 
-    // 🚩 Waving 3D Team/Role Pennant Flag & Warm Bow Lantern on all vessels (non-creature ships!)
-    if (charId !== 'kopekbaligi' && charId !== 'ahtapot') {
-      const flagH = charId === 'kaptan' || charId === 'hayalet' ? 46 : (charId === 'fenerci' ? 34 : 24);
-      const flagX = charId === 'kaptan' || charId === 'hayalet' ? -4 : -10;
-      const pole = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.7, 0.9, 14, 6),
-        new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.7 })
-      );
-      pole.position.set(flagX, flagH - 5, 0);
-      body.add(pole);
+    // 💪 Articulated RIGHT & LEFT ARMS holding Slot 0 (Right) & Slot 1 (Left) 3D Items!
+    const makeArm = (side) => {
+      const shoulder = new THREE.Group();
+      shoulder.position.set(2, 12, side * 14.5);
+      const upper = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 2.8, 12, 8), skinMat);
+      upper.rotation.z = -Math.PI / 2;
+      upper.position.x = 6;
+      upper.castShadow = true;
+      shoulder.add(upper);
+      const fist = new THREE.Mesh(new THREE.SphereGeometry(3.5, 8, 8), skinMat);
+      fist.position.x = 12.5;
+      shoulder.add(fist);
+      const handSocket = new THREE.Group();
+      handSocket.position.set(13, 0, 0);
+      shoulder.add(handSocket);
+      body.add(shoulder);
+      return { shoulder, handSocket };
+    };
+    const rArm = makeArm(1);
+    const lArm = makeArm(-1);
 
-      const flagGeo = new THREE.PlaneGeometry(16, 7.5, 4, 1);
-      flagGeo.translate(-8, 0, 0);
-      const flagMat = new THREE.MeshBasicMaterial({ color: roleHex, side: THREE.DoubleSide });
-      const flagMesh = new THREE.Mesh(flagGeo, flagMat);
-      flagMesh.position.set(flagX, flagH, 0);
-      body.add(flagMesh);
-      animParts.flag = flagMesh;
+    // 🦵 Kicking swimmer legs trailing just beneath the surface!
+    const makeLeg = (side) => {
+      const hip = new THREE.Group();
+      hip.position.set(-8, 3.5, side * 5.2);
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 2.2, 14, 8), skinMat);
+      leg.rotation.z = Math.PI / 2;
+      leg.position.x = -7;
+      hip.add(leg);
+      const flipper = new THREE.Mesh(new THREE.BoxGeometry(7.5, 1.4, 4.8), darkMat);
+      flipper.position.set(-15, 0, 0);
+      hip.add(flipper);
+      body.add(hip);
+      return hip;
+    };
+    const rightLeg = makeLeg(1);
+    const leftLeg = makeLeg(-1);
 
-      // Warm glowing ship bow lantern
-      const lanGlow = this._makeGlowSprite('#ffd166', 18, 0.58);
-      lanGlow.position.set(charId === 'dalgabinici' ? 16 : 22, 14, 0);
-      body.add(lanGlow);
-    }
+    // 🚩 Mini Waving Role/Crown Pennant Flag behind shoulder for clear team ID!
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.7, 15, 6),
+      new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.4 })
+    );
+    pole.position.set(-9, 22, -7);
+    body.add(pole);
+    const flagGeo = new THREE.PlaneGeometry(13, 6.2, 4, 1);
+    flagGeo.translate(-6.5, 0, 0);
+    const flagMesh = new THREE.Mesh(flagGeo, new THREE.MeshBasicMaterial({ color: roleHex, side: THREE.DoubleSide }));
+    flagMesh.position.set(-9, 28, -7);
+    body.add(flagMesh);
+    animParts.flag = flagMesh;
+    animParts.rightArm = rArm.shoulder;
+    animParts.leftArm = lArm.shoulder;
+    animParts.rightLeg = rightLeg;
+    animParts.leftLeg = leftLeg;
+    animParts.head = headGroup;
 
     return {
       root,
@@ -1835,6 +2182,10 @@ export class SeaRenderer3D {
       mirrorDome,
       shockCage,
       aura,
+      rightHand: rArm.handSocket,
+      leftHand: lArm.handSocket,
+      handItem0: null,
+      handItem1: null,
       animParts,
       charId,
       hullHex,
@@ -2272,8 +2623,7 @@ export class SeaRenderer3D {
       maxLife: 2.1,
       rollDir: Math.random() < 0.5 ? 1 : -1
     });
-    this._spawnSplashPlume(sp.x, sp.y, '#e0f7ff', 1.45);
-    this._spawnWoodDebris(sp.x, sp.y, 5);
+    this._spawnSplashPlume(sp.x, sp.y, '#e0f7ff', 1.35);
     this._spawnBurst(sp.x, sp.y, '#e0f2fe', 16, 115, 110);
     this._spawnShockRing(sp.x, sp.y, '#bae6fd', 14, 115, 0.7);
   }
@@ -2332,11 +2682,15 @@ export class SeaRenderer3D {
         continue;
       }
       const prog = 1 - sr.life / sr.maxLife;
-      sr.rig.body.position.y = -prog * 36;
-      sr.rig.body.rotation.x = sr.rollDir * prog * 0.95;
-      sr.rig.body.rotation.z = prog * 0.62;
-      if (Math.random() < dt * 10) {
-        this._spawnBurst(sr.rig.root.position.x, sr.rig.root.position.z, '#e0f2fe', 1, 28, 35);
+      sr.rig.body.position.y = -prog * 34;
+      sr.rig.body.rotation.y += dt * 2.2 * sr.rollDir;
+      // 🏊‍♂️ Frantically wave both arms above head while bubbling down into the sea!
+      if (sr.rig.animParts?.rightArm && sr.rig.animParts?.leftArm) {
+        sr.rig.animParts.rightArm.rotation.z = 1.25 + Math.sin(this.time * 24) * 0.35;
+        sr.rig.animParts.leftArm.rotation.z = 1.25 - Math.sin(this.time * 24) * 0.35;
+      }
+      if (Math.random() < dt * 14) {
+        this._spawnBurst(sr.rig.root.position.x + (Math.random() - 0.5) * 14, sr.rig.root.position.z + (Math.random() - 0.5) * 14, '#e0f2fe', 1, 24, 42);
       }
     }
 
@@ -2549,10 +2903,10 @@ export class SeaRenderer3D {
         if (curSpd > 42 && Math.random() < dt * 14) {
           this._spawnVWake(sp.x, sp.y, sp.aim, curSpd);
         }
-        // Wounded vessels (<45% HP) billow battle smoke & occasional sparks!
+        // Low-HP exhausted swimmer panic splashes (<40% HP)
         const hpRatio = (p.hp || 0) / Math.max(1, p.maxHp || 120);
-        if (hpRatio < 0.45 && (this._canViewerSee(me, p, map, state.roundEvent) || p.id === myId) && Math.random() < dt * (hpRatio < 0.25 ? 8.5 : 4.2)) {
-          this._spawnDamageSmoke(sp.x, sp.y, hpRatio < 0.25);
+        if (hpRatio < 0.4 && (this._canViewerSee(me, p, map, state.roundEvent) || p.id === myId) && Math.random() < dt * (hpRatio < 0.22 ? 8 : 4)) {
+          this._spawnBurst(sp.x, sp.y, hpRatio < 0.22 ? '#fda4af' : '#bae6fd', 1, 32, 52);
         }
       }
     }
@@ -2715,22 +3069,59 @@ export class SeaRenderer3D {
       rig.ring.material.opacity = p.submerged ? 0.92 : 0.78;
       rig.ring.material.color.set(p.submerged ? '#38bdf8' : rig.roleHex);
 
+      // Sync the real 2 items held in the swimmer's right & left hands!
+      this._syncHandheldItems(rig, p);
+
       const spd = Math.hypot(p.vx || 0, p.vy || 0);
-      // Dynamic banking roll into turns + speed bow lift + crisp gun recoil!
+      // Dynamic swimmer stroke, flutter-kick legs, lunge arms & weapon recoil!
       const prevA = this.prevAim.get(p.id);
       let dAim = 0;
       if (prevA !== undefined) {
         dAim = Math.atan2(Math.sin(sp.aim - prevA), Math.cos(sp.aim - prevA));
       }
       this.prevAim.set(p.id, sp.aim);
-      const targetBank = Math.max(-0.26, Math.min(0.26, dAim * 3.8));
+      const targetBank = Math.max(-0.24, Math.min(0.24, dAim * 3.2));
       rig.bankAngle = (rig.bankAngle || 0) + (targetBank - (rig.bankAngle || 0)) * 0.18;
       const recoil = this.shipRecoil.get(p.id) || 0;
       const recoilPush = recoil > 0 ? -(recoil / 0.16) * 6.5 : 0;
       rig.body.position.x = Math.cos(sp.aim) * recoilPush;
       rig.body.position.z = Math.sin(sp.aim) * recoilPush;
       rig.body.rotation.x = Math.sin(this.time * 4.5 + sp.y * 0.02) * 0.05 + rig.bankAngle;
-      rig.body.rotation.z = Math.min(0.18, spd * 0.0005) + (recoil > 0 ? 0.12 : 0);
+      // Forward swim lean (flatter when diving underwater!)
+      rig.body.rotation.z = p.submerged ? -0.35 : (-Math.min(0.22, spd * 0.00075) + (recoil > 0 ? 0.14 : 0));
+
+      const kickSpd = 6 + spd * 0.055;
+      const stroke = Math.sin(this.time * kickSpd + (p.id?.length || 0));
+      const isLunge = spd > 330;
+      if (rig.animParts.rightArm && rig.animParts.leftArm) {
+        const recPitch = recoil > 0 ? 0.45 : 0;
+        if (isLunge) {
+          // SPACE Suya Bastır / Dalga Kaçışı: reach both arms forward!
+          rig.animParts.rightArm.rotation.y = 0.25;
+          rig.animParts.leftArm.rotation.y = -0.25;
+          rig.animParts.rightArm.rotation.z = 0.15;
+          rig.animParts.leftArm.rotation.z = 0.15;
+        } else {
+          rig.animParts.rightArm.rotation.y = 0.12 + stroke * (spd > 35 ? 0.24 : 0.06);
+          rig.animParts.leftArm.rotation.y = -0.12 - stroke * (spd > 35 ? 0.24 : 0.06);
+          rig.animParts.rightArm.rotation.z = recPitch + stroke * (spd > 35 ? 0.18 : 0.05);
+          rig.animParts.leftArm.rotation.z = recPitch - stroke * (spd > 35 ? 0.18 : 0.05);
+        }
+      }
+      if (rig.animParts.rightLeg && rig.animParts.leftLeg) {
+        const legAmp = spd > 35 ? 0.42 : 0.12;
+        rig.animParts.rightLeg.rotation.z = Math.sin(this.time * kickSpd * 1.35) * legAmp;
+        rig.animParts.leftLeg.rotation.z = -Math.sin(this.time * kickSpd * 1.35) * legAmp;
+      }
+      if (rig.animParts.swimCollar) {
+        const sc = 0.94 + Math.sin(this.time * 4.5 + sp.x * 0.02) * 0.08 + Math.min(0.14, spd * 0.0004);
+        rig.animParts.swimCollar.scale.set(sc, sc, 1);
+        rig.animParts.swimCollar.rotation.z += 0.015;
+        rig.animParts.swimCollar.visible = !p.submerged;
+      }
+      if (rig.animParts.snorkel) {
+        rig.animParts.snorkel.visible = Boolean(p.submerged);
+      }
 
       if (rig.animParts.tail) rig.animParts.tail.rotation.y = Math.sin(this.time * (8 + spd * 0.035)) * 0.44;
       if (rig.animParts.tentacles) {

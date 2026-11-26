@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v7.2';
+export const GAME_VERSION = 'v8.0';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,15 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v8.0',
+    notes: [
+      '🏊‍♂️ BÜYÜK TEMA DÖNÜŞÜMÜ — ARTIK GEMİ DEĞİL, ELLERİNDE GERÇEK 2 İTEM TUTAN YÜZEN İNSANLARIZ!',
+      '🔫 Sağ & Sol Elde Gerçek 20 İtem (3D & 2D): 1. slot sağ elinde, 2. slot sol elinde 3D olarak görünür! Tek atımlık silahı sıktığında o elin boşalır, sandık/Kraken doldurunca geri gelir!',
+      '🎭 6 İkonik Yüzücü Kostümü: Kaptan Kara (korsan şapkalı & sakallı), Köpekbalığı (yüzgeçli dalgıç kapüşonu), Sis Hayaleti (parlayan gözlü hayalet dalgıç), Fenerci (sarı yağmurluk + kafa feneri), Ahtapot (mor ahtapot başlıklı + 4 dokunaç), Dalga Binicisi (sörf gözlüklü & bandanalı).',
+      '🌊 Yüzme, Suya Bastırma & Komik Batma Animasyonları: Kulaç atan kollar, ayak çırpma, su altı şnorkeli, SPACE’te iki kolla öne atılma ve batınca el sallaya sallaya kabarcıklar içinde dibe gömülme!'
+    ]
+  },
   {
     ver: 'v7.2',
     notes: [
