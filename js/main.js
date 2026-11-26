@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=6.1';
-import { sfx } from './audio.js?v=6.1';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=6.1';
-import { GameSim } from './sim.js?v=6.1';
-import { SeaRenderer } from './render.js?v=6.1';
+} from './data.js?v=6.2';
+import { sfx } from './audio.js?v=6.2';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=6.2';
+import { GameSim } from './sim.js?v=6.2';
+import { SeaRenderer } from './render.js?v=6.2';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1360,7 +1360,7 @@ function updateHudFromState(st) {
         slotEl.className = `hud-item-slot ${depleted ? 'depleted' : ''} ${it.firearm ? 'firearm' : ''} ${onCd ? 'cooldown' : ''}`;
         slotEl.innerHTML = `
           ${onCd ? `<div class="cd-sweep" style="height:${cdPct}%"></div>` : ''}
-          <div class="slot-key">${i === 0 ? '1 / SOL' : '2 / SAĞ'}</div>
+          <div class="slot-key">${i === 0 ? '1·SOL' : '2·SAĞ'}</div>
           <div class="slot-ico">${def.icon}</div>
           <div class="slot-meta">
             <div class="slot-title">${def.name}</div>
@@ -1472,6 +1472,87 @@ function updateHudFromState(st) {
   }
 }
 
+function getEventShowcaseSvg(eventId) {
+  switch (eventId) {
+    case 'kraken_uyanisi':
+      return `<svg viewBox="0 0 120 88" fill="none">
+        <defs><radialGradient id="krg" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="#f0abfc"/><stop offset="100%" stop-color="#7e22ce"/></radialGradient></defs>
+        <path d="M12 72 Q22 46 34 62 T54 58" stroke="#c084fc" stroke-width="7" stroke-linecap="round"/>
+        <path d="M108 72 Q98 46 86 62 T66 58" stroke="#c084fc" stroke-width="7" stroke-linecap="round"/>
+        <path d="M24 78 Q32 58 46 66" stroke="#a855f7" stroke-width="6" stroke-linecap="round"/>
+        <path d="M96 78 Q88 58 74 66" stroke="#a855f7" stroke-width="6" stroke-linecap="round"/>
+        <ellipse cx="60" cy="40" rx="26" ry="28" fill="url(#krg)" stroke="#f5d0fe" stroke-width="2"/>
+        <path d="M46 42 L55 46 L46 49 Z" fill="#fde047"/>
+        <path d="M74 42 L65 46 L74 49 Z" fill="#fde047"/>
+        <circle cx="51" cy="45.5" r="2.2" fill="#450a0a"/>
+        <circle cx="69" cy="45.5" r="2.2" fill="#450a0a"/>
+        <path d="M8 78 Q34 70 60 78 T112 78" stroke="#38bdf8" stroke-width="3.5" stroke-linecap="round" opacity="0.75"/>
+      </svg>`;
+    case 'barut_yagmuru':
+      return `<svg viewBox="0 0 120 88" fill="none">
+        <g transform="rotate(-14 42 54)">
+          <rect x="24" y="34" width="32" height="40" rx="8" fill="#b91c1c" stroke="#fca5a5" stroke-width="2"/>
+          <line x1="24" y1="45" x2="56" y2="45" stroke="#334155" stroke-width="4"/>
+          <line x1="24" y1="63" x2="56" y2="63" stroke="#334155" stroke-width="4"/>
+        </g>
+        <g transform="rotate(14 78 54)">
+          <rect x="64" y="34" width="32" height="40" rx="8" fill="#dc2626" stroke="#fed7aa" stroke-width="2"/>
+          <line x1="64" y1="45" x2="96" y2="45" stroke="#334155" stroke-width="4"/>
+          <line x1="64" y1="63" x2="96" y2="63" stroke="#334155" stroke-width="4"/>
+        </g>
+        <path d="M60 10 L65 23 L79 20 L68 30 L74 42 L60 34 L46 42 L52 30 L41 20 L55 23 Z" fill="#fde047" stroke="#fb923c" stroke-width="2"/>
+        <circle cx="60" cy="26" r="5" fill="#fffbeb"/>
+      </svg>`;
+    case 'seken_mermiler':
+      return `<svg viewBox="0 0 120 88" fill="none">
+        <polygon points="10,74 28,28 42,74" fill="#64748b" stroke="#cbd5e1" stroke-width="2"/>
+        <polygon points="78,74 96,24 112,74" fill="#64748b" stroke="#cbd5e1" stroke-width="2"/>
+        <polyline points="12,18 35,44 88,36 58,72" stroke="#38bdf8" stroke-width="4" stroke-dasharray="7 5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="35" cy="44" r="6" fill="#fde047" opacity="0.85"/>
+        <circle cx="88" cy="36" r="6" fill="#fde047" opacity="0.85"/>
+        <circle cx="58" cy="72" r="8" fill="#e0f2fe" stroke="#38bdf8" stroke-width="3"/>
+      </svg>`;
+    case 'gece_sisi':
+      return `<svg viewBox="0 0 120 88" fill="none">
+        <circle cx="82" cy="26" r="16" fill="#fef08a" opacity="0.9"/>
+        <circle cx="88" cy="22" r="13" fill="#092038"/>
+        <path d="M18 58 Q30 40 48 48 Q64 34 82 48 Q102 46 106 62 Q106 72 90 72 L26 72 Q14 72 18 58 Z" fill="#94a3b8" opacity="0.55"/>
+        <path d="M26 68 Q46 52 68 62 Q86 52 100 68" stroke="#e2e8f0" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
+        <circle cx="32" cy="24" r="2" fill="#e0f2fe"/><circle cx="48" cy="18" r="1.6" fill="#e0f2fe"/>
+      </svg>`;
+    case 'kasirga_hizi':
+      return `<svg viewBox="0 0 120 88" fill="none">
+        <path d="M14 58 Q40 42 66 56 T108 46" stroke="#38bdf8" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M18 72 Q46 56 74 68 T110 60" stroke="#7dd3fc" stroke-width="3.5" stroke-linecap="round" opacity="0.8"/>
+        <polygon points="66,8 40,46 58,46 48,78 86,36 66,36" fill="#fde047" stroke="#38bdf8" stroke-width="2.5" stroke-linejoin="round"/>
+      </svg>`;
+    case 'derin_deniz':
+      return `<svg viewBox="0 0 120 88" fill="none">
+        <rect x="26" y="34" width="68" height="30" rx="14" fill="#0284c7" stroke="#80ffdb" stroke-width="3.5"/>
+        <rect x="34" y="40" width="22" height="18" rx="6" fill="#bae6fd" opacity="0.9"/>
+        <rect x="64" y="40" width="22" height="18" rx="6" fill="#bae6fd" opacity="0.9"/>
+        <path d="M94 48 L104 48 L104 16" stroke="#06d6a0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="20" cy="24" r="5" stroke="#7dd3fc" stroke-width="2.5"/>
+        <circle cx="32" cy="16" r="3.5" stroke="#80ffdb" stroke-width="2"/>
+        <circle cx="88" cy="20" r="4" stroke="#7dd3fc" stroke-width="2"/>
+      </svg>`;
+    case 'hazine_firtinasi':
+      return `<svg viewBox="0 0 120 88" fill="none">
+        <path d="M60 8 L64 20 M34 16 L44 26 M86 16 L76 26" stroke="#fde047" stroke-width="3.5" stroke-linecap="round"/>
+        <rect x="26" y="42" width="68" height="34" rx="7" fill="#92400e" stroke="#ffd166" stroke-width="3"/>
+        <path d="M24 42 Q60 22 96 42 Z" fill="#b45309" stroke="#ffd166" stroke-width="3"/>
+        <rect x="54" y="38" width="12" height="16" rx="3" fill="#fde047"/>
+        <circle cx="42" cy="34" r="4.5" fill="#fde047"/><circle cx="76" cy="32" r="4" fill="#fde047"/>
+        <circle cx="104" cy="48" r="3.5" fill="#c084fc"/><circle cx="16" cy="46" r="3.5" fill="#c084fc"/>
+      </svg>`;
+    default:
+      return `<svg viewBox="0 0 120 88" fill="none">
+        <circle cx="60" cy="44" r="28" fill="#0ea5e9" opacity="0.25" stroke="#38bdf8" stroke-width="3"/>
+        <polygon points="60,18 68,38 90,40 73,53 78,74 60,62 42,74 47,53 30,40 52,38" fill="#ffd166"/>
+      </svg>`;
+  }
+}
+
 function renderIntroVS(st) {
   const map = SEA_MAPS[(st.mapIndex || 0) % SEA_MAPS.length];
   const secs = Math.max(0, Math.ceil(st.phaseTimer));
@@ -1479,10 +1560,28 @@ function renderIntroVS(st) {
     $('intro-countdown').textContent = secs > 0 ? String(secs) : 'BAŞLA!';
   });
 
-  const rosterKey = `${st.round}_${st.mode}_${(st.players || []).map(p => p.id + ':' + (p.items || []).map(i => i.id).join(',')).join('|')}`;
+  const rosterKey = `${st.round}_${st.mode}_${st.roundEvent || ''}_${(st.players || []).map(p => p.id + ':' + (p.items || []).map(i => i.id).join(',')).join('|')}`;
   setIfChanged('introRoster', rosterKey, () => {
     const ev = st.roundEvent ? ROUND_EVENT_MAP[st.roundEvent] : null;
-    $('intro-map-title').textContent = `TUR ${st.round}/${st.totalRounds} · ${map.name.toUpperCase()}${ev ? ` · ${ev.icon} ${ev.name.toUpperCase()}` : ''}`;
+    $('intro-map-title').textContent = `TUR ${st.round}/${st.totalRounds} · ${map.name.toUpperCase()}`;
+
+    const evBox = $('intro-event-showcase');
+    if (evBox) {
+      if (ev) {
+        evBox.style.display = 'flex';
+        evBox.style.setProperty('--ev-col', ev.color || '#38bdf8');
+        evBox.innerHTML = `
+          <div class="vs-ev-art">${getEventShowcaseSvg(ev.id)}</div>
+          <div class="vs-ev-copy">
+            <div class="vs-ev-kicker">🎲 BU TURUN ÖZEL OLAYI</div>
+            <div class="vs-ev-title">${ev.icon} ${ev.name}</div>
+            <div class="vs-ev-desc">${ev.desc}</div>
+          </div>
+        `;
+      } else {
+        evBox.style.display = 'none';
+      }
+    }
 
     const renderCard = (p) => {
       const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
@@ -1492,6 +1591,8 @@ function renderIntroVS(st) {
         if (!def) return '';
         return `<span class="vs-item ${def.firearm ? 'firearm' : ''}">${def.icon} ${def.name}</span>`;
       }).join('');
+      const combo = getActiveCombo((p.items || []).map(i => i.id));
+      const comboHtml = combo ? `<div class="vs-combo-pill">🔥 KOMBO: ${combo.icon} ${combo.name}</div>` : '';
       return `
         <div class="vs-card ${isMe ? 'me' : ''}" style="--char-color:${ch.color}">
           <div class="vs-card-top">
@@ -1502,6 +1603,7 @@ function renderIntroVS(st) {
             </div>
           </div>
           <div class="vs-items">${itemChips}</div>
+          ${comboHtml}
         </div>
       `;
     };
@@ -1721,7 +1823,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=6.1');
+        const mod = await import('./render3d.js?v=6.2');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
       } catch (err) {
         console.warn('3D WebGL init error:', err);

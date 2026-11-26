@@ -624,7 +624,7 @@ input:focus { border-color: var(--aqua); }
   align-items: center;
   gap: 6px;
   z-index: 5;
-  width: min(740px, 96vw);
+  width: min(840px, 96vw);
   pointer-events: none;
 }
 
@@ -706,7 +706,7 @@ input:focus { border-color: var(--aqua); }
 
 .slots-bar {
   display: grid;
-  grid-template-columns: 1fr 1fr 0.85fr 0.85fr;
+  grid-template-columns: 1.12fr 1.12fr 0.94fr 0.94fr;
   gap: 7px;
   width: 100%;
   pointer-events: auto;
@@ -716,14 +716,15 @@ input:focus { border-color: var(--aqua); }
   overflow: hidden;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  gap: 9px;
+  padding: 13px 10px 7px;
   border-radius: 11px;
   background: rgba(8, 26, 46, 0.9);
   border: 1.5px solid rgba(125, 211, 252, 0.32);
   color: var(--text);
   cursor: pointer;
   text-align: left;
+  min-width: 0;
 }
 .cd-sweep {
   position: absolute;
@@ -735,7 +736,7 @@ input:focus { border-color: var(--aqua); }
   pointer-events: none;
   z-index: 1;
 }
-.hud-item-slot > *:not(.cd-sweep) { position: relative; z-index: 2; }
+.hud-item-slot > *:not(.cd-sweep):not(.slot-key) { position: relative; z-index: 2; }
 .hud-item-slot.firearm { border-color: rgba(255, 183, 3, 0.65); }
 .hud-item-slot.space { border-color: rgba(56, 189, 248, 0.45); }
 .hud-item-slot.dive { border-color: rgba(14, 165, 233, 0.55); }
@@ -750,21 +751,26 @@ input:focus { border-color: var(--aqua); }
   border-color: rgba(239, 71, 111, 0.45);
   filter: grayscale(0.75);
 }
-.slot-key {
+.hud-item-slot > .slot-key {
   position: absolute;
-  top: 4px;
-  right: 6px;
-  font-size: 9px;
+  top: 3px;
+  right: 5px;
+  z-index: 3;
+  font-size: 8.5px;
   font-weight: 900;
+  line-height: 1.15;
   padding: 1px 5px;
   border-radius: 5px;
-  background: rgba(4, 16, 30, 0.85);
-  border: 1px solid var(--border);
+  background: rgba(4, 16, 30, 0.88);
+  border: 1px solid rgba(125, 211, 252, 0.28);
   color: #bae6fd;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
-.slot-ico { font-size: 21px; }
-.slot-title { font-size: 12px; font-weight: 800; padding-right: 34px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.slot-uses { font-size: 10.5px; font-weight: 800; color: var(--muted); margin-top: 1px; }
+.slot-ico { font-size: 22px; flex-shrink: 0; line-height: 1; }
+.slot-meta { min-width: 0; flex: 1; }
+.slot-title { font-size: 12px; font-weight: 800; padding-right: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot-uses { font-size: 10.5px; font-weight: 800; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .txt-firearm { color: var(--hunter); }
 .txt-spent { color: var(--danger); }
 
@@ -1517,6 +1523,94 @@ kbd {
   background: rgba(255, 183, 3, 0.16);
   border-color: rgba(255, 183, 3, 0.65);
   color: #fde68a;
+}
+.vs-combo-pill {
+  margin-top: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 183, 3, 0.24), rgba(251, 133, 0, 0.2));
+  border: 1px solid rgba(255, 209, 102, 0.72);
+  color: #fef08a;
+}
+
+/* 🎲 VS EKRANI GÖRSELLİ TUR OLAYI VİTRİNİ */
+@keyframes evFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes evPulseGlow {
+  0%, 100% { box-shadow: 0 0 18px color-mix(in srgb, var(--ev-col, #38bdf8) 28%, transparent); }
+  50% { box-shadow: 0 0 32px color-mix(in srgb, var(--ev-col, #38bdf8) 52%, transparent); }
+}
+.vs-event-showcase {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 16px;
+  margin-bottom: 14px;
+  border-radius: 16px;
+  background: radial-gradient(circle at 12% 50%, color-mix(in srgb, var(--ev-col, #38bdf8) 22%, rgba(5, 18, 34, 0.92)), rgba(4, 15, 28, 0.92) 68%);
+  border: 1.5px solid color-mix(in srgb, var(--ev-col, #38bdf8) 65%, transparent);
+  animation: evPulseGlow 2.4s ease-in-out infinite;
+  overflow: hidden;
+  position: relative;
+}
+.vs-ev-art {
+  width: 92px;
+  height: 70px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  animation: evFloat 2.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--ev-col, #38bdf8) 55%, transparent));
+}
+.vs-ev-art svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.vs-ev-copy {
+  min-width: 0;
+  flex: 1;
+}
+.vs-ev-kicker {
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: var(--ev-col, #38bdf8);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.vs-ev-title {
+  font-size: 19px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.15;
+  margin-bottom: 3px;
+}
+.vs-ev-desc {
+  font-size: 13px;
+  font-weight: 700;
+  color: #dbeafe;
+  line-height: 1.35;
+}
+@media (max-width: 640px) {
+  .vs-event-showcase {
+    gap: 10px;
+    padding: 9px 11px;
+    margin-bottom: 10px;
+  }
+  .vs-ev-art {
+    width: 64px;
+    height: 50px;
+  }
+  .vs-ev-title { font-size: 15px; }
+  .vs-ev-desc { font-size: 11.5px; }
 }
 
 /* 🏆 MAÇ SONU MVP & ÜNVANLAR */

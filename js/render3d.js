@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=6.1';
-import { hasLineOfSight } from './sim.js?v=6.1';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=6.2';
+import { hasLineOfSight } from './sim.js?v=6.2';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -680,9 +680,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=6.1'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=6.1'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=6.1'],
+      ['chest', './vendor/models/pirate/chest.glb?v=6.2'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=6.2'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=6.2'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
