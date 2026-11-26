@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.0';
-import { hasLineOfSight } from './sim.js?v=8.0';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.1';
+import { hasLineOfSight } from './sim.js?v=8.1';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -817,9 +817,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=8.0'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=8.0'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=8.0'],
+      ['chest', './vendor/models/pirate/chest.glb?v=8.1'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=8.1'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=8.1'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -1976,43 +1976,49 @@ export class SeaRenderer3D {
     });
     const darkMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.5 });
 
-    // 🏊‍♂️ Swimmer Upper Torso & Broad Shoulders (treading/swimming in water!)
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(10.5, 9.2, 16, 12), suitMat);
-    torso.scale.set(0.86, 1, 1.32);
-    torso.position.set(0, 7.5, 0);
+    // 🏊‍♂️ Swimmer Upper Torso & Broad Shoulders (treading/swimming naturally in water!)
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(9.8, 8.8, 15, 14), suitMat);
+    torso.scale.set(0.84, 1, 1.28);
+    torso.position.set(0, 6.2, 0);
     torso.castShadow = true;
     body.add(torso);
 
-    // Life-vest / Wetsuit chest stripe
+    // Life-vest / Wetsuit chest collar (clean contoured shoulders, no boxy slab!)
     const vest = new THREE.Mesh(
-      new THREE.BoxGeometry(11.5, 8.5, 22),
-      new THREE.MeshStandardMaterial({ color: roleHex, roughness: 0.45 })
+      new THREE.CylinderGeometry(10.4, 9.6, 7.5, 14),
+      new THREE.MeshStandardMaterial({ color: roleHex, roughness: 0.42 })
     );
-    vest.position.set(0.5, 9.5, 0);
+    vest.scale.set(0.88, 1, 1.32);
+    vest.position.set(0.3, 8.2, 0);
     body.add(vest);
 
     // Expressive Stylized Head (facing +X!)
     const headGroup = new THREE.Group();
-    headGroup.position.set(2, 23, 0);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(9.4, 16, 14), skinMat);
+    headGroup.position.set(2, 21.5, 0);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(9.2, 16, 14), skinMat);
     head.castShadow = true;
     headGroup.add(head);
 
-    // Cartoon Eyes facing +X
-    const eyeCol = charId === 'hayalet' ? '#67e8f9' : '#0f172a';
-    const eyeMat = new THREE.MeshBasicMaterial({ color: eyeCol });
+    // Expressive Cartoon Eyes with white sclera + crisp pupils facing +X
+    const scleraMat = new THREE.MeshBasicMaterial({ color: charId === 'hayalet' ? '#67e8f9' : '#ffffff' });
+    const pupilMat = new THREE.MeshBasicMaterial({ color: '#0f172a' });
     for (const s of [-1, 1]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(1.75, 8, 8), eyeMat);
-      eye.position.set(8.2, 1.2, s * 3.4);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(2.1, 10, 8), scleraMat);
+      eye.position.set(8.0, 1.2, s * 3.4);
       headGroup.add(eye);
+      if (charId !== 'hayalet') {
+        const pup = new THREE.Mesh(new THREE.SphereGeometry(1.15, 8, 8), pupilMat);
+        pup.position.set(9.5, 1.2, s * 3.4);
+        headGroup.add(pup);
+      }
     }
 
-    // Snorkel tube (pops visibly when diving underwater!)
+    // Snorkel tube (pops upright when diving underwater!)
     const snorkel = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.1, 1.1, 15, 8),
+      new THREE.CylinderGeometry(1.1, 1.1, 16, 8),
       new THREE.MeshBasicMaterial({ color: '#38bdf8' })
     );
-    snorkel.position.set(2, 11, -7.5);
+    snorkel.position.set(1, 10, -7.2);
     snorkel.visible = false;
     headGroup.add(snorkel);
 
@@ -2020,25 +2026,30 @@ export class SeaRenderer3D {
 
     // 🎭 6 ICONIC SWIMMER COSTUMES & HEADPIECES!
     if (charId === 'kaptan') {
-      // ⚓ Kaptan Kara: Korsan tricorn şapka + altın şerit + gür sakal + göz bandı!
-      const hatMat = new THREE.MeshStandardMaterial({ color: '#1c1917', roughness: 0.65 });
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(14.5, 15, 2.8, 3), hatMat);
-      brim.position.set(0, 8.2, 0);
-      brim.rotation.y = Math.PI;
+      // ⚓ Kaptan Kara: Şık geniş kenarlı korsan şapkası + kırmızı bandana + altın kurdele + gür sakal!
+      const hatMat = new THREE.MeshStandardMaterial({ color: '#1c1917', roughness: 0.6 });
+      const goldTrim = new THREE.MeshStandardMaterial({ color: '#fbbf24', roughness: 0.3, metalness: 0.65 });
+      const band = new THREE.Mesh(new THREE.TorusGeometry(9.1, 1.7, 8, 16), new THREE.MeshStandardMaterial({ color: '#dc2626', roughness: 0.5 }));
+      band.rotation.x = Math.PI / 2;
+      band.position.set(0, 5.5, 0);
+      headGroup.add(band);
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(13.8, 14.4, 2.2, 16), hatMat);
+      brim.scale.set(1.05, 1, 1.25);
+      brim.position.set(-0.5, 7.6, 0);
       brim.castShadow = true;
       headGroup.add(brim);
-      const crown = new THREE.Mesh(new THREE.CylinderGeometry(8.2, 10, 7.5, 10), hatMat);
-      crown.position.set(0, 12.2, 0);
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(7.8, 9.6, 6.8, 14), hatMat);
+      crown.position.set(-0.5, 11.4, 0);
       headGroup.add(crown);
-      const badge = new THREE.Mesh(new THREE.SphereGeometry(2.6, 8, 8), new THREE.MeshBasicMaterial({ color: '#ffd166' }));
-      badge.position.set(9.2, 11.5, 0);
-      headGroup.add(badge);
-      const beard = new THREE.Mesh(new THREE.SphereGeometry(6.5, 10, 8), hatMat);
-      beard.scale.set(0.85, 0.9, 1.1);
-      beard.position.set(5.5, -5.2, 0);
+      const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(9.2, 9.6, 1.8, 14), goldTrim);
+      ribbon.position.set(-0.5, 9.2, 0);
+      headGroup.add(ribbon);
+      const beard = new THREE.Mesh(new THREE.SphereGeometry(6.2, 10, 8), hatMat);
+      beard.scale.set(0.75, 0.85, 1.08);
+      beard.position.set(5.4, -4.8, 0);
       headGroup.add(beard);
     } else if (charId === 'kopekbaligi') {
-      // 🦈 Köpekbalığı: Köpekbalığı kapüşonu + sırt yüzgeci + beyaz dişler!
+      // 🦈 Köpekbalığı: Köpekbalığı kapüşonu + sırt yüzgeci!
       const hoodMat = new THREE.MeshStandardMaterial({ color: hasCustomSkin ? hullHex : '#2563eb', roughness: 0.35 });
       const hood = new THREE.Mesh(new THREE.SphereGeometry(10.3, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.68), hoodMat);
       hood.rotation.z = 0.25;
@@ -2048,9 +2059,9 @@ export class SeaRenderer3D {
       dorsal.rotation.z = 0.45;
       dorsal.scale.set(1.2, 1, 0.36);
       headGroup.add(dorsal);
-      const tailFin = new THREE.Mesh(new THREE.ConeGeometry(4.5, 14, 8), hoodMat);
-      tailFin.position.set(-14, 8, 0);
-      tailFin.rotation.z = 1.1;
+      const tailFin = new THREE.Mesh(new THREE.ConeGeometry(4.5, 13, 8), hoodMat);
+      tailFin.position.set(-12, 4.5, 0);
+      tailFin.rotation.z = 1.2;
       tailFin.scale.set(0.8, 1, 0.35);
       body.add(tailFin);
       animParts.tail = tailFin;
@@ -2096,10 +2107,10 @@ export class SeaRenderer3D {
       for (let k = 0; k < 4; k++) {
         const a = ((k - 1.5) / 3) * 1.1;
         const tg = new THREE.Group();
-        tg.position.set(-7, 8, 0);
+        tg.position.set(-7, 6, 0);
         tg.rotation.y = a;
         const arm = new THREE.Mesh(this._sharedGeo.tentacle, octoMat);
-        arm.scale.setScalar(0.72);
+        arm.scale.setScalar(0.68);
         tg.add(arm);
         body.add(tg);
         animParts.tentacles.push({ group: tg, baseA: a, idx: k });
@@ -2117,20 +2128,28 @@ export class SeaRenderer3D {
     }
     body.add(headGroup);
 
-    // 💪 Articulated RIGHT & LEFT ARMS holding Slot 0 (Right) & Slot 1 (Left) 3D Items!
+    // 💪 Natural Bent RIGHT & LEFT ARMS (angled comfortably inward holding Slot 0 & Slot 1!)
     const makeArm = (side) => {
       const shoulder = new THREE.Group();
-      shoulder.position.set(2, 12, side * 14.5);
-      const upper = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 2.8, 12, 8), skinMat);
+      shoulder.position.set(1.5, 10.5, side * 12.5);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(3.6, 8, 8), suitMat);
+      shoulder.add(cap);
+      const upper = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 2.7, 9.5, 8), skinMat);
       upper.rotation.z = -Math.PI / 2;
-      upper.position.x = 6;
+      upper.position.set(4.5, -0.5, side * 1.2);
+      upper.rotation.y = -side * 0.22;
       upper.castShadow = true;
       shoulder.add(upper);
-      const fist = new THREE.Mesh(new THREE.SphereGeometry(3.5, 8, 8), skinMat);
-      fist.position.x = 12.5;
+      const fore = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.4, 8.5, 8), skinMat);
+      fore.rotation.z = -Math.PI / 2;
+      fore.position.set(11, -0.2, side * 0.4);
+      fore.rotation.y = side * 0.18;
+      shoulder.add(fore);
+      const fist = new THREE.Mesh(new THREE.SphereGeometry(3.2, 8, 8), skinMat);
+      fist.position.set(14.5, 0, -side * 0.6);
       shoulder.add(fist);
       const handSocket = new THREE.Group();
-      handSocket.position.set(13, 0, 0);
+      handSocket.position.set(15, 0, -side * 0.8);
       shoulder.add(handSocket);
       body.add(shoulder);
       return { shoulder, handSocket };
@@ -2138,16 +2157,17 @@ export class SeaRenderer3D {
     const rArm = makeArm(1);
     const lArm = makeArm(-1);
 
-    // 🦵 Kicking swimmer legs trailing just beneath the surface!
+    // 🦵 Underwater kicking legs angled DOWN into the sea (never floating/planking in mid-air!)
     const makeLeg = (side) => {
       const hip = new THREE.Group();
-      hip.position.set(-8, 3.5, side * 5.2);
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 2.2, 14, 8), skinMat);
+      hip.position.set(-4, -2.5, side * 4.6);
+      hip.rotation.z = 0.55; // angled downward into the water!
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.0, 11, 8), suitMat);
       leg.rotation.z = Math.PI / 2;
-      leg.position.x = -7;
+      leg.position.x = -5.5;
       hip.add(leg);
-      const flipper = new THREE.Mesh(new THREE.BoxGeometry(7.5, 1.4, 4.8), darkMat);
-      flipper.position.set(-15, 0, 0);
+      const flipper = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.2, 4.2), darkMat);
+      flipper.position.set(-12, 0, 0);
       hip.add(flipper);
       body.add(hip);
       return hip;
@@ -3059,11 +3079,11 @@ export class SeaRenderer3D {
       rig.root.visible = true;
       rig.root.position.set(sp.x, 0, sp.y);
 
-      // When submerged, keep a recognizable shadowy silhouette skimming just under the waves (NEVER vanish under opaque water!)
-      const targetY = p.submerged ? -5.5 : (Math.sin(this.time * 3.8 + sp.x * 0.02) * 1.6);
+      // When submerged, glide horizontally face-down (natural proportions — NO squashed pancake head!)
+      const targetY = p.submerged ? -3.2 : (Math.sin(this.time * 3.8 + sp.x * 0.02) * 1.4);
       rig.diveY += (targetY - rig.diveY) * 0.22;
       rig.body.position.y = rig.diveY;
-      const targetSy = p.submerged ? 0.45 : 1.0;
+      const targetSy = p.submerged ? 0.86 : 1.0;
       rig.body.scale.y += (targetSy - rig.body.scale.y) * 0.2;
       rig.body.rotation.y = -sp.aim;
       rig.ring.material.opacity = p.submerged ? 0.92 : 0.78;
@@ -3073,54 +3093,55 @@ export class SeaRenderer3D {
       this._syncHandheldItems(rig, p);
 
       const spd = Math.hypot(p.vx || 0, p.vy || 0);
-      // Dynamic swimmer stroke, flutter-kick legs, lunge arms & weapon recoil!
+      // Dynamic swimmer stroke, underwater legs, lunge arms & weapon recoil!
       const prevA = this.prevAim.get(p.id);
       let dAim = 0;
       if (prevA !== undefined) {
         dAim = Math.atan2(Math.sin(sp.aim - prevA), Math.cos(sp.aim - prevA));
       }
       this.prevAim.set(p.id, sp.aim);
-      const targetBank = Math.max(-0.24, Math.min(0.24, dAim * 3.2));
+      const targetBank = Math.max(-0.22, Math.min(0.22, dAim * 3.0));
       rig.bankAngle = (rig.bankAngle || 0) + (targetBank - (rig.bankAngle || 0)) * 0.18;
       const recoil = this.shipRecoil.get(p.id) || 0;
       const recoilPush = recoil > 0 ? -(recoil / 0.16) * 6.5 : 0;
       rig.body.position.x = Math.cos(sp.aim) * recoilPush;
       rig.body.position.z = Math.sin(sp.aim) * recoilPush;
       rig.body.rotation.x = Math.sin(this.time * 4.5 + sp.y * 0.02) * 0.05 + rig.bankAngle;
-      // Forward swim lean (flatter when diving underwater!)
-      rig.body.rotation.z = p.submerged ? -0.35 : (-Math.min(0.22, spd * 0.00075) + (recoil > 0 ? 0.14 : 0));
+      // Natural upright treading above water, horizontal face-down glide underwater!
+      rig.body.rotation.z = p.submerged ? -0.78 : (-Math.min(0.14, spd * 0.00045) + (recoil > 0 ? 0.14 : 0));
 
       const kickSpd = 6 + spd * 0.055;
       const stroke = Math.sin(this.time * kickSpd + (p.id?.length || 0));
       const isLunge = spd > 330;
       if (rig.animParts.rightArm && rig.animParts.leftArm) {
-        const recPitch = recoil > 0 ? 0.45 : 0;
+        const recPitch = recoil > 0 ? 0.42 : 0;
         if (isLunge) {
-          // SPACE Suya Bastır / Dalga Kaçışı: reach both arms forward!
           rig.animParts.rightArm.rotation.y = 0.25;
           rig.animParts.leftArm.rotation.y = -0.25;
-          rig.animParts.rightArm.rotation.z = 0.15;
-          rig.animParts.leftArm.rotation.z = 0.15;
+          rig.animParts.rightArm.rotation.z = 0.12;
+          rig.animParts.leftArm.rotation.z = 0.12;
         } else {
-          rig.animParts.rightArm.rotation.y = 0.12 + stroke * (spd > 35 ? 0.24 : 0.06);
-          rig.animParts.leftArm.rotation.y = -0.12 - stroke * (spd > 35 ? 0.24 : 0.06);
-          rig.animParts.rightArm.rotation.z = recPitch + stroke * (spd > 35 ? 0.18 : 0.05);
-          rig.animParts.leftArm.rotation.z = recPitch - stroke * (spd > 35 ? 0.18 : 0.05);
+          rig.animParts.rightArm.rotation.y = 0.08 + stroke * (spd > 35 ? 0.2 : 0.05);
+          rig.animParts.leftArm.rotation.y = -0.08 - stroke * (spd > 35 ? 0.2 : 0.05);
+          rig.animParts.rightArm.rotation.z = recPitch + stroke * (spd > 35 ? 0.14 : 0.04);
+          rig.animParts.leftArm.rotation.z = recPitch - stroke * (spd > 35 ? 0.14 : 0.04);
         }
       }
       if (rig.animParts.rightLeg && rig.animParts.leftLeg) {
-        const legAmp = spd > 35 ? 0.42 : 0.12;
-        rig.animParts.rightLeg.rotation.z = Math.sin(this.time * kickSpd * 1.35) * legAmp;
-        rig.animParts.leftLeg.rotation.z = -Math.sin(this.time * kickSpd * 1.35) * legAmp;
+        const legAmp = spd > 35 ? 0.34 : 0.1;
+        rig.animParts.rightLeg.rotation.z = 0.55 + Math.sin(this.time * kickSpd * 1.35) * legAmp;
+        rig.animParts.leftLeg.rotation.z = 0.55 - Math.sin(this.time * kickSpd * 1.35) * legAmp;
       }
       if (rig.animParts.swimCollar) {
-        const sc = 0.94 + Math.sin(this.time * 4.5 + sp.x * 0.02) * 0.08 + Math.min(0.14, spd * 0.0004);
+        const sc = 0.94 + Math.sin(this.time * 4.5 + sp.x * 0.02) * 0.08 + Math.min(0.12, spd * 0.00035);
         rig.animParts.swimCollar.scale.set(sc, sc, 1);
         rig.animParts.swimCollar.rotation.z += 0.015;
         rig.animParts.swimCollar.visible = !p.submerged;
       }
       if (rig.animParts.snorkel) {
         rig.animParts.snorkel.visible = Boolean(p.submerged);
+        // Keep snorkel pointing straight UP toward the sky even while tilted face-down!
+        rig.animParts.snorkel.rotation.z = p.submerged ? 0.78 : 0;
       }
 
       if (rig.animParts.tail) rig.animParts.tail.rotation.y = Math.sin(this.time * (8 + spd * 0.035)) * 0.44;

@@ -22,7 +22,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=8.0';
+} from './data.js?v=8.1';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 

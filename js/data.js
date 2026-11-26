@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v8.0';
+export const GAME_VERSION = 'v8.1';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v8.1',
+    notes: [
+      '🏊‍♂️ 3D Yüzücü Duruş & Detay Cilası: Havada kalan bacaklar suya indirildi, zombi gibi düz kollar dirsekten kırık doğal tutuşa alındı, dalışta kafanın ezilmesi düzeltilip yüzüstü gerçek dalış pozuna geçildi!',
+      '🏴‍☠️ Kaptan Kara’nın korsan şapkası kırmızı bandana + altın kurdeleli şık siluete, tüm karakter gözleri beyaz-siyah canlı çizgi film ifadesine kavuştu.'
+    ]
+  },
   {
     ver: 'v8.0',
     notes: [
