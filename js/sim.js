@@ -22,7 +22,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=8.3';
+} from './data.js?v=8.4';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -101,7 +101,8 @@ export class GameSim {
       hpMult: 1.0,
       lives: 1, // 1 | 2 | 3 (Mario Kalp Sistemi ❤️❤️❤️)
       skillTree: true, // 🌿 Maç içi 3 dallı yetenek ağacı
-      roundEvents: true, // 🎲 Rastgele tur olayları
+      roundEvents: true, // 🎲 Tur olayları açık/kapalı (geriye uyumlu)
+      eventMode: 'random', // 'random' | 'off' | ROUND_EVENTS[].id
       mapMode: 'rotate', // 'rotate' | '0'..'5'
       firearmMode: 'long_cd', // 'long_cd' (24s varsayılan) | 'single' (Hardcore Tek Atım)
       powerups: true,
@@ -349,6 +350,18 @@ export class GameSim {
     for (const k of ['powerups', 'barrels', 'storm', 'rescue', 'skillTree', 'roundEvents']) {
       if (typeof patch[k] === 'boolean') this.settings[k] = patch[k];
     }
+    if (typeof patch.roundEvents === 'boolean' && patch.eventMode === undefined) {
+      this.settings.eventMode = patch.roundEvents
+        ? (this.settings.eventMode === 'off' ? 'random' : this.settings.eventMode)
+        : 'off';
+    }
+    if (patch.eventMode !== undefined) {
+      const evVal = String(patch.eventMode);
+      if (evVal === 'random' || evVal === 'off' || ROUND_EVENT_MAP[evVal]) {
+        this.settings.eventMode = evVal;
+        this.settings.roundEvents = evVal !== 'off';
+      }
+    }
   }
 
   startMatch() {
@@ -435,13 +448,16 @@ export class GameSim {
     this.roundWinnerTeam = null;
     this.banner = null;
 
-    // 🎲 Rastgele Tur Olayı seç (önceki turun aynısı gelmesin!)
-    if (this.settings.roundEvents) {
+    // 🎲 Tur Olayı seç (Host sabitlediyse onu uygula, kapalıysa yok, rastgeleyse üst üste aynı gelmesin!)
+    const evMode = this.settings.eventMode || (this.settings.roundEvents ? 'random' : 'off');
+    if (evMode === 'off' || !this.settings.roundEvents) {
+      this.roundEvent = null;
+    } else if (ROUND_EVENT_MAP[evMode]) {
+      this.roundEvent = evMode;
+    } else {
       const prev = this.roundEvent;
       const pool = ROUND_EVENTS.filter(e => e.id !== prev);
       this.roundEvent = pool[Math.floor(Math.random() * pool.length)].id;
-    } else {
-      this.roundEvent = null;
     }
 
     for (const s of this.getActiveSlots(true)) {

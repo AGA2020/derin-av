@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v8.3';
+export const GAME_VERSION = 'v8.4';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v8.4',
+    notes: [
+      '🎛️ Lobiden Tur Olayı Seçici (Oyuncu önerisi): Host artık ⚙️ Maç Ayarlarından 🎲 Rastgele (7 Olay), 🚫 Olay Kapalı veya doğrudan istediği tek bir olayı (ör. 🐙 Kraken Uyanışı, 🎱 Seken Mermiler, 🧨 Barut Yağmuru) tüm turlara sabitleyebilir!',
+      '📋 Seçili tur olayı lobideki Aktif Maç Kuralları çubuğunda tüm oyunculara anında gösterilir.'
+    ]
+  },
   {
     ver: 'v8.3',
     notes: [

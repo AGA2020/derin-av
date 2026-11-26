@@ -137,6 +137,25 @@ for (const itemDef of FFA_ITEMS) {
   }
 }
 
+// 2b. Host Tur Olayı Seçici (eventMode) doğrulama
+{
+  const evSim = new GameSim();
+  evSim.addHuman('p1', 'Host');
+  evSim.updateSettings({ eventMode: 'off' });
+  evSim.startMatch();
+  check(evSim.settings.eventMode === 'off' && evSim.settings.roundEvents === false && evSim.roundEvent === null, '[EVENT_MODE] off ayarında olay null olmalı!');
+  evSim.backToLobby();
+  evSim.updateSettings({ roundEvents: true });
+  evSim.startDraft();
+  check(evSim.settings.eventMode === 'random' && evSim.roundEvent !== null, '[EVENT_MODE] roundEvents:true geriye uyumluluğu random olmalı!');
+  for (const ev of ROUND_EVENTS) {
+    evSim.backToLobby();
+    evSim.updateSettings({ eventMode: ev.id });
+    evSim.startDraft();
+    check(evSim.roundEvent === ev.id && evSim.settings.roundEvents === true, `[EVENT_MODE] ${ev.id} sabitlendiğinde doğrudan seçilmeli!`);
+  }
+}
+
 // ============================================================
 // 3. 80 TAM MAÇLIK KAOS / STRES SİMÜLASYONU (HEADLESS FUZZ)
 // ============================================================

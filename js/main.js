@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=8.3';
-import { sfx } from './audio.js?v=8.3';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.3';
-import { GameSim } from './sim.js?v=8.3';
-import { SeaRenderer } from './render.js?v=8.3';
+} from './data.js?v=8.4';
+import { sfx } from './audio.js?v=8.4';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.4';
+import { GameSim } from './sim.js?v=8.4';
+import { SeaRenderer } from './render.js?v=8.4';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1868,7 +1868,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=8.3');
+        const mod = await import('./render3d.js?v=8.4');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
         app.renderer3d.setQuality(app.gfxQuality, true);
       } catch (err) {
@@ -2054,6 +2054,13 @@ function renderLobbyRulesSummary(st) {
     : (SEA_MAPS[Number(s.mapMode)]?.name || 'Harita');
   const hpLabel = `%${Math.round((s.hpMult || 1) * 100)} Can`;
   const gunLabel = s.firearmMode === 'single' ? '🔥 Tek Atım' : '⏳ Silah 24s Dolum';
+  const evMode = s.eventMode || (s.roundEvents === false ? 'off' : 'random');
+  const evDef = ROUND_EVENT_MAP[evMode];
+  const eventLabel = evMode === 'off'
+    ? '🚫 Olay Kapalı'
+    : evDef
+      ? `${evDef.icon} ${evDef.name}`
+      : '🎲 Rastgele Olay';
   const modeLabel = s.mode === '1v1' ? '⚔️ 1v1' : s.mode === 'crown' ? '👑 Altın Taç' : s.mode === 'ffa' ? '💀 FFA' : '👥 2v2';
   const livesVal = s.lives || 1;
   const pills = [
@@ -2063,9 +2070,9 @@ function renderLobbyRulesSummary(st) {
     `${'❤️'.repeat(livesVal)} ${livesVal} Kalp`,
     ...(s.hpMult && s.hpMult !== 1 ? [`🛡️ ${hpLabel}`] : []),
     `🗺️ ${mapLabel}`,
+    eventLabel,
     gunLabel,
     ...(s.skillTree === false ? ['🌿 Ağaç Kapalı'] : []),
-    ...(s.roundEvents === false ? ['🎲 Olay Kapalı'] : []),
     ...(s.powerups === false ? ['📦 Sandık Kapalı'] : []),
     ...(s.barrels === false ? ['🧨 Fıçı Kapalı'] : []),
     ...(s.storm === false ? ['🌪️ Fırtına Kapalı'] : []),
@@ -2079,7 +2086,9 @@ function renderSettingsModal() {
   const s = app.sim.settings;
   document.querySelectorAll('.seg-group').forEach(grp => {
     const key = grp.dataset.setting;
-    const cur = String(s[key]);
+    const cur = key === 'eventMode'
+      ? String(s.eventMode || (s.roundEvents === false ? 'off' : 'random'))
+      : String(s[key]);
     grp.querySelectorAll('.seg-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.val === cur);
     });
@@ -2255,7 +2264,7 @@ function init() {
     if (!app.sim) return;
     app.sim.updateSettings({
       mode: app.sim.settings.mode, totalRounds: 4, roundDuration: 85, hpMult: 1, lives: 1, skillTree: true,
-      mapMode: 'rotate', firearmMode: 'long_cd', powerups: true, barrels: true, storm: true, rescue: true
+      mapMode: 'rotate', eventMode: 'random', firearmMode: 'long_cd', powerups: true, barrels: true, storm: true, rescue: true
     });
     broadcastLobby();
     renderLobby();
@@ -2267,7 +2276,7 @@ function init() {
     if (!app.sim) return;
     app.sim.updateSettings({
       mode: 'ffa', totalRounds: 4, roundDuration: 85, hpMult: 1, lives: 3, skillTree: true,
-      mapMode: '4', firearmMode: 'long_cd', powerups: true, barrels: true, storm: true, rescue: true
+      mapMode: '4', eventMode: 'random', firearmMode: 'long_cd', powerups: true, barrels: true, storm: true, rescue: true
     });
     broadcastLobby();
     renderLobby();
@@ -2281,7 +2290,7 @@ function init() {
       btn.onclick = () => {
         if (!app.sim) return;
         const raw = btn.dataset.val;
-        const val = (key === 'mapMode' || key === 'firearmMode' || key === 'mode') ? raw : Number(raw);
+        const val = (key === 'mapMode' || key === 'firearmMode' || key === 'mode' || key === 'eventMode') ? raw : Number(raw);
         app.sim.updateSettings({ [key]: val });
         broadcastLobby();
         renderLobby();
