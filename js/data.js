@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v5.1';
+export const GAME_VERSION = 'v5.2';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,15 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v5.2',
+    notes: [
+      '✨ 3D GÖRSELLİK DEVRİMİ (WIND WAKER / BRAWL STARS KALİTESİ):',
+      '🌊 Gerçek GPU GLSL Okyanus Shader’ı: Organik akan Voronoi su köpüğü ağı, dalga tepelerinde yakamoz parıltıları ve her adanın dibinde parlak turkuaz sığ su halkası!',
+      '⛵ Kutu Modeller Gitti — Gerçek Kavisli 3D Modeller + Çizgi-Film Konturu (Toon Outline): Sivri burunlu kalyon, yan toplar, kavisli şişkin yelken, sallanan bayrak, organik köpekbalığı, kıvrımlı ahtapot dokunaçları, kapaklı hazine sandıkları ve halatlı ahşap barikatlar!',
+      '🎨 Haritalara Özel Işık Paletleri + Namludan Barut Dumanı + Gemilerin 2.1 saniye yana yatarak köpükler içinde 3D batma animasyonu!'
+    ]
+  },
   {
     ver: 'v5.1',
     notes: [
