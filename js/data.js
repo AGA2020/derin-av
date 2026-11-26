@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.68';
+export const GAME_VERSION = 'v5.0';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,15 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v5.0',
+    notes: [
+      '🧊 BÜYÜK GÜNCELLEME — İSTEĞE BAĞLI 3D GÖRÜNÜM (2D ↔ 3D ÇAPRAZ OYNANIŞ):',
+      '🎨 2D hiç bozulmadan duruyor! İsteyen ana menüden, lobiden veya maç içinden tek tıkla 🧊 3D (Eğik Kuşbakışı Low-Poly) görünüme geçebilir — aynı odada biri 2D, diğeri 3D adil şekilde oynayabilir!',
+      '🏝️ 6 özgün 3D çar modeli, dalgalı low-poly okyanus, 3D Kraken, palmiyeli kumsal, dönen fener ışığı ve su altına gerçek dalış animasyonu!',
+      '⚖️ OYUN TEMPOSU DENGELENDİ: Temel tekne hızları %8 sakinleştirildi + üst üste binen hız bonuslarına tavan kondu; ateşli silah mermi hızları ~%15 düşürülerek refleksle dodge kolaylaştırıldı; tüm çarlara +15 Batma Direnci eklendi.'
+    ]
+  },
   {
     ver: 'v4.68',
     notes: [
@@ -447,8 +456,8 @@ export const CHARACTERS = [
     color: '#e09f3e',
     accent: '#ffd166',
     breath: 85,
-    hp: 145,
-    speed: 208,
+    hp: 160,
+    speed: 192,
     vision: 390,
     wakeMult: 1.0,
     cdMult: 1.0,
@@ -466,8 +475,8 @@ export const CHARACTERS = [
     color: '#ef476f',
     accent: '#ff8fa3',
     breath: 70,
-    hp: 115,
-    speed: 238,
+    hp: 130,
+    speed: 218,
     vision: 395,
     wakeMult: 1.12,
     cdMult: 0.95,
@@ -485,8 +494,8 @@ export const CHARACTERS = [
     color: '#8ecae6',
     accent: '#caf0f8',
     breath: 65,
-    hp: 110,
-    speed: 224,
+    hp: 125,
+    speed: 206,
     vision: 400,
     wakeMult: 0.45,
     cdMult: 1.0,
@@ -504,8 +513,8 @@ export const CHARACTERS = [
     color: '#f4a261',
     accent: '#ffe8d6',
     breath: 70,
-    hp: 120,
-    speed: 214,
+    hp: 135,
+    speed: 198,
     vision: 495,
     wakeMult: 1.0,
     cdMult: 1.0,
@@ -522,8 +531,8 @@ export const CHARACTERS = [
     color: '#9b5de5',
     accent: '#d8bbff',
     breath: 75,
-    hp: 125,
-    speed: 216,
+    hp: 140,
+    speed: 200,
     vision: 400,
     wakeMult: 0.9,
     cdMult: 0.78,
@@ -541,8 +550,8 @@ export const CHARACTERS = [
     color: '#06d6a0',
     accent: '#9bf6ff',
     breath: 75,
-    hp: 110,
-    speed: 232,
+    hp: 125,
+    speed: 214,
     vision: 405,
     wakeMult: 0.85,
     cdMult: 0.9,
@@ -568,7 +577,7 @@ export const HUNTER_ITEMS = [
     uses: 1,
     cooldown: 0.5,
     range: 760,
-    speed: 1080,
+    speed: 910,
     damage: 112,
     knockback: 320,
     slowDur: 2.2,
@@ -584,7 +593,7 @@ export const HUNTER_ITEMS = [
     uses: 1,
     cooldown: 0.5,
     range: 350,
-    speed: 800,
+    speed: 690,
     pellets: 5,
     spread: 0.34,
     damage: 27, // 5 x 27 = 135 maks yakın hasar!
@@ -601,7 +610,7 @@ export const HUNTER_ITEMS = [
     uses: 1,
     cooldown: 0.5,
     range: 640,
-    speed: 830,
+    speed: 720,
     damage: 82,
     knockback: 230,
     revealHitDur: 3.5,
@@ -716,7 +725,7 @@ export const PREY_ITEMS = [
     uses: 1,
     cooldown: 0.5,
     range: 580,
-    speed: 900,
+    speed: 765,
     damage: 85,
     knockback: 330,
     stunDur: 2.0,
@@ -731,7 +740,7 @@ export const PREY_ITEMS = [
     uses: 1,
     cooldown: 0.5,
     range: 335,
-    speed: 740,
+    speed: 640,
     pellets: 3,
     spread: 0.36,
     damage: 32, // 3 x 32 = 96 maks hasar!

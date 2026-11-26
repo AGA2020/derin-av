@@ -45,7 +45,7 @@ function isNum(v) {
 console.log('=== 1/4: Sürüm, Veri ve Harita Geometri Denetimi ===');
 
 const verNum = GAME_VERSION.replace(/^v/, '');
-const versionFiles = ['index.html', 'js/main.js', 'js/sim.js', 'js/render.js'];
+const versionFiles = ['index.html', 'js/main.js', 'js/sim.js', 'js/render.js', 'js/render3d.js'];
 for (const rel of versionFiles) {
   const txt = fs.readFileSync(path.join(ROOT, rel), 'utf8');
   const matches = [...txt.matchAll(/\?v=([0-9.a-z]+)/g)].map(m => m[1]);

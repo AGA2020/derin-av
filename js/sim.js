@@ -21,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=4.68';
+} from './data.js?v=5.0';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -1998,11 +1998,13 @@ export class GameSim {
         my /= mlen;
       }
 
-      const evSpd = this.roundEvent === 'kasirga_hizi' ? 1.25 : 1.0;
+      const evSpd = this.roundEvent === 'kasirga_hizi' ? 1.2 : 1.0;
       let maxSpd = ch.speed * p.speedMult * p.slowFactor * pSk.speedMult * evSpd;
       if (p.role === 'hunter') maxSpd *= 1.03; // Hafif avcı takip hızı avantajı
       if (this.crown && this.crown.holderId === p.id) maxSpd *= 0.87; // 👑 Taç taşıyıcısı %13 yavaşlar
       if (p.submerged) maxSpd *= 0.66 * pSk.subSpeedBonus; // Su altında yavaş gizlenme ve pusu hızı
+      // Üst üste binen hız bonusları tekneyi kontrolsüz roket yapmasın (maks baz hızın %162'si)
+      maxSpd = Math.min(maxSpd, ch.speed * 1.62);
       if (p.rootTimer > 0 || p.stunTimer > 0) maxSpd = 0;
 
       // Smooth sea-gliding physics (su üstünde akıcı kayma + çarpışma/itme koruma)

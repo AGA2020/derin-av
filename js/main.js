@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.68';
-import { sfx } from './audio.js?v=4.68';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.68';
-import { GameSim } from './sim.js?v=4.68';
-import { SeaRenderer } from './render.js?v=4.68';
+} from './data.js?v=5.0';
+import { sfx } from './audio.js?v=5.0';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=5.0';
+import { GameSim } from './sim.js?v=5.0';
+import { SeaRenderer } from './render.js?v=5.0';
 
 const $ = (id) => document.getElementById(id);
 
@@ -62,6 +62,9 @@ const app = {
   lobbyState: null,
   liveState: null,
   renderer: null,
+  renderer3d: null,
+  loading3d: false,
+  viewMode: localStorage.getItem('derinav_view_mode') === '3d' ? '3d' : '2d',
   keys: new Set(),
   mouseX: 0,
   mouseY: 0,
@@ -710,10 +713,11 @@ function stepClientPrediction(dt) {
   if (len > 1) { mx /= len; my /= len; }
 
   let maxSpd = ch.speed * (me.speedBoost ? 1.38 : 1) * (me.slowTimer ? 0.45 : 1);
-  if (app.liveState.roundEvent === 'kasirga_hizi') maxSpd *= 1.25;
+  if (app.liveState.roundEvent === 'kasirga_hizi') maxSpd *= 1.2;
   if (me.role === 'hunter') maxSpd *= 1.03;
   if (me.hasCrown) maxSpd *= 0.87;
   if (me.submerged) maxSpd *= 0.66;
+  maxSpd = Math.min(maxSpd, ch.speed * 1.62);
   if (me.rootTimer || me.stunTimer) maxSpd = 0;
 
   const accel = ch.turnBonus ? 11.5 : 8.5;
@@ -1602,7 +1606,67 @@ function useSlot(slotIdx) {
   const me = st.players?.find(p => p.id === app.myId);
   const it = me?.items?.[slotIdx];
   if (it?.firearm && it.usesLeft > 0) {
-    app.renderer?.triggerShake(9);
+    getActiveRenderer()?.triggerShake(9);
+  }
+}
+
+function getActiveRenderer() {
+  return (app.viewMode === '3d' && app.renderer3d) ? app.renderer3d : app.renderer;
+}
+
+function updateViewToggleButtons() {
+  const is3d = app.viewMode === '3d';
+  const pairs = [
+    ['btn-view-home', is3d ? '🧊 3D Açık' : '🎨 2D'],
+    ['btn-view-lobby', is3d ? '🧊 3D Açık' : '🎨 2D'],
+    ['btn-view-game', is3d ? '🧊 3D' : '2D']
+  ];
+  for (const [id, label] of pairs) {
+    const el = $(id);
+    if (!el) continue;
+    el.textContent = label;
+    el.classList.toggle('is-3d', is3d);
+  }
+  const c2 = $('game-canvas');
+  const c3 = $('game-canvas-3d');
+  const ov = $('game-overlay-2d');
+  const use3dCanvas = is3d && Boolean(app.renderer3d);
+  if (c2) c2.style.display = use3dCanvas ? 'none' : 'block';
+  if (c3) c3.style.display = use3dCanvas ? 'block' : 'none';
+  if (ov) ov.style.display = use3dCanvas ? 'block' : 'none';
+}
+
+async function setViewMode(mode, silent = false) {
+  const target = mode === '3d' ? '3d' : '2d';
+  if (target === '3d') {
+    if (!app.renderer3d) {
+      if (app.loading3d) return;
+      app.loading3d = true;
+      if (!silent) showToast('🧊 3D motoru yükleniyor...');
+      try {
+        const mod = await import('./render3d.js?v=5.0');
+        app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
+      } catch (err) {
+        console.warn('3D WebGL init error:', err);
+        app.viewMode = '2d';
+        try { localStorage.setItem('derinav_view_mode', '2d'); } catch (_) {}
+        updateViewToggleButtons();
+        if (!silent) showToast('⚠️ Bu cihazda 3D WebGL açılamadı, 2D devam ediliyor.');
+        app.loading3d = false;
+        return;
+      }
+      app.loading3d = false;
+    }
+    app.viewMode = '3d';
+    try { localStorage.setItem('derinav_view_mode', '3d'); } catch (_) {}
+    updateViewToggleButtons();
+    app.renderer3d?.resize();
+    if (!silent) showToast('🧊 3D Görünüm aktif! (İstediğin an 2D’ye dönebilirsin)');
+  } else {
+    app.viewMode = '2d';
+    try { localStorage.setItem('derinav_view_mode', '2d'); } catch (_) {}
+    updateViewToggleButtons();
+    if (!silent) showToast('🎨 Klasik 2D Görünüm aktif!');
   }
 }
 
@@ -1677,11 +1741,12 @@ function renderLoop(now) {
     showToast('⚠️ Oda kurucusuyla bağlantı kesildi!');
   }
 
-  if (app.renderer && app.liveState && app.liveState.phase === 'playing') {
+  const activeR = getActiveRenderer();
+  if (activeR && app.liveState && app.liveState.phase === 'playing') {
     const me = app.liveState.players?.find(p => p.id === app.myId);
     if (me && (!app.touchAimMode || app.touchAimActive)) {
-      const worldMouse = app.renderer.screenToWorld(app.mouseX, app.mouseY);
-      const sp = app.pred || app.renderer.smoothPos.get(me.id) || me;
+      const worldMouse = activeR.screenToWorld(app.mouseX, app.mouseY);
+      const sp = app.pred || activeR.smoothPos.get(me.id) || me;
       app.localAim = Math.atan2(worldMouse.y - sp.y, worldMouse.x - sp.x);
     }
 
@@ -1701,11 +1766,11 @@ function renderLoop(now) {
     app.renderer.renderHomeBg($('home-canvas'), dt);
   } else if (app.renderer && $('screen-lobby').classList.contains('active')) {
     app.renderer.renderHomeBg($('lobby-canvas'), dt);
-  } else if (app.renderer && app.liveState && $('screen-game').classList.contains('active')) {
+  } else if (activeR && app.liveState && $('screen-game').classList.contains('active')) {
     if (app.sim) {
       updateHudFromState(app.liveState);
     }
-    app.renderer.render(app.liveState, app.myId, dt, app.localAim, app.pred, app.touchJoy);
+    activeR.render(app.liveState, app.myId, dt, app.localAim, app.pred, app.touchJoy);
   }
 
   requestAnimationFrame(renderLoop);
@@ -2202,100 +2267,120 @@ function init() {
     if (app.mode === 'client') sendClientInputNow();
   });
 
-  const canvas = $('game-canvas');
-  canvas.addEventListener('mousemove', (e) => {
-    if (performance.now() - app.lastTouchAt < 700) return;
-    app.touchAimMode = false;
-    app.touchAimActive = false;
-    const rect = canvas.getBoundingClientRect();
-    app.mouseX = e.clientX - rect.left;
-    app.mouseY = e.clientY - rect.top;
+  // 🎨 2D ↔ 🧊 3D Görünüm Anahtarları (Ana Menü, Lobi & Maç İçi — anında geçiş!)
+  updateViewToggleButtons();
+  if (app.viewMode === '3d') {
+    setViewMode('3d', true);
+  }
+  ['btn-view-home', 'btn-view-lobby', 'btn-view-game'].forEach(id => {
+    const el = $(id);
+    if (el) {
+      el.onclick = () => {
+        sfx.play('ui');
+        setViewMode(app.viewMode === '3d' ? '2d' : '3d');
+      };
+    }
   });
-
-  canvas.addEventListener('mousedown', (e) => {
-    // Mobilde dokunma sonrası gelen sentetik mousedown tek atımlık silahı yanlışlıkla harcamasın!
-    if (performance.now() - app.lastTouchAt < 700) return;
-    if (isInfoModalOpen()) return;
-    if (e.button === 0) useSlot(0);
-    if (e.button === 2) useSlot(1);
-  });
-
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
   let moveTouch = null;
   let aimTouchId = null;
 
-  canvas.addEventListener('touchstart', (e) => {
-    if (isInfoModalOpen()) return;
-    e.preventDefault();
-    app.lastTouchAt = performance.now();
-    app.touchAimMode = true;
-    const rect = canvas.getBoundingClientRect();
-    for (const t of e.changedTouches) {
-      const lx = t.clientX - rect.left;
-      const ly = t.clientY - rect.top;
-      if (moveTouch === null && lx < rect.width * 0.55) {
-        moveTouch = { id: t.identifier, x: lx, y: ly };
-        app.touchJoy = { bx: lx, by: ly, cx: lx, cy: ly };
-      } else if (aimTouchId === null) {
-        aimTouchId = t.identifier;
-        app.mouseX = lx;
-        app.mouseY = ly;
-        app.touchAimActive = true;
-      }
-    }
-  }, { passive: false });
-
-  canvas.addEventListener('touchmove', (e) => {
-    if (!moveTouch && aimTouchId === null) return;
-    e.preventDefault();
-    app.lastTouchAt = performance.now();
-    const rect = canvas.getBoundingClientRect();
-    for (const t of e.touches) {
-      const lx = t.clientX - rect.left;
-      const ly = t.clientY - rect.top;
-      if (moveTouch && t.identifier === moveTouch.id) {
-        const dx = lx - moveTouch.x;
-        const dy = ly - moveTouch.y;
-        const len = Math.hypot(dx, dy) || 1;
-        const maxR = 46;
-        const mag = Math.min(1, len / maxR);
-        app.touchMove.mx = (dx / len) * mag;
-        app.touchMove.my = (dy / len) * mag;
-        app.touchJoy = {
-          bx: moveTouch.x,
-          by: moveTouch.y,
-          cx: moveTouch.x + (dx / len) * Math.min(len, maxR),
-          cy: moveTouch.y + (dy / len) * Math.min(len, maxR)
-        };
-        if (aimTouchId === null && mag > 0.16) {
-          app.touchAimActive = false;
-          app.localAim = Math.atan2(dy, dx);
-        }
-      } else if (aimTouchId !== null && t.identifier === aimTouchId) {
-        app.mouseX = lx;
-        app.mouseY = ly;
-        app.touchAimActive = true;
-      }
-    }
-  }, { passive: false });
-
-  const endTouches = (e) => {
-    app.lastTouchAt = performance.now();
-    const activeIds = new Set([...e.touches].map(t => t.identifier));
-    if (moveTouch && !activeIds.has(moveTouch.id)) {
-      moveTouch = null;
-      app.touchMove = { mx: 0, my: 0 };
-      app.touchJoy = null;
-      if (app.mode === 'client') sendClientInputNow();
-    }
-    if (aimTouchId !== null && !activeIds.has(aimTouchId)) {
-      aimTouchId = null;
+  const bindGameCanvas = (canvas) => {
+    if (!canvas) return;
+    canvas.addEventListener('mousemove', (e) => {
+      if (performance.now() - app.lastTouchAt < 700) return;
+      app.touchAimMode = false;
       app.touchAimActive = false;
-    }
+      const rect = canvas.getBoundingClientRect();
+      app.mouseX = e.clientX - rect.left;
+      app.mouseY = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+      // Mobilde dokunma sonrası gelen sentetik mousedown tek atımlık silahı yanlışlıkla harcamasın!
+      if (performance.now() - app.lastTouchAt < 700) return;
+      if (isInfoModalOpen()) return;
+      if (e.button === 0) useSlot(0);
+      if (e.button === 2) useSlot(1);
+    });
+
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    canvas.addEventListener('touchstart', (e) => {
+      if (isInfoModalOpen()) return;
+      e.preventDefault();
+      app.lastTouchAt = performance.now();
+      app.touchAimMode = true;
+      const rect = canvas.getBoundingClientRect();
+      for (const t of e.changedTouches) {
+        const lx = t.clientX - rect.left;
+        const ly = t.clientY - rect.top;
+        if (moveTouch === null && lx < rect.width * 0.55) {
+          moveTouch = { id: t.identifier, x: lx, y: ly };
+          app.touchJoy = { bx: lx, by: ly, cx: lx, cy: ly };
+        } else if (aimTouchId === null) {
+          aimTouchId = t.identifier;
+          app.mouseX = lx;
+          app.mouseY = ly;
+          app.touchAimActive = true;
+        }
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      if (!moveTouch && aimTouchId === null) return;
+      e.preventDefault();
+      app.lastTouchAt = performance.now();
+      const rect = canvas.getBoundingClientRect();
+      for (const t of e.touches) {
+        const lx = t.clientX - rect.left;
+        const ly = t.clientY - rect.top;
+        if (moveTouch && t.identifier === moveTouch.id) {
+          const dx = lx - moveTouch.x;
+          const dy = ly - moveTouch.y;
+          const len = Math.hypot(dx, dy) || 1;
+          const maxR = 46;
+          const mag = Math.min(1, len / maxR);
+          app.touchMove.mx = (dx / len) * mag;
+          app.touchMove.my = (dy / len) * mag;
+          app.touchJoy = {
+            bx: moveTouch.x,
+            by: moveTouch.y,
+            cx: moveTouch.x + (dx / len) * Math.min(len, maxR),
+            cy: moveTouch.y + (dy / len) * Math.min(len, maxR)
+          };
+          if (aimTouchId === null && mag > 0.16) {
+            app.touchAimActive = false;
+            app.localAim = Math.atan2(dy, dx);
+          }
+        } else if (aimTouchId !== null && t.identifier === aimTouchId) {
+          app.mouseX = lx;
+          app.mouseY = ly;
+          app.touchAimActive = true;
+        }
+      }
+    }, { passive: false });
+
+    const endTouches = (e) => {
+      app.lastTouchAt = performance.now();
+      const activeIds = new Set([...e.touches].map(t => t.identifier));
+      if (moveTouch && !activeIds.has(moveTouch.id)) {
+        moveTouch = null;
+        app.touchMove = { mx: 0, my: 0 };
+        app.touchJoy = null;
+        if (app.mode === 'client') sendClientInputNow();
+      }
+      if (aimTouchId !== null && !activeIds.has(aimTouchId)) {
+        aimTouchId = null;
+        app.touchAimActive = false;
+      }
+    };
+    canvas.addEventListener('touchend', endTouches, { passive: true });
+    canvas.addEventListener('touchcancel', endTouches, { passive: true });
   };
-  canvas.addEventListener('touchend', endTouches, { passive: true });
-  canvas.addEventListener('touchcancel', endTouches, { passive: true });
+
+  bindGameCanvas($('game-canvas'));
+  bindGameCanvas($('game-canvas-3d'));
 
   requestAnimationFrame(renderLoop);
 }

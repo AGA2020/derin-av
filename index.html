@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>İKİ İTEMLİ OYUN — Online Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=4.68" />
+  <link rel="stylesheet" href="./styles.css?v=5.0" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -13,6 +13,7 @@
     <div class="ocean-bg"></div>
     <canvas id="home-canvas" class="home-canvas"></canvas>
     <div class="home-top-controls">
+      <button id="btn-view-home" class="btn-view-toggle" title="2D / 3D Görünüm Değiştir">🎨 2D</button>
       <button id="btn-home-mute" class="btn-icon" title="Sesleri Aç/Kapat">🔊</button>
       <button id="btn-home-fs" class="btn-icon" title="Tam Ekran">⛶</button>
     </div>
@@ -72,6 +73,7 @@
           </div>
         </div>
         <div class="lobby-header-right">
+          <button id="btn-view-lobby" class="btn-mini btn-view-toggle" title="2D / 3D Görünüm Değiştir">🎨 2D</button>
           <button id="btn-guide-lobby" class="btn-mini">📖 Rehber</button>
           <span id="net-status" class="net-pill">Bağlanıyor...</span>
           <button id="btn-lobby-fs" class="btn-mini" title="Tam Ekran">⛶</button>
@@ -143,7 +145,9 @@
 
   <!-- OYUN EKRANI -->
   <section id="screen-game" class="screen">
-    <canvas id="game-canvas"></canvas>
+    <canvas id="game-canvas" class="game-canvas-layer"></canvas>
+    <canvas id="game-canvas-3d" class="game-canvas-layer" style="display:none"></canvas>
+    <canvas id="game-overlay-2d" class="game-overlay-2d" style="display:none"></canvas>
 
     <!-- ÜST HUD -->
     <div class="hud-top">
@@ -161,6 +165,7 @@
       <div class="hud-team-col right">
         <div class="score-row-right">
           <div id="hud-score-badge-b" class="score-badge b"><b id="hud-score-b">0</b> TAKIM B</div>
+          <button id="btn-view-game" class="btn-icon btn-view-toggle" title="2D / 3D Görünüm Değiştir">2D</button>
           <button id="btn-fullscreen" class="btn-icon" title="Tam Ekran">⛶</button>
           <button id="btn-guide-game" class="btn-icon" title="Nasıl Oynanır? (Rehber)">❓</button>
           <button id="btn-ambient" class="btn-icon" title="Dalga Sesi Ambıyansı Aç/Kapat">🌊</button>
@@ -280,7 +285,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v4.68</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v5.0</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -521,7 +526,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=4.68"></script>
+  <script type="module" src="./js/main.js?v=5.0"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {
