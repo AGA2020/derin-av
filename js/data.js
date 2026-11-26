@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v8.7';
+export const GAME_VERSION = 'v8.8';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -67,6 +67,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v8.8',
+    notes: [
+      '🪙 UZATMA TURU ARTIK ADİL: 4 tur sonunda skor eşitse oynanan final turunda avcı takım yazı-tura ile seçilir. Eskiden 5. turda avcı hep Takım A oluyordu ve bu, avcı tarafı güçlü olduğunda maçı baştan Takım A’ya veriyordu.',
+      '🗺️ HARİTA DÖNGÜSÜ DÜZELTİLDİ: “Sırayla” modunda harita sırası artık her maçta karıştırılıyor. Eskiden 4 turluk maçlar hep aynı 4 haritada geçiyor, 👻 Hayalet Sis Denizi hiç açılmıyordu; artık 6 haritanın hepsi eşit sıklıkta gelir ve bir maçta aynı harita tekrar etmez.'
+    ]
+  },
   {
     ver: 'v8.7',
     notes: [

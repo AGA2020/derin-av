@@ -22,7 +22,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=8.7';
+} from './data.js?v=8.8';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -113,6 +113,8 @@ export class GameSim {
     this.totalRounds = 4; // Her takım 2 Avcı + 2 Av (beraberlikte Final Turu)
     this.round = 1;
     this.mapIndex = 0;
+    this.mapOrder = null; // 🗺️ 'Sırayla' modunda maç başına karıştırılan harita sırası (her harita eşit şans)
+    this.overtimeHunterTeam = null; // 🪙 Uzatma turunda yazı-tura ile seçilen avcı takım
     this.roundEvent = null; // 🎲 Aktif rastgele tur olayı id
     this.banner = null; // 🔥 Seri / özel anons bannerı
     this.scores = { A: 0, B: 0 };
@@ -179,6 +181,12 @@ export class GameSim {
     return this.settings.mode === 'ffa' || this.settings.mode === 'crown';
   }
 
+  // Bu turun avcı takımı ('A' | 'B'); FFA/Taç modunda null. İstemciler rolü buradan okur.
+  getHunterTeam() {
+    if (this.isSoloMode()) return null;
+    return this.getTeamRole('A') === 'hunter' ? 'A' : 'B';
+  }
+
   getActiveSlots(forMatch = false) {
     if (this.settings.mode === '1v1') {
       return [this.slots[0], this.slots[2]];
@@ -191,9 +199,13 @@ export class GameSim {
 
   getTeamRole(team) {
     if (this.isSoloMode()) return 'ffa';
+    // 🪙 Uzatma turu: avcı takım yazı-tura ile seçilir (eskiden 5. tur hep Takım A'ya avcılık veriyordu)
+    if (this.overtimeHunterTeam && this.round > this.settings.totalRounds) {
+      return team === this.overtimeHunterTeam ? 'hunter' : 'prey';
+    }
     // HER TUR ROLLER DEĞİŞİR!
-    // Tek turlar (1, 3, 5): Takım A = Avcı, Takım B = Av
-    // Çift turlar (2, 4, 6): Takım B = Avcı, Takım A = Av
+    // Tek turlar (1, 3): Takım A = Avcı, Takım B = Av
+    // Çift turlar (2, 4): Takım B = Avcı, Takım A = Av
     const teamAIsHunter = this.round % 2 === 1;
     if (team === 'A') return teamAIsHunter ? 'hunter' : 'prey';
     return teamAIsHunter ? 'prey' : 'hunter';
@@ -377,6 +389,13 @@ export class GameSim {
     }
     this.totalRounds = this.settings.totalRounds;
     this.round = 1;
+    this.overtimeHunterTeam = null;
+    // 🗺️ Harita sırasını her maçta karıştır: 4 turluk maçta da 6 haritanın hepsi eşit sıklıkta gelir
+    this.mapOrder = SEA_MAPS.map((_, i) => i);
+    for (let i = this.mapOrder.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.mapOrder[i], this.mapOrder[j]] = [this.mapOrder[j], this.mapOrder[i]];
+    }
     this.scores = { A: 0, B: 0 };
     this.ffaScores = {};
     this.matchStats = {};
@@ -446,7 +465,7 @@ export class GameSim {
   startDraft() {
     this.phase = 'draft';
     this.mapIndex = this.settings.mapMode === 'rotate'
-      ? (this.round - 1) % SEA_MAPS.length
+      ? (this.mapOrder ? this.mapOrder[(this.round - 1) % this.mapOrder.length] : (this.round - 1) % SEA_MAPS.length)
       : Number(this.settings.mapMode) % SEA_MAPS.length;
     this.phaseTimer = DRAFT_DURATION;
     this.roundWinnerRole = null;
@@ -3070,8 +3089,10 @@ export class GameSim {
         this.onEvent({ type: 'phase', phase: 'match_end', round: this.round });
         return;
       }
-      // Beraberlik! Uzatma Final Turu
+      // Beraberlik! Uzatma Final Turu — avcı takımı yazı-tura belirler
       this.totalRounds = this.round + 1;
+      this.overtimeHunterTeam = Math.random() < 0.5 ? 'A' : 'B';
+      this._pushFeed(`🪙 Uzatma turu! Yazı-tura: Avcı Takım ${this.overtimeHunterTeam}`, 'info');
     }
     this.round += 1;
     this.startDraft();
@@ -3553,6 +3574,7 @@ export class GameSim {
       totalRounds: this.totalRounds,
       settings: { ...this.settings },
       round: this.round,
+      hunterTeam: this.getHunterTeam(),
       mapIndex: this.mapIndex,
       roundEvent: this.roundEvent,
       scores: { ...this.scores },

@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=8.7';
-import { sfx } from './audio.js?v=8.7';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.7';
-import { GameSim } from './sim.js?v=8.7';
-import { SeaRenderer } from './render.js?v=8.7';
+} from './data.js?v=8.8';
+import { sfx } from './audio.js?v=8.8';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.8';
+import { GameSim } from './sim.js?v=8.8';
+import { SeaRenderer } from './render.js?v=8.8';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1028,7 +1028,8 @@ function renderDraftUI() {
 
   const isCrown = st.settings?.mode === 'crown';
   const isFfa = st.settings?.mode === 'ffa' || isCrown;
-  const teamAIsHunter = st.round % 2 === 1;
+  // Rol host'tan gelir (uzatmada yazı-tura); eski host'larla uyum için tur numarasına geri düş
+  const teamAIsHunter = st.hunterTeam ? st.hunterTeam === 'A' : st.round % 2 === 1;
   const myRole = isFfa
     ? 'ffa'
     : ((mySlot.team === 'A') ? (teamAIsHunter ? 'hunter' : 'prey') : (teamAIsHunter ? 'prey' : 'hunter'));
@@ -1878,7 +1879,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=8.7');
+        const mod = await import('./render3d.js?v=8.8');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
         app.renderer3d.setQuality(app.gfxQuality, true);
       } catch (err) {

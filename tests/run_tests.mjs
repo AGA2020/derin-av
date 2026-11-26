@@ -197,6 +197,72 @@ for (const itemDef of FFA_ITEMS) {
   }
 }
 
+// 🪙 Uzatma turu adaleti: avcı takımı yazı-tura ile seçilmeli (eskiden 5. tur hep Takım A'ya avcılık veriyordu)
+for (const mode of ['2v2', '1v1']) {
+  let aHunter = 0;
+  const TRIALS = 400;
+  for (let t = 0; t < TRIALS; t++) {
+    const s = new GameSim();
+    s.addHuman('h1', 'AGA');
+    s.updateSettings({ mode, totalRounds: 4 });
+    s.fillEmptyWithBots();
+    s.startMatch();
+    s.round = 4;
+    s.scores = { A: 2, B: 2 };
+    s.phase = 'round_end';
+    s._advanceAfterRound();
+    const ht = s.getHunterTeam();
+    if (ht === 'A') aHunter++;
+    if (t === 0) {
+      check(s.round === 5 && s.totalRounds === 5, `[UZATMA:${mode}] 2-2 beraberlikte 5. tur açılmalı!`);
+      check(s.getLobbySnapshot().hunterTeam === ht, `[UZATMA:${mode}] Lobby snapshot'ındaki hunterTeam host'un rolüyle aynı olmalı!`);
+      const hunterSlots = s.getActiveSlots(true).filter(sl => s.getTeamRole(sl.team) === 'hunter');
+      check(hunterSlots.length > 0 && hunterSlots.every(sl => sl.team === ht), `[UZATMA:${mode}] Avcı slotları yazı-turada çıkan takımda olmalı!`);
+    }
+  }
+  const share = aHunter / TRIALS;
+  check(share > 0.38 && share < 0.62, `[UZATMA:${mode}] Uzatmada Takım A avcılık oranı ~%50 olmalı, bulunan: %${(share * 100).toFixed(1)}`);
+}
+{
+  // Normal turlarda roller hâlâ sırayla değişmeli
+  const s = new GameSim();
+  s.addHuman('h1', 'AGA');
+  s.fillEmptyWithBots();
+  s.startMatch();
+  const seq = [1, 2, 3, 4].map(r => { s.round = r; return s.getHunterTeam(); }).join('');
+  check(seq === 'ABAB', `[ROLLER] 1-4. turlarda avcı sırası ABAB olmalı, bulunan: ${seq}`);
+}
+
+// 🗺️ 'Sırayla' harita modu: her maçta karışık sıra, 4 turluk maçlarda da 6 haritanın hepsi gelmeli
+{
+  const seen = new Array(SEA_MAPS.length).fill(0);
+  for (let t = 0; t < 300; t++) {
+    const s = new GameSim();
+    s.addHuman('h1', 'AGA');
+    s.updateSettings({ mapMode: 'rotate', totalRounds: 4 });
+    s.fillEmptyWithBots();
+    s.startMatch();
+    const order = [...s.mapOrder].sort((a, b) => a - b).join(',');
+    if (t === 0) check(order === SEA_MAPS.map((_, i) => i).join(','), '[HARİTA DÖNGÜSÜ] mapOrder tüm haritaların bir permütasyonu olmalı!');
+    const used = new Set();
+    for (let r = 1; r <= 4; r++) {
+      s.round = r;
+      s.startDraft();
+      used.add(s.mapIndex);
+      seen[s.mapIndex]++;
+    }
+    if (t === 0) check(used.size === 4, '[HARİTA DÖNGÜSÜ] 4 turluk maçta aynı harita tekrar etmemeli!');
+  }
+  const minSeen = Math.min(...seen);
+  check(minSeen > 120, `[HARİTA DÖNGÜSÜ] 300 maçta her harita 1-4. turlarda yeterince gelmeli (en az: ${minSeen}, dağılım: ${seen.join('/')})`);
+  const fixed = new GameSim();
+  fixed.addHuman('h1', 'AGA');
+  fixed.updateSettings({ mapMode: '2' });
+  fixed.fillEmptyWithBots();
+  fixed.startMatch();
+  check(fixed.mapIndex === 2, '[HARİTA DÖNGÜSÜ] Sabit harita seçimi bozulmamalı!');
+}
+
 // ============================================================
 // 3. 80 TAM MAÇLIK KAOS / STRES SİMÜLASYONU (HEADLESS FUZZ)
 // ============================================================
