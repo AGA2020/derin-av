@@ -6,8 +6,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.32';
-import { hasLineOfSight } from './sim.js?v=5.32';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.33';
+import { hasLineOfSight } from './sim.js?v=5.33';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -433,6 +433,7 @@ export class SeaRenderer3D {
     this.particles = [];
     this._sharedGeo = {
       sphere: new THREE.SphereGeometry(1, 10, 8),
+      plane: new THREE.PlaneGeometry(1, 1),
       ring: new THREE.RingGeometry(0.8, 1, 32),
       box: new THREE.BoxGeometry(1, 1, 1),
       cyl: new THREE.CylinderGeometry(1, 1, 1, 12),
@@ -441,6 +442,7 @@ export class SeaRenderer3D {
       tentacle: createSmoothTentacleGeometry(25, 3.5)
     };
     this._sharedGeo.ring.rotateX(-Math.PI / 2);
+    this._sharedGeo.plane.rotateX(-Math.PI / 2);
 
     this._initPersistentHelpers();
     this.resize();
@@ -676,18 +678,28 @@ export class SeaRenderer3D {
     shadowCatcher.receiveShadow = true;
     this.mapGroup.add(shadowCatcher);
 
-    // Subtle dashed maritime perimeter line (no ugly thick floating yellow pole!)
-    const borderMat = new THREE.MeshBasicMaterial({ color: '#bae6fd', transparent: true, opacity: 0.2, depthWrite: false });
-    const borders = [
-      [WORLD_W / 2, 1.9, 8, WORLD_W - 16, 2],
-      [WORLD_W / 2, 1.9, WORLD_H - 8, WORLD_W - 16, 2],
-      [8, 1.9, WORLD_H / 2, 2, WORLD_H - 16],
-      [WORLD_W - 8, 1.9, WORLD_H / 2, 2, WORLD_H - 16]
-    ];
-    for (const [bx, by, bz, bw, bd] of borders) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.5, bd), borderMat);
-      m.position.set(bx, by, bz);
-      this.mapGroup.add(m);
+    // Nautical floating perimeter buoys (replaces harsh CAD wireframe border line!)
+    const buoyColMat = new THREE.MeshStandardMaterial({ color: '#f59e0b', roughness: 0.45 });
+    const buoyCapMat = new THREE.MeshBasicMaterial({ color: '#fef08a' });
+    const addBorderBuoy = (bx, bz) => {
+      const bg = new THREE.Group();
+      bg.position.set(bx, 1.5, bz);
+      const b1 = new THREE.Mesh(this._sharedGeo.cyl, buoyColMat);
+      b1.scale.set(3.2, 7, 3.2);
+      b1.position.y = 3;
+      const cap = new THREE.Mesh(this._sharedGeo.sphere, buoyCapMat);
+      cap.scale.setScalar(2.2);
+      cap.position.y = 7.5;
+      bg.add(b1, cap);
+      this.mapGroup.add(bg);
+    };
+    for (let x = 20; x <= WORLD_W - 20; x += 170) {
+      addBorderBuoy(x, 14);
+      addBorderBuoy(x, WORLD_H - 14);
+    }
+    for (let z = 140; z <= WORLD_H - 140; z += 170) {
+      addBorderBuoy(14, z);
+      addBorderBuoy(WORLD_W - 14, z);
     }
 
     // 2. Mercan Plajı Beach + Feathered Lagoon + Real GLB Palm Trees!
@@ -1284,23 +1296,24 @@ export class SeaRenderer3D {
 
   _spawnVWake(x, z, aim) {
     if (this.particles.length >= 145) return;
+    // Silky feathered seafoam wake planes (NO overlapping hard grey circles!)
     for (const side of [-1, 1]) {
-      const a = aim + Math.PI + side * 0.45;
+      const a = aim + Math.PI + side * 0.42;
       const m = new THREE.Mesh(
-        this._sharedGeo.sphere,
-        new THREE.MeshBasicMaterial({ color: '#e6f9ff', transparent: true, opacity: 0.46, depthWrite: false })
+        this._sharedGeo.plane,
+        new THREE.MeshBasicMaterial({ map: this.mistTex, color: '#e6f9ff', transparent: true, opacity: 0.42, depthWrite: false })
       );
-      m.scale.set(5.2, 1.0, 5.2);
-      m.position.set(x - Math.cos(aim) * 18 + Math.cos(a) * 8, 1.9, z - Math.sin(aim) * 18 + Math.sin(a) * 8);
+      m.scale.setScalar(18);
+      m.position.set(x - Math.cos(aim) * 18 + Math.cos(a) * 8, 1.85, z - Math.sin(aim) * 18 + Math.sin(a) * 8);
       this.fxGroup.add(m);
       this.particles.push({
         mesh: m,
-        vx: Math.cos(a) * 28,
+        vx: Math.cos(a) * 26,
         vy: 0,
-        vz: Math.sin(a) * 28,
+        vz: Math.sin(a) * 26,
         gravity: 0,
-        life: 0.52,
-        maxLife: 0.52,
+        life: 0.56,
+        maxLife: 0.56,
         kind: 'foam'
       });
     }
@@ -1344,9 +1357,9 @@ export class SeaRenderer3D {
       } else if (pt.kind === 'foam') {
         pt.mesh.position.x += pt.vx * dt;
         pt.mesh.position.z += pt.vz * dt;
-        const sc = 5.2 + (1 - ratio) * 9.5;
-        pt.mesh.scale.set(sc, 0.9, sc);
-        pt.mesh.material.opacity = ratio * 0.4;
+        const sc = 18 + (1 - ratio) * 24;
+        pt.mesh.scale.setScalar(sc);
+        pt.mesh.material.opacity = ratio * 0.36;
       } else if (pt.kind === 'smoke') {
         pt.mesh.position.x += pt.vx * dt;
         pt.mesh.position.y += pt.vy * dt;
@@ -1672,7 +1685,24 @@ export class SeaRenderer3D {
           this.diveRingMesh.material.color.set(p.diveTime >= 1.0 ? '#ffd166' : '#38bdf8');
         } else {
           const it0 = p.items?.[0];
-          const range = (it0 && it0.usesLeft > 0 && ALL_ITEMS[it0.id]?.range) ? Math.min(340, ALL_ITEMS[it0.id].range * 0.55) : 140;
+          const maxR = (it0 && it0.usesLeft > 0 && ALL_ITEMS[it0.id]?.range) ? Math.min(310, ALL_ITEMS[it0.id].range * 0.5) : 135;
+          // Clip aim laser cleanly at rocks/ships so it never pierces through solid islands!
+          let range = maxR;
+          const cosA = Math.cos(sp.aim);
+          const sinA = Math.sin(sp.aim);
+          for (let d = 28; d <= maxR; d += 14) {
+            const tx = sp.x + cosA * d;
+            const ty = sp.y + sinA * d;
+            let hit = false;
+            for (const obs of map.rocks || []) {
+              if (obs.type === 'rock') {
+                if (dist(tx, ty, obs.x, obs.y) <= obs.r + 3) { hit = true; break; }
+              } else if (tx >= obs.x && tx <= obs.x + obs.w && ty >= obs.y && ty <= obs.y + obs.h) {
+                hit = true; break;
+              }
+            }
+            if (hit) { range = d; break; }
+          }
           showAim = true;
           this.aimGuideMesh.position.set(sp.x, 2.3, sp.y);
           this.aimGuideMesh.rotation.y = -sp.aim;

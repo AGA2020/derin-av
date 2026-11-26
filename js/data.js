@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v5.32';
+export const GAME_VERSION = 'v5.33';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v5.33',
+    notes: [
+      '🎯 3D nişan çizgisi artık kayalara/enkazlara çarpınca orada kesilir (adanın içinden geçmez).',
+      '🌊 Tekne köpük izleri yumuşak bulutsu köpüğe çevrildi; harita kenarındaki düz çizgi yerine yüzen deniz feneri şamandıraları eklendi.'
+    ]
+  },
   {
     ver: 'v5.32',
     notes: [
