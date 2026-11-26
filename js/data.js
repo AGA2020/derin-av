@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v7.0';
+export const GAME_VERSION = 'v7.1';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -12,7 +12,7 @@ export const ROUND_EVENTS = [
   { id: 'kasirga_hizi', name: 'Kasırga Hızı', icon: '⚡', color: '#38bdf8', desc: 'Tüm tekneler +%25 daha hızlı süzülür!' },
   { id: 'derin_deniz', name: 'Sonsuz Derinlik', icon: '🤿', color: '#06d6a0', desc: 'Su altında nefes tüketimi yarıya iner (%50)!' },
   { id: 'hazine_firtinasi', name: 'Hazine Fırtınası', icon: '📦', color: '#c084fc', desc: '4 deniz sandığı ile başlar ve 2 kat hızlı çıkar!' },
-  { id: 'kraken_uyanisi', name: 'Kraken Uyanışı', icon: '🐙', color: '#d946ef', desc: 'Merkezde dev Kraken uyanır — son vuruş +1 silah & +50 kalkan verir!' }
+  { id: 'kraken_uyanisi', name: 'Kraken Uyanışı', icon: '🐙', color: '#d946ef', desc: 'Merkezde dev Kraken uyanır — son vuruş takıma FULL şarj, +55 Kalkan & Hız verir!' }
 ];
 export const ROUND_EVENT_MAP = Object.fromEntries(ROUND_EVENTS.map(e => [e.id, e]));
 
@@ -66,6 +66,16 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v7.1',
+    notes: [
+      '🐙 EFSANEVİ KRAKEN BOSS YENİLEMESİ (Görsel + 3 Saldırılı Boss AI!):',
+      '🎨 3D Heykelsi Dev Kraken: Sırt dikenli dev baş, çatık kaşlı parlayan altın/kızıl gözler, dönen karanlık girdap ve vantuzlu 8 kıvrımlı S-dokunaç!',
+      '⚠️ 3D Saldırı Uyarı Halkası & Koreografi: Şamardan önce su üstünde büyüyen kırmızı-mor tehlike çemberi + göğe kalkan dokunaçlar + vuruşta dev su sütunu & mor patlama ışığı!',
+      '🟣 Yeni Menzilli Mürekkep Topu & 🔥 %50 Can Öfke Fazı: Kraken artık uzaktaki gemilere yavaşlatan mor mürekkep küresi atar; canı yarıya inince gözleri kızarır, 245px çekim girdabı açar ve saldırıları hızlanır!',
+      '🏆 Kraken Gücü Ödülü: Son vuruşu yapan kaptan (ve 2v2’de canlı arkadaşı) TÜM tükenen itemlerini doldurur + 55 Kalkan + 6 sn +%22 Hız kazanır!'
+    ]
+  },
   {
     ver: 'v7.0',
     notes: [

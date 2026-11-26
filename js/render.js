@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=7.0';
-import { hasLineOfSight } from './sim.js?v=7.0';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=7.1';
+import { hasLineOfSight } from './sim.js?v=7.1';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -2161,8 +2161,19 @@ export class SeaRenderer {
     ctx.fill();
     ctx.stroke();
 
-    // Glowing yellow boss eyes
-    ctx.fillStyle = '#fef08a';
+    // Enraged vortex pull ring (245px)
+    if (k.enraged) {
+      ctx.strokeStyle = 'rgba(244, 63, 94, 0.42)';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.arc(0, 0, 245, t * 1.4, t * 1.4 + Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Glowing yellow / enraged crimson boss eyes
+    ctx.fillStyle = k.enraged ? '#ff2a55' : '#fef08a';
     ctx.beginPath();
     ctx.ellipse(-10, 4, 6.5, 4.5, 0.25, 0, Math.PI * 2);
     ctx.ellipse(10, 4, 6.5, 4.5, -0.25, 0, Math.PI * 2);
@@ -2172,21 +2183,21 @@ export class SeaRenderer {
     ctx.fillRect(8.5, 1.5, 2.5, 5.5);
 
     // Boss HP Bar & label above
-    const bw = 92;
-    const pct = Math.max(0, Math.min(1, k.hp / (k.maxHp || 240)));
+    const bw = 96;
+    const pct = Math.max(0, Math.min(1, k.hp / (k.maxHp || 260)));
     ctx.fillStyle = 'rgba(8, 4, 18, 0.88)';
     ctx.beginPath();
     ctx.roundRect(-bw / 2 - 2, -56, bw + 4, 10, 5);
     ctx.fill();
-    ctx.fillStyle = '#d946ef';
+    ctx.fillStyle = k.enraged ? '#f43f5e' : '#d946ef';
     ctx.beginPath();
     ctx.roundRect(-bw / 2, -54, bw * pct, 6, 3);
     ctx.fill();
 
-    ctx.fillStyle = '#f5d0fe';
+    ctx.fillStyle = k.enraged ? '#fda4af' : '#f5d0fe';
     ctx.font = '900 11px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`🐙 KRAKEN · ${k.hp}/${k.maxHp}`, 0, -64);
+    ctx.fillText(k.enraged ? `🔥 ÖFKELİ KRAKEN · ${k.hp}/${k.maxHp}` : `🐙 KRAKEN · ${k.hp}/${k.maxHp}`, 0, -64);
     ctx.restore();
   }
 

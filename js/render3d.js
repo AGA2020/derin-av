@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=7.0';
-import { hasLineOfSight } from './sim.js?v=7.0';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=7.1';
+import { hasLineOfSight } from './sim.js?v=7.1';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -816,9 +816,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=7.0'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=7.0'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=7.0'],
+      ['chest', './vendor/models/pirate/chest.glb?v=7.1'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=7.1'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=7.1'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -1847,43 +1847,168 @@ export class SeaRenderer3D {
 
   _createKrakenRig() {
     const g = new THREE.Group();
-    const bodyMat = new THREE.MeshStandardMaterial({ color: '#9333ea', roughness: 0.3, metalness: 0.15 });
-    const head = new THREE.Mesh(new THREE.SphereGeometry(36, 18, 14), bodyMat);
-    head.scale.set(1, 0.92, 1);
-    head.position.y = 24;
-    head.castShadow = true;
-    g.add(head);
 
-    const eyeMat = new THREE.MeshBasicMaterial({ color: '#fde047' });
+    // 🌀 Abyssal dark spinning whirlpool + churning seafoam base
+    const vortex = new THREE.Mesh(
+      new THREE.PlaneGeometry(175, 175),
+      new THREE.MeshBasicMaterial({ map: this.mistTex, color: '#4c1d95', transparent: true, opacity: 0.72, depthWrite: false })
+    );
+    vortex.rotation.x = -Math.PI / 2;
+    vortex.position.y = 1.8;
+    g.add(vortex);
+
+    const foamRing = new THREE.Mesh(
+      new THREE.PlaneGeometry(145, 145),
+      new THREE.MeshBasicMaterial({ map: this.shoreFoamTex, color: '#e879f9', transparent: true, opacity: 0.55, depthWrite: false })
+    );
+    foamRing.rotation.x = -Math.PI / 2;
+    foamRing.position.y = 2.15;
+    g.add(foamRing);
+
+    // ⚠️ 3D Slam Telegraph Danger Ring + Expanding Red-Magenta Fill Disc!
+    const warnOuter = new THREE.Mesh(
+      new THREE.RingGeometry(143, 151, 48),
+      new THREE.MeshBasicMaterial({ color: '#f0abfc', transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false })
+    );
+    warnOuter.rotation.x = -Math.PI / 2;
+    warnOuter.position.y = 2.9;
+    warnOuter.visible = false;
+    g.add(warnOuter);
+
+    const warnFill = new THREE.Mesh(
+      new THREE.CircleGeometry(1, 40),
+      new THREE.MeshBasicMaterial({ color: '#f43f5e', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false })
+    );
+    warnFill.rotation.x = -Math.PI / 2;
+    warnFill.position.y = 2.7;
+    warnFill.visible = false;
+    g.add(warnFill);
+
+    // 🔥 Enraged Vortex Pull Boundary Ring (245px)
+    const rageRing = new THREE.Mesh(
+      new THREE.RingGeometry(239, 245, 52),
+      new THREE.MeshBasicMaterial({ color: '#fb7185', transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false })
+    );
+    rageRing.rotation.x = -Math.PI / 2;
+    rageRing.position.y = 2.35;
+    rageRing.visible = false;
+    g.add(rageRing);
+
+    // 🐙 Sculpted Armored Kraken Head Group (rotates toward nearest ship!)
+    const headGroup = new THREE.Group();
+    const skinMat = new THREE.MeshStandardMaterial({ color: '#581c87', roughness: 0.28, metalness: 0.18 });
+    const ridgeMat = new THREE.MeshStandardMaterial({ color: '#86198f', roughness: 0.32, metalness: 0.22 });
+    const suckerMat = new THREE.MeshStandardMaterial({ color: '#f5d0fe', roughness: 0.4, emissive: '#a21caf', emissiveIntensity: 0.25 });
+
+    // Lower bulbous head + upper towering ridged mantle crown
+    const mainHead = new THREE.Mesh(new THREE.SphereGeometry(32, 18, 14), skinMat);
+    mainHead.scale.set(1.06, 0.88, 1.08);
+    mainHead.position.y = 22;
+    mainHead.castShadow = true;
+    headGroup.add(mainHead);
+
+    const mantle = new THREE.Mesh(new THREE.SphereGeometry(26, 16, 12), ridgeMat);
+    mantle.scale.set(0.92, 1.35, 1.18);
+    mantle.position.set(-7, 42, 0);
+    mantle.rotation.z = 0.28;
+    mantle.castShadow = true;
+    headGroup.add(mantle);
+
+    // Lateral armored ear-fins & dorsal spikes
     for (const s of [-1, 1]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(6.8, 10, 8), eyeMat);
-      eye.position.set(s * 14, 30, 28);
-      g.add(eye);
+      const fin = new THREE.Mesh(new THREE.ConeGeometry(12, 34, 8), ridgeMat);
+      fin.position.set(-6, 42, s * 22);
+      fin.rotation.x = s * 0.72;
+      fin.rotation.z = 0.35;
+      fin.scale.set(0.65, 1, 0.35);
+      headGroup.add(fin);
+    }
+    for (let k = 0; k < 4; k++) {
+      const sp = new THREE.Mesh(new THREE.ConeGeometry(4.5 - k * 0.5, 14 - k * 1.2, 6), suckerMat);
+      sp.position.set(-14 - k * 5, 58 - k * 6, 0);
+      sp.rotation.z = 0.5 + k * 0.18;
+      headGroup.add(sp);
     }
 
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(48, 54, 36),
-      new THREE.MeshBasicMaterial({ color: '#d946ef', transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 2.0;
-    g.add(ring);
+    // Fierce glowing boss eyes + dark angled brow ridges + additive eye halos!
+    const eyeMat = new THREE.MeshBasicMaterial({ color: '#fde047' });
+    const browMat = new THREE.MeshStandardMaterial({ color: '#3b0764', roughness: 0.4 });
+    const eyeGlows = [];
+    for (const s of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(6.8, 12, 10), eyeMat);
+      eye.scale.set(0.75, 0.9, 1.15);
+      eye.position.set(25, 29, s * 13);
+      headGroup.add(eye);
+
+      const pupil = new THREE.Mesh(new THREE.BoxGeometry(2.4, 7.5, 2.2), new THREE.MeshBasicMaterial({ color: '#180526' }));
+      pupil.position.set(29.8, 29, s * 13);
+      headGroup.add(pupil);
+
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(11, 3.6, 13), browMat);
+      brow.position.set(25, 35.5, s * 13.5);
+      brow.rotation.x = -s * 0.34;
+      brow.rotation.y = s * 0.18;
+      headGroup.add(brow);
+
+      const eg = this._makeGlowSprite('#fde047', 32, 0.78);
+      eg.position.set(28, 29, s * 13.5);
+      headGroup.add(eg);
+      eyeGlows.push(eg);
+    }
+    g.add(headGroup);
+
+    // 🐙 8 Sculpted S-Curved Giant Tentacles with Glowing Suction Cups!
+    const tentCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(24, 2, 0),
+      new THREE.Vector3(46, 30, 5),
+      new THREE.Vector3(64, 48, -6),
+      new THREE.Vector3(78, 30, 4),
+      new THREE.Vector3(88, 12, -2)
+    ]);
+    const tentGeo = new THREE.TubeGeometry(tentCurve, 18, 5.4, 10, false);
+    // Taper radius cleanly toward the tip!
+    const tPos = tentGeo.attributes.position;
+    for (let vi = 0; vi < tPos.count; vi++) {
+      const vx = tPos.getX(vi);
+      const frac = Math.max(0, Math.min(1, (vx - 24) / 64));
+      const center = tentCurve.getPoint(frac);
+      const taper = 1.25 - frac * 0.92;
+      tPos.setXYZ(
+        vi,
+        center.x + (tPos.getX(vi) - center.x) * taper,
+        center.y + (tPos.getY(vi) - center.y) * taper,
+        center.z + (tPos.getZ(vi) - center.z) * taper
+      );
+    }
+    tentGeo.computeVertexNormals();
 
     const tentacles = [];
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
       const tg = new THREE.Group();
       tg.rotation.y = a;
-      const arm = new THREE.Mesh(new THREE.ConeGeometry(8.5, 68, 10), bodyMat);
-      arm.position.set(52, 24, 0);
-      arm.rotation.z = -0.35;
+
+      const armGroup = new THREE.Group();
+      const arm = new THREE.Mesh(tentGeo, i % 2 === 0 ? skinMat : ridgeMat);
       arm.castShadow = true;
-      tg.add(arm);
+      armGroup.add(arm);
+
+      // 3 glowing suction cups along the curved underside
+      for (const f of [0.28, 0.52, 0.74]) {
+        const pt = tentCurve.getPoint(f);
+        const cup = new THREE.Mesh(this._sharedGeo.sphere, suckerMat);
+        cup.scale.setScalar(3.4 - f * 1.6);
+        cup.position.set(pt.x, pt.y - 3.5, pt.z);
+        armGroup.add(cup);
+      }
+
+      tg.add(armGroup);
       g.add(tg);
-      tentacles.push({ group: tg, arm, idx: i });
+      tentacles.push({ group: tg, arm: armGroup, baseA: a, idx: i });
     }
+
     this.dynamicGroup.add(g);
-    return { group: g, head, tentacles };
+    return { group: g, head: headGroup, vortex, foamRing, warnOuter, warnFill, rageRing, eyeMat, eyeGlows, tentacles, wasWarn: false };
   }
 
   _createCrownRig() {
@@ -3141,13 +3266,64 @@ export class SeaRenderer3D {
       return;
     }
     if (!this.krakenRig) this.krakenRig = this._createKrakenRig();
-    this.krakenRig.group.visible = true;
-    this.krakenRig.group.position.set(kraken.x, Math.sin(this.time * 2.5) * 4, kraken.y);
-    this.krakenRig.head.rotation.y = Math.sin(this.time * 1.4) * 0.25;
-    for (const t of this.krakenRig.tentacles) {
-      const wave = Math.sin(this.time * 4.2 + t.idx * 0.85);
-      t.arm.rotation.z = -0.35 + wave * 0.28;
-      t.arm.position.y = 24 + Math.cos(this.time * 3.5 + t.idx) * 7;
+    const kr = this.krakenRig;
+    kr.group.visible = true;
+    const enraged = Boolean(kraken.enraged);
+    const warn = Boolean(kraken.warn);
+    const wp = kraken.warnPct || 0;
+
+    // Slam impact splash & violet blast light the moment warning fires!
+    if (kr.wasWarn && !warn) {
+      this._spawnSplashPlume(kraken.x, kraken.y, enraged ? '#fb7185' : '#e879f9', 1.8);
+      this._triggerBlastLight(kraken.x, kraken.y, enraged ? '#f43f5e' : '#d946ef', 7.5);
+    }
+    kr.wasWarn = warn;
+
+    const bob = Math.sin(this.time * (enraged ? 5.2 : 2.8)) * (warn ? 6.5 : 3.8);
+    kr.group.position.set(kraken.x, 0, kraken.y);
+    kr.head.position.y = bob + (warn ? wp * 12 : 0);
+    kr.head.rotation.y = -(kraken.aim || 0);
+    kr.head.rotation.z = Math.sin(this.time * 3.1) * 0.08 + (warn ? -wp * 0.18 : 0);
+
+    // Spinning whirlpool & churning foam
+    kr.vortex.rotation.z += enraged ? 0.055 : 0.024;
+    kr.foamRing.rotation.z -= enraged ? 0.042 : 0.018;
+    const fSc = 0.96 + Math.sin(this.time * 3.2) * 0.08;
+    kr.foamRing.scale.set(fSc, fSc, 1);
+
+    // 3D Slam Telegraph Danger Ring!
+    kr.warnOuter.visible = warn;
+    kr.warnFill.visible = warn;
+    if (warn) {
+      const rScale = Math.max(16, (kraken.slamR || 150) * wp);
+      kr.warnFill.scale.set(rScale, rScale, 1);
+      kr.warnOuter.material.color.set(enraged ? '#ff4d6d' : '#f0abfc');
+      kr.warnFill.material.opacity = 0.18 + wp * 0.24;
+    }
+
+    // Enraged Vortex Boundary Ring + Fiery Red Eyes + Rising Purple Sparks!
+    kr.rageRing.visible = enraged;
+    if (enraged) {
+      kr.rageRing.material.opacity = 0.24 + Math.sin(this.time * 8) * 0.12;
+      if (Math.random() < 0.25) {
+        this._spawnBurst(kraken.x + (Math.random() - 0.5) * 80, kraken.y + (Math.random() - 0.5) * 80, '#f43f5e', 1, 35, 85);
+      }
+    }
+    const eyeCol = enraged ? '#ff2a55' : '#fde047';
+    kr.eyeMat.color.set(eyeCol);
+    for (const eg of kr.eyeGlows) {
+      eg.material.color.set(eyeCol);
+      eg.scale.setScalar(enraged ? 40 + Math.sin(this.time * 14) * 6 : 32);
+    }
+
+    // Choreographed 8 S-Curved Tentacles (rear up dramatically during slam warning!)
+    const spd = warn ? 11.5 : (enraged ? 6.5 : 3.8);
+    for (const t of kr.tentacles) {
+      const wave = Math.sin(this.time * spd + t.idx * 0.85);
+      t.group.rotation.y = t.baseA + Math.sin(this.time * 1.4 + t.idx) * 0.16;
+      // Rear high into the air during telegraph, lash out wildly when enraged!
+      t.arm.rotation.z = warn ? (0.36 + wp * 0.42 + wave * 0.12) : (wave * (enraged ? 0.26 : 0.16));
+      t.arm.position.y = bob * 0.6 + (warn ? wp * 14 : Math.cos(this.time * spd * 0.8 + t.idx) * 5);
     }
   }
 
@@ -3314,18 +3490,18 @@ export class SeaRenderer3D {
     // 2. Kraken HP Bar
     if (state.kraken) {
       const k = state.kraken;
-      const scr = this._worldToScreen(k.x, 66, k.y);
+      const scr = this._worldToScreen(k.x, 86, k.y);
       if (scr.inFront) {
         ctx.save();
         ctx.textAlign = 'center';
-        ctx.font = '900 12px system-ui, sans-serif';
-        ctx.fillStyle = '#f0abfc';
-        ctx.fillText(`🐙 KRAKEN (${Math.ceil(k.hp)}/${k.maxHp})`, scr.x, scr.y - 12);
-        const bw = 90;
+        ctx.font = '900 12.5px system-ui, sans-serif';
+        ctx.fillStyle = k.enraged ? '#fda4af' : '#f0abfc';
+        ctx.fillText(k.enraged ? `🔥 ÖFKELİ KRAKEN (${Math.ceil(k.hp)}/${k.maxHp})` : `🐙 KRAKEN (${Math.ceil(k.hp)}/${k.maxHp})`, scr.x, scr.y - 12);
+        const bw = 104;
         ctx.fillStyle = 'rgba(2, 10, 22, 0.85)';
-        ctx.fillRect(scr.x - bw / 2, scr.y - 7, bw, 7);
-        ctx.fillStyle = '#d946ef';
-        ctx.fillRect(scr.x - bw / 2, scr.y - 7, bw * Math.max(0, k.hp / k.maxHp), 7);
+        ctx.fillRect(scr.x - bw / 2, scr.y - 7, bw, 8);
+        ctx.fillStyle = k.enraged ? '#f43f5e' : '#d946ef';
+        ctx.fillRect(scr.x - bw / 2, scr.y - 7, bw * Math.max(0, k.hp / k.maxHp), 8);
         ctx.restore();
       }
     }
