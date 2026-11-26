@@ -2,8 +2,8 @@
 // Aynı 2D fizik/simülasyon motoru (sim.js) üstünde %100 çapraz uyumlu 3D görünüm!
 
 import * as THREE from '../vendor/three.module.min.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.0';
-import { hasLineOfSight } from './sim.js?v=5.0';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.01';
+import { hasLineOfSight } from './sim.js?v=5.01';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -17,8 +17,8 @@ export class SeaRenderer3D {
 
     this.camX = WORLD_W / 2;
     this.camY = WORLD_H / 2;
-    this.viewW = window.innerWidth;
-    this.viewH = window.innerHeight;
+    this.viewW = 0;
+    this.viewH = 0;
     this.time = 0;
     this.shake = 0;
     this.lastRoundSeen = -1;
@@ -54,11 +54,11 @@ export class SeaRenderer3D {
     this._tmpVec = new THREE.Vector3();
     this._tmpNdc = new THREE.Vector2();
 
-    // Lighting — warm maritime daylight + turquoise ocean bounce
-    this.hemiLight = new THREE.HemisphereLight('#bae6fd', '#082f49', 1.25);
+    // Lighting — vibrant Wind Waker maritime daylight + turquoise ocean bounce
+    this.hemiLight = new THREE.HemisphereLight('#e0f2fe', '#0e4f6e', 1.65);
     this.scene.add(this.hemiLight);
 
-    this.sunLight = new THREE.DirectionalLight('#fff6de', 1.45);
+    this.sunLight = new THREE.DirectionalLight('#fff8e6', 1.85);
     this.sunLight.position.set(WORLD_W * 0.5 + 360, 760, WORLD_H * 0.5 + 260);
     this.sunLight.castShadow = true;
     const shSize = window.innerWidth < 720 ? 512 : 1024;
@@ -174,7 +174,7 @@ export class SeaRenderer3D {
   resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    if (w === this.viewW && h === this.viewH && this.overlayCanvas.width > 0) return;
+    if (w === this.viewW && h === this.viewH) return;
     this.viewW = w;
     this.viewH = h;
     this.renderer.setSize(w, h, false);
@@ -235,13 +235,13 @@ export class SeaRenderer3D {
     this.fogMeshes = [];
     this.lighthouseRig = null;
 
-    const deepCol = new THREE.Color(map.theme.deep || '#041a2e');
-    const midCol = new THREE.Color(map.theme.mid || '#0a3352');
-    this.scene.background = deepCol.clone().multiplyScalar(0.85);
+    const deepCol = new THREE.Color(map.theme.deep || '#041a2e').offsetHSL(0, 0.08, 0.07);
+    const midCol = new THREE.Color(map.theme.mid || '#0a3352').offsetHSL(0, 0.14, 0.12);
+    this.scene.background = deepCol.clone().multiplyScalar(0.8);
     this.scene.fog.color.copy(deepCol);
 
     // 1. Subdivided low-poly ocean with gentle wave vertices
-    const oceanGeo = new THREE.PlaneGeometry(WORLD_W + 900, WORLD_H + 900, 56, 38);
+    const oceanGeo = new THREE.PlaneGeometry(WORLD_W + 900, WORLD_H + 900, 64, 44);
     oceanGeo.rotateX(-Math.PI / 2);
     const pos = oceanGeo.attributes.position;
     const colors = new Float32Array(pos.count * 3);
@@ -249,8 +249,8 @@ export class SeaRenderer3D {
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i) + WORLD_W / 2;
       const z = pos.getZ(i) + WORLD_H / 2;
-      const d = Math.min(1, Math.hypot((x - WORLD_W / 2) / 900, (z - WORLD_H / 2) / 620));
-      tmpC.copy(midCol).lerp(deepCol, d * 0.88);
+      const d = Math.min(1, Math.hypot((x - WORLD_W / 2) / 920, (z - WORLD_H / 2) / 640));
+      tmpC.copy(midCol).lerp(deepCol, d * 0.85);
       colors[i * 3] = tmpC.r;
       colors[i * 3 + 1] = tmpC.g;
       colors[i * 3 + 2] = tmpC.b;
@@ -258,8 +258,9 @@ export class SeaRenderer3D {
     oceanGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     const oceanMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.32,
-      metalness: 0.12,
+      roughness: 0.28,
+      metalness: 0.16,
+      emissive: midCol.clone().multiplyScalar(0.28),
       flatShading: true
     });
     this.oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
@@ -460,20 +461,43 @@ export class SeaRenderer3D {
       this.mapGroup.add(cg);
     }
 
-    // 5. Sea Fogs (layered translucent mist clouds)
+    // 5. Sea Fogs (fluffy layered low-poly mist clouds + soft edge ring)
+    const fogCloudMat = new THREE.MeshStandardMaterial({
+      color: '#e2f1ff',
+      emissive: '#38bdf8',
+      emissiveIntensity: 0.12,
+      transparent: true,
+      opacity: 0.24,
+      roughness: 1,
+      flatShading: true,
+      depthWrite: false
+    });
+    const fogRingMat = new THREE.MeshBasicMaterial({
+      color: '#bae6fd',
+      transparent: true,
+      opacity: 0.22,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
     for (const fg of map.fogs || []) {
-      const fMesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(fg.r, fg.r * 1.06, 26, 24),
-        new THREE.MeshBasicMaterial({
-          color: '#cbd5e1',
-          transparent: true,
-          opacity: 0.24,
-          depthWrite: false
-        })
-      );
-      fMesh.position.set(fg.x, 14, fg.y);
-      this.mapGroup.add(fMesh);
-      this.fogMeshes.push({ mesh: fMesh, baseX: fg.x, baseZ: fg.y });
+      const fGroup = new THREE.Group();
+      fGroup.position.set(fg.x, 0, fg.y);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(fg.r - 3, fg.r, 28), fogRingMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 1.1;
+      fGroup.add(ring);
+
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2;
+        const distOff = k === 0 ? 0 : fg.r * 0.42;
+        const rad = k === 0 ? fg.r * 0.62 : fg.r * 0.48;
+        const puff = new THREE.Mesh(new THREE.DodecahedronGeometry(rad, 1), fogCloudMat);
+        puff.scale.set(1, 0.26, 1);
+        puff.position.set(Math.cos(a) * distOff, 14 + (k % 2) * 5, Math.sin(a) * distOff);
+        fGroup.add(puff);
+      }
+      this.mapGroup.add(fGroup);
+      this.fogMeshes.push({ mesh: fGroup, baseX: fg.x, baseZ: fg.y });
     }
 
     // 6. Rotating Lighthouse Tower (Korsan Enkazı & Hayalet Sis)
@@ -1102,10 +1126,10 @@ export class SeaRenderer3D {
     const szOff = (Math.random() - 0.5) * this.shake * 1.4;
 
     const isNarrow = this.viewW < 640;
-    const camHeight = isNarrow ? 650 : 540;
-    const camBack = isNarrow ? 470 : 395;
+    const camHeight = isNarrow ? 590 : 475;
+    const camBack = isNarrow ? 420 : 340;
     this.camera.position.set(this.camX + sxOff, camHeight, this.camY + camBack + szOff);
-    this.camera.lookAt(this.camX + sxOff * 0.4, 6, this.camY + 12 + szOff * 0.4);
+    this.camera.lookAt(this.camX + sxOff * 0.4, 8, this.camY + 10 + szOff * 0.4);
 
     // Move directional light shadow frustum with camera
     this.sunLight.position.set(this.camX + 340, 740, this.camY + 240);
