@@ -1,13 +1,14 @@
-// İKİ İTEMLİ OYUN — Studio-Grade 3D Maritime Renderer v5.3
+// İKİ İTEMLİ OYUN — Studio-Grade 3D Maritime Renderer v6.1
 // Real Kenney CC0 .glb 3D models (ships, wrecks, rocks, palms, chests, barrels, piers, buoys),
-// PBR RoomEnvironment IBL lighting, Fresnel + Specular reflective GLSL ocean shader (NO spiderweb!),
-// soft radial mist clouds, flowing translucent currents, and 3D sinking ship animations!
+// PBR RoomEnvironment IBL lighting, Fresnel + Specular reflective GLSL ocean shader,
+// animated shoreline surf foam, V-wake streaks, dynamic ship banking & battle smoke,
+// additive glow halos (zero-cost bloom), per-map sun angles, and living distant horizon!
 
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=6.0';
-import { hasLineOfSight } from './sim.js?v=6.0';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=6.1';
+import { hasLineOfSight } from './sim.js?v=6.1';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -192,6 +193,123 @@ function createSoftLagoonTexture(hexCol = '#2dd4bf', foamHex = '#e0f7ff') {
   return tex;
 }
 
+// Soft radial additive glow texture (lightweight zero-FPS-cost "Bloom" for shots, beacons & chests!)
+function createGlowTexture() {
+  const s = 128;
+  const c = document.createElement('canvas');
+  c.width = s; c.height = s;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
+  g.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+  g.addColorStop(0.28, 'rgba(255, 255, 255, 0.55)');
+  g.addColorStop(0.65, 'rgba(255, 255, 255, 0.14)');
+  g.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, s, s);
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// Soft underwater contact blob shadow so boats, barrels & chests sit solidly in the ocean
+function createContactShadowTexture() {
+  const s = 128;
+  const c = document.createElement('canvas');
+  c.width = s; c.height = s;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 60);
+  g.addColorStop(0.0, 'rgba(1, 10, 22, 0.56)');
+  g.addColorStop(0.55, 'rgba(1, 10, 22, 0.24)');
+  g.addColorStop(1.0, 'rgba(1, 10, 22, 0.0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, s, s);
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// Animated organic shoreline foam ring texture (breaks gently around every island rock!)
+function createShoreFoamTexture() {
+  const s = 256;
+  const c = document.createElement('canvas');
+  c.width = s; c.height = s;
+  const ctx = c.getContext('2d');
+  ctx.translate(128, 128);
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.beginPath();
+    const baseR = pass === 0 ? 86 : 98;
+    for (let i = 0; i <= 72; i++) {
+      const a = (i / 72) * Math.PI * 2;
+      const wobble = Math.sin(a * 7 + pass * 2.1) * 5 + Math.cos(a * 11 - pass) * 3;
+      const r = baseR + wobble;
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = pass === 0 ? 'rgba(232, 250, 255, 0.72)' : 'rgba(186, 236, 255, 0.32)';
+    ctx.lineWidth = pass === 0 ? 7.5 : 13;
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// Sleek feathered directional wake streak texture for crisp V-wakes & bow spray
+function createWakeStreakTexture() {
+  const w = 128, h = 64;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(w * 0.55, h * 0.5, 4, w * 0.5, h * 0.5, w * 0.48);
+  g.addColorStop(0.0, 'rgba(240, 252, 255, 0.85)');
+  g.addColorStop(0.42, 'rgba(205, 242, 255, 0.44)');
+  g.addColorStop(1.0, 'rgba(180, 235, 255, 0.0)');
+  ctx.save();
+  ctx.scale(1.0, 0.46);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(w * 0.5, h * 1.08, w * 0.46, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// Sleek glowing tactical dashed-arrow aim sight texture
+function createAimSightTexture() {
+  const w = 256, h = 32;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, w, 0);
+  grad.addColorStop(0.0, 'rgba(255, 255, 255, 0.0)');
+  grad.addColorStop(0.15, 'rgba(255, 255, 255, 0.72)');
+  grad.addColorStop(0.82, 'rgba(255, 255, 255, 0.88)');
+  grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
+  ctx.fillStyle = grad;
+  // Crisp tapered dashes
+  for (let x = 18; x < w - 34; x += 26) {
+    ctx.beginPath();
+    ctx.roundRect(x, 12.5, 15, 7, 3.5);
+    ctx.fill();
+  }
+  // Sleek arrowhead at tip
+  ctx.beginPath();
+  ctx.moveTo(w - 28, 6);
+  ctx.lineTo(w - 6, 16);
+  ctx.lineTo(w - 28, 26);
+  ctx.lineTo(w - 21, 16);
+  ctx.closePath();
+  ctx.fill();
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
 function createCurrentFlowTexture() {
   const w = 256, h = 128;
   const c = document.createElement('canvas');
@@ -337,31 +455,37 @@ function createSmoothTentacleGeometry(length = 26, baseR = 3.5) {
   return new THREE.TubeGeometry(curve, 12, baseR * 0.62, 10, false);
 }
 
-// Rich bright daytime / sunset / moonlight lighting palettes per map!
+// Distinct per-map lighting, sun angle, fog & ocean palettes so every arena feels like a unique world!
 const MAP_PALETTES = {
   firtina_bogazi: {
-    sunCol: '#e0f2fe', sunInt: 2.1, hemiSky: '#bae6fd', hemiGround: '#104569',
-    deep: '#0f3c63', shallow: '#1d7aa8', sky: '#70b3de', bg: '#0e3252', lagoon: '#38bdf8'
+    sunCol: '#cfe9ff', sunInt: 1.95, hemiSky: '#93c5fd', hemiGround: '#0a3352',
+    deep: '#0a2b4a', shallow: '#155e8a', sky: '#528db8', bg: '#09233d', lagoon: '#38bdf8',
+    sunDir: [0.35, 0.72, 0.55], fogDens: 0.00038
   },
   korsan_enkazi: {
-    sunCol: '#fef08a', sunInt: 2.25, hemiSky: '#e0f2fe', hemiGround: '#114a66',
-    deep: '#0c3554', shallow: '#18759e', sky: '#6cb4dc', bg: '#0e324d', lagoon: '#38bdf8'
+    sunCol: '#ffd89b', sunInt: 2.45, hemiSky: '#fde68a', hemiGround: '#16425b',
+    deep: '#0d314d', shallow: '#1b6d8f', sky: '#d4956a', bg: '#162d42', lagoon: '#5eead4',
+    sunDir: [0.68, 0.52, -0.35], fogDens: 0.0003
   },
   akinti_koyu: {
-    sunCol: '#fffbeb', sunInt: 2.35, hemiSky: '#bae6fd', hemiGround: '#0e5b73',
-    deep: '#093c59', shallow: '#148ea8', sky: '#7cd4f0', bg: '#0b3852', lagoon: '#2dd4bf'
+    sunCol: '#fffbeb', sunInt: 2.4, hemiSky: '#bae6fd', hemiGround: '#0e6178',
+    deep: '#07405e', shallow: '#1298b3', sky: '#86dcf5', bg: '#0a3b54', lagoon: '#2dd4bf',
+    sunDir: [0.45, 0.85, 0.3], fogDens: 0.00027
   },
   mercan_plaji: {
-    sunCol: '#fffbeb', sunInt: 2.5, hemiSky: '#e0f7ff', hemiGround: '#147a87',
-    deep: '#0c4e6e', shallow: '#16a3b5', sky: '#8be0f5', bg: '#0e4966', lagoon: '#5eead4'
+    sunCol: '#fff7d6', sunInt: 2.7, hemiSky: '#e0fbff', hemiGround: '#168a91',
+    deep: '#0b5878', shallow: '#19bdd1', sky: '#9beaf7', bg: '#0f5675', lagoon: '#67f5e0',
+    sunDir: [0.3, 0.92, 0.25], fogDens: 0.00024
   },
   volkanik_resif: {
-    sunCol: '#fdba74', sunInt: 2.2, hemiSky: '#fed7aa', hemiGround: '#4a1c17',
-    deep: '#241219', shallow: '#5e2422', sky: '#b85a3a', bg: '#1e1016', lagoon: '#fb923c'
+    sunCol: '#ffad66', sunInt: 2.35, hemiSky: '#fdba74', hemiGround: '#541b14',
+    deep: '#210e15', shallow: '#6b221e', sky: '#cc5b33', bg: '#1c0d12', lagoon: '#fb923c',
+    sunDir: [-0.55, 0.58, 0.45], fogDens: 0.00036
   },
   hayalet_sis: {
-    sunCol: '#d1fae5', sunInt: 1.75, hemiSky: '#99f6e4', hemiGround: '#093332',
-    deep: '#072224', shallow: '#125957', sky: '#3d8f8a', bg: '#071f21', lagoon: '#2dd4bf'
+    sunCol: '#a7f3d0', sunInt: 1.85, hemiSky: '#6ee7b7', hemiGround: '#072e2d',
+    deep: '#051f22', shallow: '#0e5955', sky: '#358c85', bg: '#061c1f', lagoon: '#2dd4bf',
+    sunDir: [-0.4, 0.65, -0.5], fogDens: 0.00044
   }
 };
 
@@ -464,7 +588,19 @@ export class SeaRenderer3D {
     this.mistTex = createSoftMistTexture();
     this.currentTex = createCurrentFlowTexture();
     this.stoneTex = createStoneTextures();
+    this.glowTex = createGlowTexture();
+    this.shadowTex = createContactShadowTexture();
+    this.shoreFoamTex = createShoreFoamTexture();
+    this.wakeTex = createWakeStreakTexture();
+    this.aimTex = createAimSightTexture();
     this.lagoonTexCache = new Map();
+    this._baseSunInt = 2.2;
+    this._baseFogDens = 0.00032;
+    this.shorelineRings = [];
+    this.horizonBirds = [];
+    this.deepShadow = null;
+    this.prevAim = new Map();
+    this.shipRecoil = new Map();
 
     // Real PBR Fresnel + Specular Ocean Shader
     this.oceanUniforms = {
@@ -544,9 +680,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=6.0'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=6.0'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=6.0'],
+      ['chest', './vendor/models/pirate/chest.glb?v=6.1'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=6.1'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=6.1'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -712,6 +848,35 @@ export class SeaRenderer3D {
     return this.lagoonTexCache.get(hexCol);
   }
 
+  _makeGlowSprite(color = '#ffd166', size = 42, opacity = 0.72) {
+    const mat = new THREE.SpriteMaterial({
+      map: this.glowTex,
+      color,
+      transparent: true,
+      opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const sp = new THREE.Sprite(mat);
+    sp.scale.set(size, size, 1);
+    return sp;
+  }
+
+  _makeContactShadow(radius = 28, opacity = 0.65) {
+    const m = new THREE.Mesh(
+      this._sharedGeo.plane,
+      new THREE.MeshBasicMaterial({
+        map: this.shadowTex,
+        transparent: true,
+        opacity,
+        depthWrite: false
+      })
+    );
+    m.scale.setScalar(radius * 2);
+    m.position.y = 1.75;
+    return m;
+  }
+
   toggleCameraMode() {
     this.camMode = this.camMode === 'sinematik' ? 'taktik' : 'sinematik';
     try { localStorage.setItem('derinav_cam3d', this.camMode); } catch (_) {}
@@ -719,14 +884,21 @@ export class SeaRenderer3D {
   }
 
   _initPersistentHelpers() {
-    const aimGeo = new THREE.PlaneGeometry(1, 2.8);
+    const aimGeo = new THREE.PlaneGeometry(1, 13);
     aimGeo.rotateX(-Math.PI / 2);
     aimGeo.translate(0.5, 0, 0);
     this.aimGuideMesh = new THREE.Mesh(
       aimGeo,
-      new THREE.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0.42, depthWrite: false })
+      new THREE.MeshBasicMaterial({
+        map: this.aimTex,
+        color: '#ffd166',
+        transparent: true,
+        opacity: 0.72,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      })
     );
-    this.aimGuideMesh.position.y = 2.4;
+    this.aimGuideMesh.position.y = 3.2;
     this.aimGuideMesh.visible = false;
     this.fxGroup.add(this.aimGuideMesh);
 
@@ -812,10 +984,15 @@ export class SeaRenderer3D {
     this.currentPlanes = [];
     this.fogGroups = [];
     this.ambientSprites = [];
+    this.shorelineRings = [];
+    this.horizonBirds = [];
+    this.deepShadow = null;
     this.beachSurfMesh = null;
     this.lighthouseRig = null;
 
     const pal = MAP_PALETTES[map.id] || MAP_PALETTES.korsan_enkazi;
+    this._baseSunInt = pal.sunInt;
+    this._baseFogDens = pal.fogDens || 0.00032;
     this.sunLight.color.set(pal.sunCol);
     this.sunLight.intensity = pal.sunInt;
     this.hemiLight.color.set(pal.hemiSky);
@@ -827,6 +1004,8 @@ export class SeaRenderer3D {
     this.oceanUniforms.uShallowColor.value.set(pal.shallow);
     this.oceanUniforms.uSkyColor.value.set(pal.sky);
     this.oceanUniforms.uSunColor.value.set(pal.sunCol);
+    const sd = pal.sunDir || [0.45, 0.78, 0.35];
+    this.oceanUniforms.uSunDir.value.set(sd[0], sd[1], sd[2]).normalize();
     this.oceanUniforms.uFogColor.value.set(pal.bg);
 
     // 1. Reflective PBR Fresnel GLSL Ocean
@@ -942,11 +1121,27 @@ export class SeaRenderer3D {
         const rg = new THREE.Group();
         rg.position.set(obs.x, 0, obs.y);
 
-        // Soft feathered lagoon + seafoam glow under the island (NO hard plastic plate!)
+        // Soft feathered lagoon + animated breathing shoreline foam ring under every island!
         const shPlane = new THREE.Mesh(new THREE.PlaneGeometry(obs.r * 3.1, obs.r * 3.1), lagoonMat);
         shPlane.rotation.x = -Math.PI / 2;
         shPlane.position.y = 1.65;
         rg.add(shPlane);
+
+        const foamRing = new THREE.Mesh(
+          new THREE.PlaneGeometry(obs.r * 2.55, obs.r * 2.55),
+          new THREE.MeshBasicMaterial({
+            map: this.shoreFoamTex,
+            color: map.id === 'volkanik_resif' ? '#fdba74' : '#e6fbff',
+            transparent: true,
+            opacity: 0.42,
+            depthWrite: false
+          })
+        );
+        foamRing.rotation.x = -Math.PI / 2;
+        foamRing.rotation.z = rockIdx * 1.1;
+        foamRing.position.y = 2.05;
+        rg.add(foamRing);
+        this.shorelineRings.push({ mesh: foamRing, phase: rockIdx * 1.35 });
 
         const rockKey = (map.id === 'mercan_plaji' || rockIdx % 3 === 0) ? 'rocksSand' : (rockIdx % 2 === 0 ? 'rocksA' : 'rocksB');
         const glbRock = this._cloneGLB(rockKey, obs.r * 2.15, -4, (obs.x * 0.017 + obs.y * 0.011) % 6.28, null);
@@ -1095,6 +1290,10 @@ export class SeaRenderer3D {
       lantern.position.y = 84;
       lg.add(lantern);
 
+      const lanternGlow = this._makeGlowSprite('#fef08a', 76, 0.72);
+      lanternGlow.position.y = 84;
+      lg.add(lanternGlow);
+
       const roof = new THREE.Mesh(
         new THREE.ConeGeometry(14, 17, 16),
         new THREE.MeshStandardMaterial({ color: '#b91c1c', roughness: 0.5 })
@@ -1147,6 +1346,87 @@ export class SeaRenderer3D {
         this.ambientSprites.push({ kind: 'wisp', mesh: m, bx, bz, phase: i * 1.1 });
       }
     }
+
+    // 8. 🏝️ Living Horizon Outside Arena (distant rocky islets fading into fog — zero gameplay interference!)
+    const distantSpots = [
+      [-230, 180, 150], [-270, WORLD_H - 220, 175],
+      [WORLD_W + 240, 210, 165], [WORLD_W + 260, WORLD_H - 190, 145],
+      [WORLD_W * 0.25, -240, 160], [WORLD_W * 0.78, -230, 180],
+      [WORLD_W * 0.35, WORLD_H + 260, 155], [WORLD_W * 0.72, WORLD_H + 240, 170]
+    ];
+    for (let i = 0; i < distantSpots.length; i++) {
+      const [dx, dz, sz] = distantSpots[i];
+      if (map.beach && dz < 0) continue; // Keep Mercan Plajı sandy beach clean
+      const rk = this._cloneGLB(i % 2 === 0 ? 'rocksA' : 'rocksB', sz, -8, i * 1.7);
+      if (rk) {
+        this._styleTexturedRock(rk, map.id);
+        rk.position.set(dx, 0, dz);
+        this.mapGroup.add(rk);
+      }
+    }
+
+    // 9. 🕊️ Circling Coastal Seabirds high above sunny/breezy arenas (clean curved V-wings!)
+    if (map.id !== 'volkanik_resif' && map.id !== 'hayalet_sis') {
+      const wingMat = new THREE.MeshBasicMaterial({ color: '#f8fafc', side: THREE.DoubleSide });
+      const wingGeo = new THREE.PlaneGeometry(11, 3.2);
+      wingGeo.rotateX(-Math.PI / 2);
+      for (let b = 0; b < 4; b++) {
+        const bg = new THREE.Group();
+        const lw = new THREE.Mesh(wingGeo, wingMat);
+        lw.position.x = -5.2;
+        const rw = new THREE.Mesh(wingGeo, wingMat);
+        rw.position.x = 5.2;
+        bg.add(lw);
+        bg.add(rw);
+        this.mapGroup.add(bg);
+        this.horizonBirds.push({
+          group: bg,
+          lw,
+          rw,
+          cx: WORLD_W * (0.25 + (b % 2) * 0.5),
+          cz: WORLD_H * (0.28 + Math.floor(b / 2) * 0.44),
+          rx: 260 + b * 65,
+          rz: 170 + b * 45,
+          alt: 125 + b * 18,
+          speed: (b % 2 === 0 ? 1 : -1) * (0.22 + b * 0.04),
+          phase: b * 1.9
+        });
+      }
+    }
+
+    // 10. 🐋 Deep Underwater Leviathan Silhouette gliding slowly beneath the waves
+    const levTex = (() => {
+      const c = document.createElement('canvas');
+      c.width = 256; c.height = 128;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = 'rgba(2, 14, 28, 0.34)';
+      ctx.beginPath();
+      ctx.ellipse(135, 64, 72, 22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(64, 64);
+      ctx.lineTo(18, 36);
+      ctx.lineTo(34, 64);
+      ctx.lineTo(18, 92);
+      ctx.closePath();
+      ctx.fill();
+      // Pectoral fins
+      ctx.beginPath();
+      ctx.ellipse(152, 34, 14, 26, -0.45, 0, Math.PI * 2);
+      ctx.ellipse(152, 94, 14, 26, 0.45, 0, Math.PI * 2);
+      ctx.fill();
+      const t = new THREE.CanvasTexture(c);
+      t.needsUpdate = true;
+      return t;
+    })();
+    const levMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(170, 85),
+      new THREE.MeshBasicMaterial({ map: levTex, transparent: true, opacity: 0.42, depthWrite: false })
+    );
+    levMesh.rotation.x = -Math.PI / 2;
+    levMesh.position.set(WORLD_W * 0.5, 1.45, WORLD_H * 0.5);
+    this.mapGroup.add(levMesh);
+    this.deepShadow = { mesh: levMesh, angle: 0.4 };
   }
 
   // ============================================================
@@ -1154,6 +1434,10 @@ export class SeaRenderer3D {
   // ============================================================
   _createCharRig(charId, hullHex, roleHex, hasCustomSkin = false) {
     const root = new THREE.Group();
+
+    // Soft underwater contact shadow so every vessel sits solidly in the waves
+    const shadow = this._makeContactShadow(30, 0.58);
+    root.add(shadow);
 
     // Subtle crisp role ring right above wave crests for clean unbroken readability
     const ring = new THREE.Mesh(
@@ -1202,6 +1486,9 @@ export class SeaRenderer3D {
       const lamp = new THREE.Mesh(new THREE.SphereGeometry(4.5, 10, 8), new THREE.MeshBasicMaterial({ color: '#fde047' }));
       lamp.position.set(2, 39, 0);
       body.add(lamp);
+      const lampGlow = this._makeGlowSprite('#fde047', 34, 0.72);
+      lampGlow.position.set(2, 39, 0);
+      body.add(lampGlow);
       animParts.lamp = lamp;
     } else if (charId === 'dalgabinici' && this.models.boatSpeed) {
       // 🌊 DALGA BİNİCİSİ — Real Kenney Racing Speedboat GLB!
@@ -1311,7 +1598,8 @@ export class SeaRenderer3D {
       roleHex,
       hasCustomSkin,
       modelsReady: this.modelsReady,
-      diveY: 0
+      diveY: 0,
+      bankAngle: 0
     };
   }
 
@@ -1380,6 +1668,9 @@ export class SeaRenderer3D {
     );
     beam.position.y = 72;
     g.add(beam);
+    const crownGlow = this._makeGlowSprite('#ffd166', 68, 0.75);
+    crownGlow.position.y = 26;
+    g.add(crownGlow);
     this.dynamicGroup.add(g);
     return g;
   }
@@ -1481,28 +1772,61 @@ export class SeaRenderer3D {
     });
   }
 
-  _spawnVWake(x, z, aim) {
-    if (this.particles.length >= 145) return;
-    // Silky feathered seafoam wake planes (NO overlapping hard grey circles!)
+  _spawnVWake(x, z, aim, spd = 160) {
+    if (this.particles.length >= 165) return;
+    // Sleek elongated V-wake foam ribbons oriented cleanly along the stern trails!
+    const fast = Math.min(1.45, Math.max(0.75, spd / 185));
     for (const side of [-1, 1]) {
-      const a = aim + Math.PI + side * 0.42;
+      const a = aim + Math.PI + side * 0.36;
       const m = new THREE.Mesh(
         this._sharedGeo.plane,
-        new THREE.MeshBasicMaterial({ map: this.mistTex, color: '#e6f9ff', transparent: true, opacity: 0.42, depthWrite: false })
+        new THREE.MeshBasicMaterial({ map: this.wakeTex, color: '#e8fbff', transparent: true, opacity: 0.48, depthWrite: false })
       );
-      m.scale.setScalar(18);
-      m.position.set(x - Math.cos(aim) * 18 + Math.cos(a) * 8, 1.85, z - Math.sin(aim) * 18 + Math.sin(a) * 8);
+      m.rotation.y = -a;
+      m.scale.set(22 * fast, 1, 11 * fast);
+      m.position.set(x - Math.cos(aim) * 19 + Math.cos(a) * 6, 1.9, z - Math.sin(aim) * 19 + Math.sin(a) * 6);
       this.fxGroup.add(m);
       this.particles.push({
         mesh: m,
-        vx: Math.cos(a) * 26,
+        vx: Math.cos(a) * 28,
         vy: 0,
-        vz: Math.sin(a) * 26,
+        vz: Math.sin(a) * 28,
         gravity: 0,
-        life: 0.56,
-        maxLife: 0.56,
+        baseSx: 22 * fast,
+        baseSz: 11 * fast,
+        life: 0.62,
+        maxLife: 0.62,
         kind: 'foam'
       });
+    }
+  }
+
+  _spawnDamageSmoke(x, z, critical = false) {
+    if (this.particles.length >= 165) return;
+    const m = new THREE.Mesh(
+      this._sharedGeo.sphere,
+      new THREE.MeshBasicMaterial({
+        color: critical ? '#334155' : '#64748b',
+        transparent: true,
+        opacity: critical ? 0.56 : 0.42,
+        depthWrite: false
+      })
+    );
+    m.scale.setScalar(critical ? 5.2 : 3.8);
+    m.position.set(x + (Math.random() - 0.5) * 10, 14, z + (Math.random() - 0.5) * 10);
+    this.fxGroup.add(m);
+    this.particles.push({
+      mesh: m,
+      vx: (Math.random() - 0.5) * 16,
+      vy: 28 + Math.random() * 18,
+      vz: (Math.random() - 0.5) * 16,
+      gravity: -8,
+      life: 0.72,
+      maxLife: 0.72,
+      kind: 'smoke'
+    });
+    if (critical && Math.random() < 0.42) {
+      this._spawnBurst(x, z, '#fb923c', 1, 35, 65);
     }
   }
 
@@ -1544,9 +1868,9 @@ export class SeaRenderer3D {
       } else if (pt.kind === 'foam') {
         pt.mesh.position.x += pt.vx * dt;
         pt.mesh.position.z += pt.vz * dt;
-        const sc = 18 + (1 - ratio) * 24;
-        pt.mesh.scale.setScalar(sc);
-        pt.mesh.material.opacity = ratio * 0.36;
+        const grow = 1 + (1 - ratio) * 1.15;
+        pt.mesh.scale.set((pt.baseSx || 20) * grow, 1, (pt.baseSz || 11) * grow);
+        pt.mesh.material.opacity = ratio * 0.42;
       } else if (pt.kind === 'smoke') {
         pt.mesh.position.x += pt.vx * dt;
         pt.mesh.position.y += pt.vy * dt;
@@ -1606,11 +1930,44 @@ export class SeaRenderer3D {
       this.seenSinks.clear();
     }
 
-    // Update GPU PBR Ocean Shader uniforms
-    const fogDens = state.roundEvent === 'gece_sisi' ? 0.00088 : 0.0003;
+    // Update GPU PBR Ocean Shader uniforms (with per-map fog & real 3D storm lightning flash!)
+    const fogDens = state.roundEvent === 'gece_sisi' ? 0.00088 : (this._baseFogDens || 0.00032);
     this.scene.fog.density = fogDens;
     this.oceanUniforms.uTime.value = this.time;
     this.oceanUniforms.uFogDensity.value = fogDens;
+
+    // Breathing animated shoreline foam rings around every rock/island!
+    for (const sr of this.shorelineRings) {
+      const wave = Math.sin(this.time * 2.1 + sr.phase);
+      const s = 0.96 + wave * 0.075;
+      sr.mesh.scale.set(s, s, 1);
+      sr.mesh.material.opacity = 0.24 + (wave * 0.5 + 0.5) * 0.28;
+    }
+
+    // Circling coastal seabirds high above the ocean
+    for (const b of this.horizonBirds) {
+      const ang = this.time * b.speed + b.phase;
+      const nx = b.cx + Math.cos(ang) * b.rx;
+      const nz = b.cz + Math.sin(ang) * b.rz;
+      const dx = -Math.sin(ang) * b.rx * b.speed;
+      const dz = Math.cos(ang) * b.rz * b.speed;
+      b.group.position.set(nx, b.alt + Math.sin(this.time * 1.4 + b.phase) * 7, nz);
+      b.group.rotation.y = Math.atan2(dx, dz);
+      const flap = Math.sin(this.time * 7.5 + b.phase) * 0.38;
+      b.lw.rotation.z = flap;
+      b.rw.rotation.z = -flap;
+    }
+
+    // Deep underwater leviathan silhouette gliding gently below the waves
+    if (this.deepShadow) {
+      const t = this.time * 0.065;
+      const lx = WORLD_W * 0.5 + Math.cos(t) * (WORLD_W * 0.34);
+      const lz = WORLD_H * 0.5 + Math.sin(t * 1.3) * (WORLD_H * 0.32);
+      const vx = -Math.sin(t) * (WORLD_W * 0.34);
+      const vz = Math.cos(t * 1.3) * (WORLD_H * 0.32) * 1.3;
+      this.deepShadow.mesh.position.set(lx, 1.45, lz);
+      this.deepShadow.mesh.rotation.z = -Math.atan2(vz, vx);
+    }
 
     // Mercan Plajı surf
     if (this.beachSurfMesh) {
@@ -1645,12 +2002,15 @@ export class SeaRenderer3D {
     if (map.id === 'firtina_bogazi') {
       this.nextLightning -= dt;
       if (this.nextLightning <= 0) {
-        this.lightningAlpha = 0.2;
+        this.lightningAlpha = 0.22;
         this.nextLightning = 6 + Math.random() * 8;
       }
-      this.lightningAlpha = Math.max(0, this.lightningAlpha - dt * 1.1);
+      this.lightningAlpha = Math.max(0, this.lightningAlpha - dt * 1.15);
+      // Real 3D storm lightning flash brightens ocean, ships & cliffs!
+      this.sunLight.intensity = this._baseSunInt + this.lightningAlpha * 6.5;
     } else {
       this.lightningAlpha = 0;
+      this.sunLight.intensity = this._baseSunInt;
     }
 
     if (this.lighthouseRig && state.lighthouse) {
@@ -1709,9 +2069,22 @@ export class SeaRenderer3D {
       if (p.alive && p.submerged && (this._canViewerSee(me, p, map, state.roundEvent) || p.id === myId) && Math.random() < dt * 11) {
         // Rising white air bubbles while prowling underwater!
         this._spawnBurst(sp.x + (Math.random() - 0.5) * 14, sp.y + (Math.random() - 0.5) * 14, '#bae6fd', 1, 14, 28);
-      } else if (p.alive && !p.submerged && Math.hypot(p.vx || 0, p.vy || 0) > 42 && Math.random() < dt * 12) {
-        this._spawnVWake(sp.x, sp.y, sp.aim);
+      } else if (p.alive && !p.submerged) {
+        const curSpd = Math.hypot(p.vx || 0, p.vy || 0);
+        if (curSpd > 42 && Math.random() < dt * 14) {
+          this._spawnVWake(sp.x, sp.y, sp.aim, curSpd);
+        }
+        // Wounded vessels (<45% HP) billow battle smoke & occasional sparks!
+        const hpRatio = (p.hp || 0) / Math.max(1, p.maxHp || 120);
+        if (hpRatio < 0.45 && (this._canViewerSee(me, p, map, state.roundEvent) || p.id === myId) && Math.random() < dt * (hpRatio < 0.25 ? 8.5 : 4.2)) {
+          this._spawnDamageSmoke(sp.x, sp.y, hpRatio < 0.25);
+        }
       }
+    }
+
+    for (const [id, rc] of this.shipRecoil.entries()) {
+      if (rc - dt <= 0) this.shipRecoil.delete(id);
+      else this.shipRecoil.set(id, rc - dt);
     }
 
     for (const [id, hf] of this.hitFlash.entries()) {
@@ -1723,8 +2096,15 @@ export class SeaRenderer3D {
       if (this.seenPulses.has(pu.id)) continue;
       this.seenPulses.add(pu.id);
       if (pu.kind === 'muzzle') {
-        this._spawnBurst(pu.x, pu.y, '#fde047', 6, 65, 35);
+        this._spawnBurst(pu.x, pu.y, '#fde047', 7, 72, 42);
         this._spawnSmoke(pu.x, pu.y, 4);
+        this._spawnShockRing(pu.x, pu.y, '#fef08a', 6, 36, 0.2);
+        // Kick back the nearest firing ship for crisp tactile recoil!
+        for (const pl of players) {
+          if (pl.alive && dist(pl.x, pl.y, pu.x, pu.y) < 42) {
+            this.shipRecoil.set(pl.id, 0.16);
+          }
+        }
       } else if (pu.kind === 'boom' || pu.kind === 'barrel') {
         this._spawnBurst(pu.x, pu.y, '#ff6b35', 16, 160, 110);
         this._spawnSmoke(pu.x, pu.y, 6);
@@ -1846,8 +2226,21 @@ export class SeaRenderer3D {
       rig.ring.material.color.set(p.submerged ? '#38bdf8' : rig.roleHex);
 
       const spd = Math.hypot(p.vx || 0, p.vy || 0);
-      rig.body.rotation.x = Math.sin(this.time * 4.5 + sp.y * 0.02) * 0.05;
-      rig.body.rotation.z = Math.min(0.14, spd * 0.00045);
+      // Dynamic banking roll into turns + speed bow lift + crisp gun recoil!
+      const prevA = this.prevAim.get(p.id);
+      let dAim = 0;
+      if (prevA !== undefined) {
+        dAim = Math.atan2(Math.sin(sp.aim - prevA), Math.cos(sp.aim - prevA));
+      }
+      this.prevAim.set(p.id, sp.aim);
+      const targetBank = Math.max(-0.26, Math.min(0.26, dAim * 3.8));
+      rig.bankAngle = (rig.bankAngle || 0) + (targetBank - (rig.bankAngle || 0)) * 0.18;
+      const recoil = this.shipRecoil.get(p.id) || 0;
+      const recoilPush = recoil > 0 ? -(recoil / 0.16) * 6.5 : 0;
+      rig.body.position.x = Math.cos(sp.aim) * recoilPush;
+      rig.body.position.z = Math.sin(sp.aim) * recoilPush;
+      rig.body.rotation.x = Math.sin(this.time * 4.5 + sp.y * 0.02) * 0.05 + rig.bankAngle;
+      rig.body.rotation.z = Math.min(0.18, spd * 0.0005) + (recoil > 0 ? 0.12 : 0);
 
       if (rig.animParts.tail) rig.animParts.tail.rotation.y = Math.sin(this.time * (8 + spd * 0.035)) * 0.44;
       if (rig.animParts.tentacles) {
@@ -1985,6 +2378,9 @@ export class SeaRenderer3D {
         trail.position.x = -trailLen * 0.55;
         g.add(trail);
 
+        const glow = this._makeGlowSprite(col, pr.firearm ? 44 : 30, pr.firearm ? 0.85 : 0.65);
+        g.add(glow);
+
         this.dynamicGroup.add(g);
         this.projMeshes.set(pr.id, g);
         m = g;
@@ -2021,6 +2417,10 @@ export class SeaRenderer3D {
         const fuse = new THREE.Mesh(new THREE.SphereGeometry(2.2, 8, 8), new THREE.MeshBasicMaterial({ color: '#fde047' }));
         fuse.position.y = 18.5;
         g.add(fuse);
+        const fuseGlow = this._makeGlowSprite('#fb923c', 18, 0.7);
+        fuseGlow.position.y = 18.5;
+        g.add(fuseGlow);
+        g.add(this._makeContactShadow(14, 0.52));
 
         this.dynamicGroup.add(g);
         this.barrelMeshes.set(b.id, g);
@@ -2066,6 +2466,10 @@ export class SeaRenderer3D {
         ring.rotation.x = -Math.PI / 2;
         ring.position.y = 3.6;
         g.add(ring);
+        g.add(this._makeContactShadow(16, 0.5));
+        const puGlow = this._makeGlowSprite(col, 34, 0.5);
+        puGlow.position.y = 12;
+        g.add(puGlow);
 
         this.dynamicGroup.add(g);
         this.powerupMeshes.set(pu.id, g);
@@ -2342,6 +2746,10 @@ export class SeaRenderer3D {
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 3.6;
       g.add(ring);
+      g.add(this._makeContactShadow(26, 0.55));
+      const mcGlow = this._makeGlowSprite('#ffd166', 78, 0.72);
+      mcGlow.position.y = 20;
+      g.add(mcGlow);
       this.dynamicGroup.add(g);
       this.megaChestRig = { group: g, spin, ring };
     }
@@ -2571,6 +2979,20 @@ export class SeaRenderer3D {
         ctx.textAlign = 'center';
         ctx.fillText('🌪️ FIRTINA DIŞINDASIN! ÇEMBERE GİR!', this.viewW / 2, isNarrow ? 100 : 118);
       }
+      // 🩸 Low-HP heartbeat crimson edge vignette (<34% HP)
+      const hpRatio = (me.hp || 0) / Math.max(1, me.maxHp || 120);
+      if (hpRatio < 0.34) {
+        const pulse = 0.5 + 0.5 * Math.sin(this.time * 7.5);
+        const alpha = (1 - hpRatio / 0.34) * (0.2 + pulse * 0.16);
+        const rVig = ctx.createRadialGradient(
+          this.viewW / 2, this.viewH / 2, Math.min(this.viewW, this.viewH) * 0.32,
+          this.viewW / 2, this.viewH / 2, Math.max(this.viewW, this.viewH) * 0.72
+        );
+        rVig.addColorStop(0, 'rgba(220, 38, 38, 0)');
+        rVig.addColorStop(1, `rgba(220, 38, 38, ${alpha.toFixed(3)})`);
+        ctx.fillStyle = rVig;
+        ctx.fillRect(0, 0, this.viewW, this.viewH);
+      }
     }
 
     // 6. Minimap
@@ -2712,6 +3134,11 @@ export class SeaRenderer3D {
     this.oceanMat?.dispose?.();
     this.mistTex?.dispose?.();
     this.currentTex?.dispose?.();
+    this.glowTex?.dispose?.();
+    this.shadowTex?.dispose?.();
+    this.shoreFoamTex?.dispose?.();
+    this.wakeTex?.dispose?.();
+    this.aimTex?.dispose?.();
     this._envRT?.dispose?.();
     this.renderer.dispose();
   }

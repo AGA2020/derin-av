@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v6.0';
+export const GAME_VERSION = 'v6.1';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,17 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v6.1',
+    notes: [
+      '🎨 3D GÖRSEL & ATMOSFER PAKETİ (Sıfır FPS kaybı, maksimum görsel derinlik!):',
+      '🌊 Kıyı Köpük Halkaları & V-Köpük İzi: Her kayanın etrafında dalgayla nefes alan beyaz kıyı köpüğü ve teknelerin arkasında yönlü V-köpük şeritleri eklendi!',
+      '🚢 Canlı Tekne Fiziği & Hasar Dumanı: Gemiler dönüşlerde gerçekçi yana yatar, atışta geri teper; canı %45 altına düşen teknelerden duman & kıvılcım tüter!',
+      '✨ Sıfır-Lag Parlama (Additive Glow) & Su Altı Gölgeleri: Mermiler, Fener, Altın Taç ve Büyük Sandık yumuşak ışık halesiyle parlar; her obje su altında yumuşak temas gölgesi bırakır.',
+      '🏝️ Yaşayan Açık Deniz Ufku: Harita dışında sise karışan uzak adacıklar, gökyüzünde süzülen martılar, derin suda dev balina gölgesi ve 6 haritaya özel güneş/ışık açıları!',
+      '🎯 Yeni Işıltılı Nişan Hattı & Düşük Can Nabız Efekti: Kesikli ok nişangâhı + kritik canda nabız atan kırmızı kenar uyarısı.'
+    ]
+  },
   {
     ver: 'v6.0',
     notes: [
