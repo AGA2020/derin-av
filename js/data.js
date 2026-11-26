@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v8.2';
+export const GAME_VERSION = 'v8.3';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v8.3',
+    notes: [
+      '⏳ Ateşli Silahlar Artık Varsayılan 24 sn Uzun Dolumlu! (Oyuncu önerisi): Iskaladığında bütün tur boyunca elin boş kalmaz — 24 sn sonra silah tekrar eline gelir! İsteyenler ⚙️ Maç Ayarlarından 🔥 Tek Atım (Hardcore) modunu yine açabilir.',
+      '📦 Cephane Sandığı, 💎 Büyük Sandık, 🐙 Kraken ve 🎯 Keskin Nişancı artık beklemedeki ateşli silahın süresini anında sıfırlar!'
+    ]
+  },
   {
     ver: 'v8.2',
     notes: [

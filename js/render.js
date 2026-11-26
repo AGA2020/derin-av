@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.2';
-import { hasLineOfSight } from './sim.js?v=8.2';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.3';
+import { hasLineOfSight } from './sim.js?v=8.3';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -1425,8 +1425,8 @@ export class SeaRenderer {
 
     const it0 = p.items?.[0];
     const it1 = p.items?.[1];
-    if (it0 && it0.usesLeft > 0) this._drawHandheldItem2D(ctx, it0.id, rHandX + 2, rHandY);
-    if (it1 && it1.usesLeft > 0) this._drawHandheldItem2D(ctx, it1.id, lHandX + 2, lHandY);
+    if (it0 && it0.usesLeft > 0 && !(it0.longCd && it0.cd > 0)) this._drawHandheldItem2D(ctx, it0.id, rHandX + 2, rHandY);
+    if (it1 && it1.usesLeft > 0 && !(it1.longCd && it1.cd > 0)) this._drawHandheldItem2D(ctx, it1.id, lHandX + 2, lHandY);
 
     // Broad swimmer shoulders / wetsuit torso
     ctx.fillStyle = mainColor;

@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=8.2';
-import { sfx } from './audio.js?v=8.2';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.2';
-import { GameSim } from './sim.js?v=8.2';
-import { SeaRenderer } from './render.js?v=8.2';
+} from './data.js?v=8.3';
+import { sfx } from './audio.js?v=8.3';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.3';
+import { GameSim } from './sim.js?v=8.3';
+import { SeaRenderer } from './render.js?v=8.3';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1174,7 +1174,9 @@ function renderDraftUI() {
             <div class="item-badges">
               ${isPartner ? '<span class="badge-combo">🔗 KOMBO</span>' : ''}
               ${it.firearm
-                ? '<span class="badge-firearm">🔥 TEK KULLANIM</span>'
+                ? (st.settings?.firearmMode === 'single'
+                  ? '<span class="badge-firearm">🔥 TEK ATIM</span>'
+                  : '<span class="badge-firearm">⏳ 24s DOLUM</span>')
                 : `<span class="badge-util">${it.category} · ${it.uses}x</span>`}
             </div>
           </div>
@@ -1866,7 +1868,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=8.2');
+        const mod = await import('./render3d.js?v=8.3');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
         app.renderer3d.setQuality(app.gfxQuality, true);
       } catch (err) {
@@ -2041,7 +2043,7 @@ function renderLobbyRulesSummary(st) {
     roundDuration: 85,
     hpMult: 1,
     mapMode: 'rotate',
-    firearmMode: 'single',
+    firearmMode: 'long_cd',
     powerups: true,
     barrels: true,
     storm: true,
@@ -2051,7 +2053,7 @@ function renderLobbyRulesSummary(st) {
     ? '🔄 Dönüşümlü'
     : (SEA_MAPS[Number(s.mapMode)]?.name || 'Harita');
   const hpLabel = `%${Math.round((s.hpMult || 1) * 100)} Can`;
-  const gunLabel = s.firearmMode === 'long_cd' ? '⏳ Silah 30s CD' : '🔥 Tek Atım (Ağır)';
+  const gunLabel = s.firearmMode === 'single' ? '🔥 Tek Atım' : '⏳ Silah 24s Dolum';
   const modeLabel = s.mode === '1v1' ? '⚔️ 1v1' : s.mode === 'crown' ? '👑 Altın Taç' : s.mode === 'ffa' ? '💀 FFA' : '👥 2v2';
   const livesVal = s.lives || 1;
   const pills = [
@@ -2061,7 +2063,7 @@ function renderLobbyRulesSummary(st) {
     `${'❤️'.repeat(livesVal)} ${livesVal} Kalp`,
     ...(s.hpMult && s.hpMult !== 1 ? [`🛡️ ${hpLabel}`] : []),
     `🗺️ ${mapLabel}`,
-    s.firearmMode === 'long_cd' ? '⏳ Silah 30s CD' : '🔥 Tek Atım',
+    gunLabel,
     ...(s.skillTree === false ? ['🌿 Ağaç Kapalı'] : []),
     ...(s.roundEvents === false ? ['🎲 Olay Kapalı'] : []),
     ...(s.powerups === false ? ['📦 Sandık Kapalı'] : []),
@@ -2253,7 +2255,7 @@ function init() {
     if (!app.sim) return;
     app.sim.updateSettings({
       mode: app.sim.settings.mode, totalRounds: 4, roundDuration: 85, hpMult: 1, lives: 1, skillTree: true,
-      mapMode: 'rotate', firearmMode: 'single', powerups: true, barrels: true, storm: true, rescue: true
+      mapMode: 'rotate', firearmMode: 'long_cd', powerups: true, barrels: true, storm: true, rescue: true
     });
     broadcastLobby();
     renderLobby();

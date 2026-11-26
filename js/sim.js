@@ -22,7 +22,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=8.2';
+} from './data.js?v=8.3';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -103,7 +103,7 @@ export class GameSim {
       skillTree: true, // 🌿 Maç içi 3 dallı yetenek ağacı
       roundEvents: true, // 🎲 Rastgele tur olayları
       mapMode: 'rotate', // 'rotate' | '0'..'5'
-      firearmMode: 'single', // 'single' | 'long_cd'
+      firearmMode: 'long_cd', // 'long_cd' (24s varsayılan) | 'single' (Hardcore Tek Atım)
       powerups: true,
       barrels: true,
       storm: true,
@@ -907,10 +907,10 @@ export class GameSim {
     const angle = Number.isFinite(aimAngle) ? aimAngle : p.aim;
     p.aim = angle;
 
-    // Tüketim: Varsayılan TEK KULLANIMLIK (uses: 1 -> 0); Lobi ayarı 'long_cd' ise 30 sn bekleme
+    // Tüketim: Varsayılan 24 sn UZUN DOLUM ('long_cd'); Lobi ayarı 'single' ise TEK KULLANIMLIK
     const sk = p.sk || this._computeSkillBonuses([]);
     if (def.firearm && itemState.longCd) {
-      itemState.cd = 30.0 * (ch.cdMult || 1);
+      itemState.cd = 24.0 * (ch.cdMult || 1);
     } else {
       itemState.usesLeft -= 1;
       const utilMult = def.firearm ? 1.0 : sk.utilCdMult;
@@ -949,7 +949,7 @@ export class GameSim {
         });
         this._addPulse(p.x, p.y, 480, 'sound', p.team);
         this.onEvent({ type: 'sfx', name: 'shot_heavy' });
-        this._pushFeed(`${p.name} Zıpkın Topu ateşledi!${itemState.longCd ? ' (30s Bekleme)' : ' (Tek Atım Tükendi)'}`, 'firearm');
+        this._pushFeed(`${p.name} Zıpkın Topu ateşledi!${itemState.longCd ? ' (24s Dolum)' : ' (Tek Atım Tükendi)'}`, 'firearm');
         break;
       }
       case 'blunderbuss': {
@@ -975,7 +975,7 @@ export class GameSim {
         }
         this._addPulse(p.x, p.y, 500, 'sound', p.team);
         this.onEvent({ type: 'sfx', name: 'shot_heavy' });
-        this._pushFeed(`${p.name} Gemi Pompalısını ateşledi!${itemState.longCd ? ' (30s Bekleme)' : ' (Tek Atım Tükendi)'}`, 'firearm');
+        this._pushFeed(`${p.name} Gemi Pompalısını ateşledi!${itemState.longCd ? ' (24s Dolum)' : ' (Tek Atım Tükendi)'}`, 'firearm');
         break;
       }
       case 'flare_gun': {
@@ -998,7 +998,7 @@ export class GameSim {
         });
         this._addPulse(p.x, p.y, 460, 'sound', p.team);
         this.onEvent({ type: 'sfx', name: 'shot_pistol' });
-        this._pushFeed(`${p.name} İşaret Tabancası ateşledi!${itemState.longCd ? ' (30s Bekleme)' : ' (Tek Atım Tükendi)'}`, 'firearm');
+        this._pushFeed(`${p.name} İşaret Tabancası ateşledi!${itemState.longCd ? ' (24s Dolum)' : ' (Tek Atım Tükendi)'}`, 'firearm');
         break;
       }
       case 'flintlock': {
@@ -1019,7 +1019,7 @@ export class GameSim {
         });
         this._addPulse(p.x, p.y, 450, 'sound', p.team);
         this.onEvent({ type: 'sfx', name: 'shot_pistol' });
-        this._pushFeed(`${p.name} Korsan Tabancasını ateşledi!${itemState.longCd ? ' (30s Bekleme)' : ' (Tek Atım Tükendi)'}`, 'firearm');
+        this._pushFeed(`${p.name} Korsan Tabancasını ateşledi!${itemState.longCd ? ' (24s Dolum)' : ' (Tek Atım Tükendi)'}`, 'firearm');
         break;
       }
       case 'hand_mortar': {
@@ -1047,7 +1047,7 @@ export class GameSim {
         p.vy -= Math.sin(angle) * 165;
         this._addPulse(p.x, p.y, 480, 'sound', p.team);
         this.onEvent({ type: 'sfx', name: 'shot_heavy' });
-        this._pushFeed(`${p.name} Kısa Namlu Top ateşledi!${itemState.longCd ? ' (30s Bekleme)' : ' (Tek Atım Tükendi)'}`, 'firearm');
+        this._pushFeed(`${p.name} Kısa Namlu Top ateşledi!${itemState.longCd ? ' (24s Dolum)' : ' (Tek Atım Tükendi)'}`, 'firearm');
         break;
       }
       case 'sonar': {
@@ -1743,7 +1743,7 @@ export class GameSim {
               : this.players.filter(p => p.alive && p.team === capper.team);
             for (const w of winners) {
               for (const it of w.items) {
-                if (it.usesLeft < it.maxUses) {
+                if (it.usesLeft < it.maxUses || it.cd > 0) {
                   it.usesLeft = it.maxUses;
                   it.cd = 0;
                 }
@@ -2687,18 +2687,18 @@ export class GameSim {
               }
             }
             this._applyDamage(p, finalDmg, pr.ownerId, kx, ky, '', Boolean(pr.firearm));
-            // 🎯 KESKİN NİŞANCI (Saldırı Tier 3): Ateşli silahla ilk isabette +1 mermi iadesi!
+            // 🎯 KESKİN NİŞANCI (Saldırı Tier 3): Ateşli silahla ilk isabette anında dolum / +1 mermi iadesi!
             if (pr.firearm) {
               if (shooter && shooter.alive && shooter.sk?.sniperRefund && !shooter.sniperRefundUsed) {
-                const gun = shooter.items.find(it => it.id === pr.itemId && !it.longCd)
-                  || shooter.items.find(it => it.firearm && !it.longCd && it.usesLeft < it.maxUses);
+                const gun = shooter.items.find(it => it.id === pr.itemId && (it.longCd ? it.cd > 0 : it.usesLeft < it.maxUses))
+                  || shooter.items.find(it => it.firearm && (it.longCd ? it.cd > 0 : it.usesLeft < it.maxUses));
                 if (gun) {
                   shooter.sniperRefundUsed = true;
-                  gun.usesLeft = Math.min(gun.maxUses, gun.usesLeft + 1);
+                  if (!gun.longCd) gun.usesLeft = Math.min(gun.maxUses, gun.usesLeft + 1);
                   gun.cd = 0;
                   this._addPulse(shooter.x, shooter.y, 90, 'heal', shooter.team);
-                  this._addFloatText(shooter.x, shooter.y - 34, '🎯 +1 MERMİ İADESİ!', '#ffd166');
-                  this._pushFeed(`🎯 ${shooter.name} Keskin Nişancı ile mermisini geri kazandı!`, 'firearm');
+                  this._addFloatText(shooter.x, shooter.y - 34, gun.longCd ? '🎯 ANINDA DOLUM!' : '🎯 +1 MERMİ İADESİ!', '#ffd166');
+                  this._pushFeed(`🎯 ${shooter.name} Keskin Nişancı ile silahını anında doldurdu!`, 'firearm');
                   this.onEvent({ type: 'sfx', name: 'boost', targetId: shooter.id });
                 }
               }
@@ -2854,9 +2854,13 @@ export class GameSim {
         p.speedMult = Math.max(p.speedMult, 1.35);
         break;
       case 'reload': {
-        // Öncelik: tükenmiş ateşli silahı veya eksik itemi +1 doldur!
+        // Öncelik: beklemedeki ateşli silahı anında doldur, yoksa tükenmiş/eksik iteme +1 şarj!
+        const coolingGun = p.items.find(it => it.longCd && it.cd > 0);
         const spent = p.items.find(it => it.usesLeft === 0) || p.items.find(it => it.usesLeft < it.maxUses);
-        if (spent) {
+        if (coolingGun) {
+          coolingGun.cd = 0;
+          this._pushFeed(`📦 ${p.name} Cephane Sandığı kaptı (Silah Anında Hazır)!`, 'firearm');
+        } else if (spent) {
           spent.usesLeft += 1;
           spent.cd = 0;
           this._pushFeed(`📦 ${p.name} Cephane Sandığı kaptı (+1 Şarj)!`, 'firearm');
@@ -2965,7 +2969,7 @@ export class GameSim {
         for (const w of winners) {
           let refilled = false;
           for (const it of w.items) {
-            if (it.usesLeft < it.maxUses) {
+            if (it.usesLeft < it.maxUses || it.cd > 0) {
               it.usesLeft = it.maxUses;
               it.cd = 0;
               refilled = true;
@@ -3504,7 +3508,7 @@ export class GameSim {
           firearm: it.firearm,
           longCd: Boolean(it.longCd),
           cd: Number(it.cd.toFixed(1)),
-          maxCd: it.longCd ? 30 : (ALL_ITEMS[it.id]?.cooldown || 1)
+          maxCd: it.longCd ? 24 : (ALL_ITEMS[it.id]?.cooldown || 1)
         })),
         spaceCd: Number(p.spaceCd.toFixed(1)),
         spaceMaxCd: (p.role === 'hunter' || p.role === 'ffa') ? 2.3 : 4.4,
