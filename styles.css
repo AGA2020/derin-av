@@ -2512,33 +2512,43 @@ kbd {
     display: none;
   }
   .hud-center {
-    padding: 4px 10px;
-    border-radius: 11px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    max-width: 156px;
   }
   .hud-round {
-    font-size: 9.5px;
+    font-size: 9px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
   }
   .hud-timer {
-    font-size: 18px;
+    font-size: 17px;
   }
   .hud-role-pill {
-    font-size: 10px;
-    padding: 1px 7px;
+    font-size: 9.5px;
+    padding: 1px 6px;
   }
   .hud-feed {
-    top: 62px;
+    top: 76px;
     left: 6px;
-    max-width: 205px;
+    max-width: 185px;
     gap: 3px;
   }
   .feed-item {
-    font-size: 10.5px;
+    font-size: 10px;
     padding: 4px 7px;
   }
   .hud-banner {
-    top: 66px;
+    top: 78px;
     padding: 7px 14px;
     max-width: 90vw;
+  }
+  .join-row input {
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    padding: 10px 10px;
   }
   .hb-title {
     font-size: 15px;

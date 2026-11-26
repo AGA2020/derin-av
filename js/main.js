@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.67';
-import { sfx } from './audio.js?v=4.67';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.67';
-import { GameSim } from './sim.js?v=4.67';
-import { SeaRenderer } from './render.js?v=4.67';
+} from './data.js?v=4.68';
+import { sfx } from './audio.js?v=4.68';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.68';
+import { GameSim } from './sim.js?v=4.68';
+import { SeaRenderer } from './render.js?v=4.68';
 
 const $ = (id) => document.getElementById(id);
 
