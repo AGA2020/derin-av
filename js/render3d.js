@@ -1,12 +1,51 @@
-// İKİ İTEMLİ OYUN — Stylized Low-Poly Isometric 3D Renderer (Three.js + Crisp 2D HUD Overlay)
-// Aynı 2D fizik/simülasyon motoru (sim.js) üstünde %100 çapraz uyumlu 3D görünüm!
+// İKİ İTEMLİ OYUN — Stylized Low-Poly Isometric 3D Renderer v5.1 (Three.js + Crisp 2D HUD Overlay)
+// Wind Waker / Brawl Stars tarzı canlı okyanus, V-köpük izleri, mermi kuyrukları, dalış sıçraması,
+// haritaya özel 3D atmosfer (yağmur/şimşek, lav kıvılcımı, hayalet ateşi, martılar) ve 2 kamera açısı!
 
 import * as THREE from '../vendor/three.module.min.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.01';
-import { hasLineOfSight } from './sim.js?v=5.01';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.1';
+import { hasLineOfSight } from './sim.js?v=5.1';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
+}
+
+// Procedural tileable water-foam / caustic texture (zero external HTTP requests!)
+function createOceanFoamTexture() {
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+
+  // Subtle nautical aqua caustics & stylized Wind Waker wave streaks
+  ctx.strokeStyle = 'rgba(205, 245, 255, 0.24)';
+  ctx.lineWidth = 3;
+  for (let y = 16; y < size; y += 32) {
+    for (let x = 0; x < size; x += 64) {
+      const ox = (y % 64 === 16) ? 0 : 32;
+      ctx.beginPath();
+      ctx.moveTo(x + ox - 18, y);
+      ctx.quadraticCurveTo(x + ox, y - 7, x + ox + 18, y);
+      ctx.stroke();
+    }
+  }
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+  for (let i = 0; i < 28; i++) {
+    const px = ((i * 73) % size);
+    const py = ((i * 41) % size);
+    ctx.beginPath();
+    ctx.ellipse(px, py, 10 + (i % 8), 3, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(16, 11);
+  return tex;
 }
 
 export class SeaRenderer3D {
@@ -17,10 +56,15 @@ export class SeaRenderer3D {
 
     this.camX = WORLD_W / 2;
     this.camY = WORLD_H / 2;
+    this.camMode = localStorage.getItem('derinav_cam3d') === 'sinematik' ? 'sinematik' : 'taktik';
+    this._curCamH = this.camMode === 'sinematik' ? 315 : 475;
+    this._curCamB = this.camMode === 'sinematik' ? 405 : 340;
     this.viewW = 0;
     this.viewH = 0;
     this.time = 0;
     this.shake = 0;
+    this.lightningAlpha = 0;
+    this.nextLightning = 5.5;
     this.lastRoundSeen = -1;
     this.currentMapId = null;
 
@@ -28,6 +72,7 @@ export class SeaRenderer3D {
     this.smoothProj = new Map();
     this.hitFlash = new Map();
     this.prevHpTotal = new Map();
+    this.prevSubmerged = new Map();
     this.seenPulses = new Set();
     this.seenSinks = new Set();
 
@@ -42,11 +87,11 @@ export class SeaRenderer3D {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.toneMappingExposure = 1.15;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#041525');
-    this.scene.fog = new THREE.FogExp2('#062038', 0.00042);
+    this.scene.fog = new THREE.FogExp2('#062038', 0.00038);
 
     this.camera = new THREE.PerspectiveCamera(42, 16 / 9, 15, 4200);
     this._raycaster = new THREE.Raycaster();
@@ -75,7 +120,7 @@ export class SeaRenderer3D {
     this.scene.add(this.sunLight.target);
 
     // Subtle fill rim light from north-west
-    const rim = new THREE.DirectionalLight('#38bdf8', 0.45);
+    const rim = new THREE.DirectionalLight('#38bdf8', 0.5);
     rim.position.set(-400, 320, -400);
     this.scene.add(rim);
 
@@ -87,11 +132,13 @@ export class SeaRenderer3D {
     this.scene.add(this.dynamicGroup);
     this.scene.add(this.fxGroup);
 
-    // Animated ocean mesh
+    // Reusable procedural water foam texture
+    this.oceanTex = createOceanFoamTexture();
     this.oceanMesh = null;
-    this.oceanBaseY = null;
+    this.beachSurfMesh = null;
     this.currentStrips = [];
     this.fogMeshes = [];
+    this.ambientSprites = []; // seagulls, volcanic embers, ghost wisps
     this.lighthouseRig = null;
 
     // Entity pools/maps (id -> Object3D)
@@ -111,11 +158,11 @@ export class SeaRenderer3D {
     this.aimGuideMesh = null;
     this.diveRingMesh = null;
 
-    // Lightweight 3D FX particles (wakes, splashes, explosions)
+    // Lightweight 3D FX particles (wakes, splashes, explosions, shockwaves)
     this.particles = [];
     this._sharedGeo = {
       sphere: new THREE.SphereGeometry(1, 8, 6),
-      ring: new THREE.RingGeometry(0.84, 1, 28),
+      ring: new THREE.RingGeometry(0.78, 1, 28),
       box: new THREE.BoxGeometry(1, 1, 1),
       cyl: new THREE.CylinderGeometry(1, 1, 1, 10),
       cone: new THREE.ConeGeometry(1, 1, 7)
@@ -126,14 +173,20 @@ export class SeaRenderer3D {
     this.resize();
   }
 
+  toggleCameraMode() {
+    this.camMode = this.camMode === 'sinematik' ? 'taktik' : 'sinematik';
+    try { localStorage.setItem('derinav_cam3d', this.camMode); } catch (_) {}
+    return this.camMode;
+  }
+
   _initPersistentHelpers() {
-    // Local player aiming laser line on water surface
+    // Local player aiming guide line on water surface
     const aimGeo = new THREE.PlaneGeometry(1, 3.2);
     aimGeo.rotateX(-Math.PI / 2);
     aimGeo.translate(0.5, 0, 0);
     this.aimGuideMesh = new THREE.Mesh(
       aimGeo,
-      new THREE.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0.42, depthWrite: false })
+      new THREE.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0.44, depthWrite: false })
     );
     this.aimGuideMesh.position.y = 1.6;
     this.aimGuideMesh.visible = false;
@@ -144,25 +197,25 @@ export class SeaRenderer3D {
     diveRingGeo.rotateX(-Math.PI / 2);
     this.diveRingMesh = new THREE.Mesh(
       diveRingGeo,
-      new THREE.MeshBasicMaterial({ color: '#38bdf8', transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false })
+      new THREE.MeshBasicMaterial({ color: '#38bdf8', transparent: true, opacity: 0.52, side: THREE.DoubleSide, depthWrite: false })
     );
     this.diveRingMesh.position.y = 1.8;
     this.diveRingMesh.visible = false;
     this.fxGroup.add(this.diveRingMesh);
 
     // Red storm cylinder wall
-    const stormGeo = new THREE.CylinderGeometry(1, 1, 120, 56, 1, true);
+    const stormGeo = new THREE.CylinderGeometry(1, 1, 125, 56, 1, true);
     this.stormRing = new THREE.Mesh(
       stormGeo,
       new THREE.MeshBasicMaterial({
         color: '#ef476f',
         transparent: true,
-        opacity: 0.24,
+        opacity: 0.25,
         side: THREE.DoubleSide,
         depthWrite: false
       })
     );
-    this.stormRing.position.y = 58;
+    this.stormRing.position.y = 60;
     this.stormRing.visible = false;
     this.fxGroup.add(this.stormRing);
   }
@@ -210,7 +263,7 @@ export class SeaRenderer3D {
   }
 
   // ============================================================
-  // 🏝️ MAP BUILDER (Low-Poly Ocean, Rocks, Ships, Beach, Currents)
+  // 🏝️ MAP BUILDER (Animated Foam Ocean, Rocks, Ships, Beach, Map VFX)
   // ============================================================
   _clearGroup(group) {
     while (group.children.length > 0) {
@@ -233,6 +286,8 @@ export class SeaRenderer3D {
     this._clearGroup(this.mapGroup);
     this.currentStrips = [];
     this.fogMeshes = [];
+    this.ambientSprites = [];
+    this.beachSurfMesh = null;
     this.lighthouseRig = null;
 
     const deepCol = new THREE.Color(map.theme.deep || '#041a2e').offsetHSL(0, 0.08, 0.07);
@@ -240,8 +295,8 @@ export class SeaRenderer3D {
     this.scene.background = deepCol.clone().multiplyScalar(0.8);
     this.scene.fog.color.copy(deepCol);
 
-    // 1. Subdivided low-poly ocean with gentle wave vertices
-    const oceanGeo = new THREE.PlaneGeometry(WORLD_W + 900, WORLD_H + 900, 64, 44);
+    // 1. Lightweight low-poly ocean (32x22 = super smooth on mobile + crisp wave facets + scrolling foam texture!)
+    const oceanGeo = new THREE.PlaneGeometry(WORLD_W + 900, WORLD_H + 900, 32, 22);
     oceanGeo.rotateX(-Math.PI / 2);
     const pos = oceanGeo.attributes.position;
     const colors = new Float32Array(pos.count * 3);
@@ -257,8 +312,9 @@ export class SeaRenderer3D {
     }
     oceanGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     const oceanMat = new THREE.MeshStandardMaterial({
+      map: this.oceanTex,
       vertexColors: true,
-      roughness: 0.28,
+      roughness: 0.26,
       metalness: 0.16,
       emissive: midCol.clone().multiplyScalar(0.28),
       flatShading: true
@@ -268,7 +324,7 @@ export class SeaRenderer3D {
     this.oceanMesh.receiveShadow = true;
     this.mapGroup.add(this.oceanMesh);
 
-    // Arena boundary rope / glowing golden border buoys
+    // Arena boundary rope / glowing golden border
     const borderMat = new THREE.MeshBasicMaterial({ color: '#ffb703', transparent: true, opacity: 0.48 });
     const borders = [
       [WORLD_W / 2, 1.4, 8, WORLD_W - 16, 4],
@@ -282,16 +338,26 @@ export class SeaRenderer3D {
       this.mapGroup.add(m);
     }
 
-    // 2. Mercan Plajı Beach + Turquoise Lagoon + Palm Trees
+    // 2. Mercan Plajı Beach + Turquoise Lagoon + Animated Surf Line + Palm Trees
     if (map.beach) {
       const b = map.beach;
-      // Golden sand bank
       const sandGeo = new THREE.BoxGeometry(WORLD_W + 400, 14, b.sandY + 260);
       const sandMat = new THREE.MeshStandardMaterial({ color: '#e6c280', roughness: 0.88, flatShading: true });
       const sand = new THREE.Mesh(sandGeo, sandMat);
       sand.position.set(WORLD_W / 2, 5.5, (b.sandY - 260) / 2);
       sand.receiveShadow = true;
       this.mapGroup.add(sand);
+
+      // Animated white shoreline surf wave
+      const surfGeo = new THREE.PlaneGeometry(WORLD_W + 200, 18);
+      surfGeo.rotateX(-Math.PI / 2);
+      const surf = new THREE.Mesh(
+        surfGeo,
+        new THREE.MeshBasicMaterial({ color: '#f0f9ff', transparent: true, opacity: 0.62, depthWrite: false })
+      );
+      surf.position.set(WORLD_W / 2, 1.5, b.sandY + 8);
+      this.mapGroup.add(surf);
+      this.beachSurfMesh = { mesh: surf, baseZ: b.sandY + 8 };
 
       // Shallow turquoise lagoon band
       const lagGeo = new THREE.PlaneGeometry(WORLD_W, b.shallowY - b.sandY);
@@ -335,11 +401,14 @@ export class SeaRenderer3D {
       flatShading: true
     });
     const rockTopMat = new THREE.MeshStandardMaterial({
-      color: map.id === 'volkanik_resif' ? '#7c2d12' : '#64748b',
+      color: map.id === 'volkanik_resif' ? '#9a3412' : '#64748b',
+      emissive: map.id === 'volkanik_resif' ? '#ea580c' : '#000000',
+      emissiveIntensity: map.id === 'volkanik_resif' ? 0.45 : 0,
       roughness: 0.82,
       flatShading: true
     });
-    const foamMat = new THREE.MeshBasicMaterial({ color: '#e0f2fe', transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false });
+    const mossMat = new THREE.MeshStandardMaterial({ color: '#15803d', roughness: 0.85, flatShading: true });
+    const foamMat = new THREE.MeshBasicMaterial({ color: '#e0f2fe', transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false });
     const woodMat = new THREE.MeshStandardMaterial({ color: '#6b4423', roughness: 0.85, flatShading: true });
     const woodDarkMat = new THREE.MeshStandardMaterial({ color: '#472d16', roughness: 0.9, flatShading: true });
 
@@ -360,17 +429,24 @@ export class SeaRenderer3D {
         peak.castShadow = true;
         rg.add(peak);
 
-        // Lava glow cap on Volkanik Resif rocks
         if (map.id === 'volkanik_resif') {
-          const glow = new THREE.Mesh(
-            new THREE.RingGeometry(obs.r * 0.96, obs.r * 1.12, 20),
-            new THREE.MeshBasicMaterial({ color: '#ff6b35', transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false })
+          // Glowing magma vein & molten collar on volcanic reefs
+          const lavaRing = new THREE.Mesh(
+            new THREE.RingGeometry(obs.r * 0.96, obs.r * 1.15, 22),
+            new THREE.MeshBasicMaterial({ color: '#ff6b35', transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false })
           );
-          glow.rotation.x = -Math.PI / 2;
-          glow.position.y = 1.2;
-          rg.add(glow);
+          lavaRing.rotation.x = -Math.PI / 2;
+          lavaRing.position.y = 1.3;
+          rg.add(lavaRing);
         } else {
-          const foam = new THREE.Mesh(new THREE.RingGeometry(obs.r * 0.95, obs.r * 1.14, 22), foamMat);
+          // Subtle green coastal moss cap on non-volcanic islands
+          if (obs.r >= 44) {
+            const moss = new THREE.Mesh(new THREE.DodecahedronGeometry(obs.r * 0.34, 0), mossMat);
+            moss.scale.set(1.2, 0.4, 1.1);
+            moss.position.set(-obs.r * 0.16, obs.r * 0.72, obs.r * 0.14);
+            rg.add(moss);
+          }
+          const foam = new THREE.Mesh(new THREE.RingGeometry(obs.r * 0.95, obs.r * 1.16, 22), foamMat);
           foam.rotation.x = -Math.PI / 2;
           foam.position.y = 1.2;
           rg.add(foam);
@@ -383,8 +459,6 @@ export class SeaRenderer3D {
         deck.castShadow = true;
         deck.receiveShadow = true;
         pg.add(deck);
-
-        // Pier stilts
         for (const px of [obs.x + 8, obs.x + obs.w - 8]) {
           for (const py of [obs.y + 12, obs.y + obs.h / 2, obs.y + obs.h - 12]) {
             const post = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.6, 18, 6), woodDarkMat);
@@ -410,14 +484,12 @@ export class SeaRenderer3D {
         deck.castShadow = true;
         sg.add(deck);
 
-        // Broken mast
         const mast = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 5, 58, 7), woodDarkMat);
         mast.position.set(-obs.w * 0.12, 42, 0);
         mast.rotation.z = 0.14;
         mast.castShadow = true;
         sg.add(mast);
 
-        // Tattered sail
         const sail = new THREE.Mesh(
           new THREE.BoxGeometry(4, 28, Math.min(44, obs.h * 0.75)),
           new THREE.MeshStandardMaterial({
@@ -434,21 +506,20 @@ export class SeaRenderer3D {
       }
     }
 
-    // 4. Turbo Sea Currents (glowing directional lanes)
+    // 4. Turbo Sea Currents
     for (const cur of map.currents || []) {
       const cg = new THREE.Group();
       const base = new THREE.Mesh(
         new THREE.PlaneGeometry(cur.w, cur.h),
-        new THREE.MeshBasicMaterial({ color: '#06b6d4', transparent: true, opacity: 0.2, depthWrite: false })
+        new THREE.MeshBasicMaterial({ color: '#06b6d4', transparent: true, opacity: 0.22, depthWrite: false })
       );
       base.rotation.x = -Math.PI / 2;
       base.position.set(cur.x + cur.w / 2, 1.1, cur.y + cur.h / 2);
       cg.add(base);
 
-      // Glowing chevron bars that slide along dirX/dirY
       const horizontal = Math.abs(cur.dirX) >= Math.abs(cur.dirY);
       const count = Math.max(3, Math.floor((horizontal ? cur.w : cur.h) / 68));
-      const stripMat = new THREE.MeshBasicMaterial({ color: '#67e8f9', transparent: true, opacity: 0.55, depthWrite: false });
+      const stripMat = new THREE.MeshBasicMaterial({ color: '#67e8f9', transparent: true, opacity: 0.6, depthWrite: false });
       for (let i = 0; i < count; i++) {
         const bar = new THREE.Mesh(
           new THREE.BoxGeometry(horizontal ? 14 : cur.w * 0.55, 1.5, horizontal ? cur.h * 0.55 : 14),
@@ -500,7 +571,7 @@ export class SeaRenderer3D {
       this.fogMeshes.push({ mesh: fGroup, baseX: fg.x, baseZ: fg.y });
     }
 
-    // 6. Rotating Lighthouse Tower (Korsan Enkazı & Hayalet Sis)
+    // 6. Rotating Lighthouse Tower
     if (map.lighthouse) {
       const lh = map.lighthouse;
       const lg = new THREE.Group();
@@ -535,7 +606,6 @@ export class SeaRenderer3D {
       roof.position.y = 98;
       lg.add(roof);
 
-      // Sweeping golden light wedge
       const beamGroup = new THREE.Group();
       beamGroup.position.y = 4;
       const beamGeo = new THREE.CircleGeometry(lh.range, 20, -lh.halfAngle, lh.halfAngle * 2);
@@ -545,7 +615,7 @@ export class SeaRenderer3D {
         new THREE.MeshBasicMaterial({
           color: '#fde047',
           transparent: true,
-          opacity: 0.17,
+          opacity: 0.18,
           side: THREE.DoubleSide,
           depthWrite: false
         })
@@ -555,6 +625,58 @@ export class SeaRenderer3D {
 
       this.mapGroup.add(lg);
       this.lighthouseRig = { group: lg, beamGroup };
+    }
+
+    // 7. 🐦🔥👻 Map-Specific Signature Ambient 3D Life!
+    if (map.id === 'volkanik_resif') {
+      // Rising glowing volcanic embers
+      const emberMat = new THREE.MeshBasicMaterial({ color: '#fb923c' });
+      for (let i = 0; i < 18; i++) {
+        const m = new THREE.Mesh(this._sharedGeo.sphere, emberMat);
+        m.scale.setScalar(2.2 + (i % 3));
+        const bx = 220 + ((i * 197) % (WORLD_W - 440));
+        const bz = 140 + ((i * 131) % (WORLD_H - 280));
+        m.position.set(bx, 10 + (i * 19) % 120, bz);
+        this.mapGroup.add(m);
+        this.ambientSprites.push({ kind: 'ember', mesh: m, bx, bz, phase: i * 0.7 });
+      }
+    } else if (map.id === 'hayalet_sis') {
+      // Eerie floating turquoise ghost wisps drifting over fogs
+      const wispMat = new THREE.MeshBasicMaterial({ color: '#5eead4', transparent: true, opacity: 0.75 });
+      for (let i = 0; i < 14; i++) {
+        const m = new THREE.Mesh(this._sharedGeo.sphere, wispMat);
+        m.scale.setScalar(3.4);
+        const bx = 200 + ((i * 211) % (WORLD_W - 400));
+        const bz = 150 + ((i * 157) % (WORLD_H - 300));
+        m.position.set(bx, 30, bz);
+        this.mapGroup.add(m);
+        this.ambientSprites.push({ kind: 'wisp', mesh: m, bx, bz, phase: i * 1.1 });
+      }
+    } else {
+      // Gliding white low-poly seagulls soaring over sunlit seas & beaches!
+      const gullMat = new THREE.MeshBasicMaterial({ color: '#f8fafc' });
+      const gullCount = map.id === 'mercan_plaji' ? 5 : 3;
+      for (let i = 0; i < gullCount; i++) {
+        const gg = new THREE.Group();
+        const wingL = new THREE.Mesh(new THREE.BoxGeometry(14, 1.5, 4.5), gullMat);
+        wingL.position.x = -7;
+        const wingR = new THREE.Mesh(new THREE.BoxGeometry(14, 1.5, 4.5), gullMat);
+        wingR.position.x = 7;
+        gg.add(wingL, wingR);
+        gg.position.set(WORLD_W / 2, 135 + i * 18, WORLD_H / 2);
+        this.mapGroup.add(gg);
+        this.ambientSprites.push({
+          kind: 'gull',
+          mesh: gg,
+          wingL,
+          wingR,
+          cx: 420 + i * 210,
+          cz: 260 + (i % 2) * 340,
+          rad: 180 + i * 45,
+          spd: 0.35 + i * 0.08,
+          phase: i * 2.1
+        });
+      }
     }
   }
 
@@ -573,16 +695,14 @@ export class SeaRenderer3D {
     ring.position.y = 1.2;
     root.add(ring);
 
-    // Shield bubble (toggled dynamically)
     const shield = new THREE.Mesh(
       new THREE.SphereGeometry(26, 14, 10),
-      new THREE.MeshBasicMaterial({ color: '#38bdf8', transparent: true, opacity: 0.25, wireframe: false, depthWrite: false })
+      new THREE.MeshBasicMaterial({ color: '#38bdf8', transparent: true, opacity: 0.25, depthWrite: false })
     );
     shield.position.y = 12;
     shield.visible = false;
     root.add(shield);
 
-    // Bounty / Crown ground halo
     const aura = new THREE.Mesh(
       new THREE.RingGeometry(27, 32, 28),
       new THREE.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false })
@@ -592,14 +712,13 @@ export class SeaRenderer3D {
     aura.visible = false;
     root.add(aura);
 
-    // Body container (rotates with aim, rolls/bobs on waves, dives along Y!)
     const body = new THREE.Group();
     root.add(body);
 
     const mainMat = new THREE.MeshStandardMaterial({
       color: hullHex,
-      roughness: 0.45,
-      metalness: 0.12,
+      roughness: 0.42,
+      metalness: 0.14,
       flatShading: true
     });
     const darkMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.75, flatShading: true });
@@ -608,11 +727,8 @@ export class SeaRenderer3D {
 
     let animParts = {};
 
-    // Note: in Three.js with (x, y, z) where aim=0 means +X:
-    // Forward of vessel points toward +X!
     switch (charId) {
       case 'kaptan': {
-        // ⚓ KAPTAN KARA — Zırhlı Kalyon + Yelken + Demir Pruva
         const hull = new THREE.Mesh(new THREE.BoxGeometry(38, 12, 22), woodMat);
         hull.position.set(-2, 6, 0);
         hull.castShadow = true;
@@ -644,7 +760,6 @@ export class SeaRenderer3D {
       }
 
       case 'kopekbaligi': {
-        // 🦈 KÖPEKBALIĞI — Torpido Gövde + Sırt Yüzgeci + Sallanan Kuyruk
         const torso = new THREE.Mesh(new THREE.ConeGeometry(11.5, 38, 7), mainMat);
         torso.rotation.z = -Math.PI / 2;
         torso.scale.set(0.85, 1, 1.0);
@@ -663,7 +778,6 @@ export class SeaRenderer3D {
         dorsal.castShadow = true;
         body.add(dorsal);
 
-        // Pectoral fins
         for (const s of [-1, 1]) {
           const fin = new THREE.Mesh(new THREE.BoxGeometry(10, 2.2, 13), mainMat);
           fin.position.set(3, 5, s * 12);
@@ -671,7 +785,6 @@ export class SeaRenderer3D {
           body.add(fin);
         }
 
-        // Animated wagging tail
         const tailGroup = new THREE.Group();
         tailGroup.position.set(-13, 7, 0);
         const tail = new THREE.Mesh(new THREE.ConeGeometry(8.5, 16, 4), mainMat);
@@ -686,13 +799,12 @@ export class SeaRenderer3D {
       }
 
       case 'hayalet': {
-        // 👻 SİS HAYALETİ — Yarı Saydam Hayalet Gemi + Parlayan Fener
         const ghostMat = new THREE.MeshStandardMaterial({
           color: hullHex,
           emissive: '#38bdf8',
           emissiveIntensity: 0.35,
           transparent: true,
-          opacity: 0.78,
+          opacity: 0.8,
           roughness: 0.3,
           flatShading: true
         });
@@ -715,7 +827,6 @@ export class SeaRenderer3D {
       }
 
       case 'fenerci': {
-        // 🔦 FENERCİ — Çift Gövdeli Katamaran + Dönen Fener Kulesi
         for (const s of [-1, 1]) {
           const pontoon = new THREE.Mesh(new THREE.BoxGeometry(40, 8, 7), mainMat);
           pontoon.position.set(0, 5, s * 10);
@@ -740,7 +851,6 @@ export class SeaRenderer3D {
       }
 
       case 'ahtapot': {
-        // 🐙 AHTAPOT — Kubbeli Baş + Parlak Gözler + 6 Hareketli 3D Dokunaç
         const dome = new THREE.Mesh(new THREE.SphereGeometry(14, 10, 8), mainMat);
         dome.scale.set(1.12, 0.92, 0.95);
         dome.position.set(2, 13, 0);
@@ -772,7 +882,6 @@ export class SeaRenderer3D {
       }
 
       default: {
-        // 🌊 DALGA BİNİCİSİ — Şık Sörf / Jet-Ski + İkiz Su Jeti
         const board = new THREE.Mesh(new THREE.BoxGeometry(38, 6.5, 16), mainMat);
         board.position.set(0, 4.5, 0);
         board.castShadow = true;
@@ -815,9 +924,6 @@ export class SeaRenderer3D {
     };
   }
 
-  // ============================================================
-  // 🐙 3D KRAKEN BOSS & 👑 GOLDEN CROWN
-  // ============================================================
   _createKrakenRig() {
     const g = new THREE.Group();
     const bodyMat = new THREE.MeshStandardMaterial({ color: '#9333ea', roughness: 0.45, flatShading: true });
@@ -914,53 +1020,76 @@ export class SeaRenderer3D {
   }
 
   // ============================================================
-  // 🎆 LIGHTWEIGHT 3D PARTICLES (Wakes, Sparks, Explosions)
+  // 🎆 3D PARTICLES: V-WAKES, SPLASH COLUMNS & SHOCKWAVE RINGS
   // ============================================================
-  _spawnBurst(x, z, color, count = 8, spread = 90) {
+  _spawnBurst(x, z, color, count = 8, spread = 90, upBoost = 65) {
     for (let i = 0; i < count; i++) {
-      if (this.particles.length >= 90) break;
+      if (this.particles.length >= 130) break;
       const a = Math.random() * Math.PI * 2;
-      const spd = spread * (0.4 + Math.random() * 0.8);
+      const spd = spread * (0.35 + Math.random() * 0.85);
       const m = new THREE.Mesh(
         this._sharedGeo.sphere,
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.92 })
       );
-      const sz = 2.6 + Math.random() * 3.5;
+      const sz = 2.5 + Math.random() * 3.5;
       m.scale.setScalar(sz);
-      m.position.set(x, 8 + Math.random() * 6, z);
+      m.position.set(x, 6 + Math.random() * 6, z);
       this.fxGroup.add(m);
       this.particles.push({
         mesh: m,
         vx: Math.cos(a) * spd,
-        vy: 55 + Math.random() * 75,
+        vy: upBoost + Math.random() * 70,
         vz: Math.sin(a) * spd,
-        gravity: 220,
-        life: 0.45 + Math.random() * 0.25,
+        gravity: 240,
+        life: 0.42 + Math.random() * 0.25,
         maxLife: 0.65,
         kind: 'spark'
       });
     }
   }
 
-  _spawnWake(x, z, colorHex = '#e0f2fe') {
-    if (this.particles.length >= 90) return;
+  _spawnShockRing(x, z, color = '#ffffff', startR = 12, endR = 95, dur = 0.5) {
+    if (this.particles.length >= 130) return;
     const m = new THREE.Mesh(
       this._sharedGeo.ring,
-      new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false })
     );
-    m.position.set(x, 1.0, z);
-    m.scale.setScalar(7);
+    m.position.set(x, 1.7, z);
+    m.scale.setScalar(startR);
     this.fxGroup.add(m);
     this.particles.push({
       mesh: m,
-      vx: 0,
-      vy: 0,
-      vz: 0,
-      gravity: 0,
-      life: 0.65,
-      maxLife: 0.65,
-      kind: 'wake'
+      startR,
+      endR,
+      life: dur,
+      maxLife: dur,
+      kind: 'shock'
     });
+  }
+
+  _spawnVWake(x, z, aim, colorHex = '#e0f2fe') {
+    if (this.particles.length >= 130) return;
+    // Dual V-shaped stern wake puffs + gentle trailing ring
+    for (const side of [-1, 1]) {
+      const a = aim + Math.PI + side * 0.45;
+      const m = new THREE.Mesh(
+        this._sharedGeo.sphere,
+        new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.55, depthWrite: false })
+      );
+      m.scale.set(5.5, 1.4, 5.5);
+      m.position.set(x - Math.cos(aim) * 16 + Math.cos(a) * 8, 1.3, z - Math.sin(aim) * 16 + Math.sin(a) * 8);
+      this.fxGroup.add(m);
+      this.particles.push({
+        mesh: m,
+        vx: Math.cos(a) * 32,
+        vy: 0,
+        vz: Math.sin(a) * 32,
+        gravity: 0,
+        life: 0.55,
+        maxLife: 0.55,
+        kind: 'foam'
+      });
+    }
   }
 
   _stepParticles(dt) {
@@ -974,9 +1103,16 @@ export class SeaRenderer3D {
         continue;
       }
       const ratio = pt.life / pt.maxLife;
-      if (pt.kind === 'wake') {
-        pt.mesh.scale.setScalar(7 + (1 - ratio) * 20);
-        pt.mesh.material.opacity = ratio * 0.42;
+      if (pt.kind === 'shock') {
+        const prog = 1 - ratio;
+        pt.mesh.scale.setScalar(pt.startR + (pt.endR - pt.startR) * prog);
+        pt.mesh.material.opacity = ratio * 0.78;
+      } else if (pt.kind === 'foam') {
+        pt.mesh.position.x += pt.vx * dt;
+        pt.mesh.position.z += pt.vz * dt;
+        const sc = 5.5 + (1 - ratio) * 9;
+        pt.mesh.scale.set(sc, 1.2, sc);
+        pt.mesh.material.opacity = ratio * 0.48;
       } else {
         pt.vy -= pt.gravity * dt;
         pt.mesh.position.x += pt.vx * dt;
@@ -1006,23 +1142,32 @@ export class SeaRenderer3D {
       this.smoothProj.clear();
       this.hitFlash.clear();
       this.prevHpTotal.clear();
+      this.prevSubmerged.clear();
       this.seenPulses.clear();
       this.seenSinks.clear();
     }
 
     // Dynamic fog intensity for Gece Sisi
-    this.scene.fog.density = state.roundEvent === 'gece_sisi' ? 0.00095 : 0.00038;
+    this.scene.fog.density = state.roundEvent === 'gece_sisi' ? 0.00095 : 0.00036;
 
-    // Animate ocean surface vertices gently
+    // Scroll procedural water foam texture + gentle low-poly wave ripples
+    this.oceanTex.offset.x = (this.time * 0.035) % 1;
+    this.oceanTex.offset.y = (this.time * 0.022) % 1;
     if (this.oceanMesh) {
       const pos = this.oceanMesh.geometry.attributes.position;
-      const t = this.time * 1.9;
+      const t = this.time * 2.0;
       for (let i = 0; i < pos.count; i++) {
         const x = pos.getX(i);
         const z = pos.getZ(i);
-        pos.setY(i, Math.sin(x * 0.022 + t) * 2.2 + Math.cos(z * 0.026 + t * 0.85) * 1.8);
+        pos.setY(i, Math.sin(x * 0.02 + t) * 2.2 + Math.cos(z * 0.024 + t * 0.85) * 1.8);
       }
       pos.needsUpdate = true;
+    }
+
+    // Mercan Plajı animated shoreline surf
+    if (this.beachSurfMesh) {
+      this.beachSurfMesh.mesh.position.z = this.beachSurfMesh.baseZ + Math.sin(this.time * 2.4) * 6;
+      this.beachSurfMesh.mesh.material.opacity = 0.45 + Math.sin(this.time * 2.4) * 0.2;
     }
 
     // Animate turbo current chevrons
@@ -1036,6 +1181,38 @@ export class SeaRenderer3D {
       else st.mesh.position.z = cur.y + offset;
     }
 
+    // Animate ambient map life (seagulls, volcanic embers, ghost wisps)
+    for (const sp of this.ambientSprites) {
+      if (sp.kind === 'gull') {
+        const a = this.time * sp.spd + sp.phase;
+        sp.mesh.position.x = sp.cx + Math.cos(a) * sp.rad;
+        sp.mesh.position.z = sp.cz + Math.sin(a) * sp.rad * 0.72;
+        sp.mesh.rotation.y = -a;
+        const flap = Math.sin(this.time * 8 + sp.phase) * 0.35;
+        sp.wingL.rotation.z = flap;
+        sp.wingR.rotation.z = -flap;
+      } else if (sp.kind === 'ember') {
+        sp.mesh.position.y = ((sp.mesh.position.y + dt * 28) % 125) + 4;
+        sp.mesh.position.x = sp.bx + Math.sin(this.time * 2 + sp.phase) * 16;
+      } else if (sp.kind === 'wisp') {
+        sp.mesh.position.y = 26 + Math.sin(this.time * 2.2 + sp.phase) * 11;
+        sp.mesh.position.x = sp.bx + Math.cos(this.time * 0.9 + sp.phase) * 28;
+        sp.mesh.position.z = sp.bz + Math.sin(this.time * 1.1 + sp.phase) * 22;
+      }
+    }
+
+    // Fırtına Boğazı occasional subtle lightning flash
+    if (map.id === 'firtina_bogazi') {
+      this.nextLightning -= dt;
+      if (this.nextLightning <= 0) {
+        this.lightningAlpha = 0.22;
+        this.nextLightning = 6 + Math.random() * 8;
+      }
+      this.lightningAlpha = Math.max(0, this.lightningAlpha - dt * 1.1);
+    } else {
+      this.lightningAlpha = 0;
+    }
+
     // Animate lighthouse rotation
     if (this.lighthouseRig && state.lighthouse) {
       this.lighthouseRig.beamGroup.rotation.y = -state.lighthouse.angle;
@@ -1044,7 +1221,7 @@ export class SeaRenderer3D {
     const players = state.players || [];
     const me = players.find(p => p.id === myId) || players[0];
 
-    // Smooth positions & detect damage/juice
+    // Smooth positions, damage juice, V-wakes & dive/emerge splashes!
     for (const p of players) {
       let sp = this.smoothPos.get(p.id);
       if (!sp) {
@@ -1069,18 +1246,29 @@ export class SeaRenderer3D {
         sp.aim = p.id === myId && Number.isFinite(localAim) ? localAim : p.aim;
       }
 
+      // Dive & Surprise-Surface 3D water spray!
+      const wasSub = this.prevSubmerged.get(p.id);
+      if (p.alive && wasSub !== undefined && wasSub !== Boolean(p.submerged)) {
+        if (this._canViewerSee(me, p, map, state.roundEvent) || p.id === myId) {
+          this._spawnBurst(sp.x, sp.y, '#e0f2fe', 10, 75, 95);
+          this._spawnShockRing(sp.x, sp.y, p.submerged ? '#38bdf8' : '#ffd166', 10, p.submerged ? 55 : 75, 0.45);
+        }
+      }
+      this.prevSubmerged.set(p.id, Boolean(p.submerged));
+
       // Hit flash + burst on damage
       const curTot = (p.hp || 0) + (p.breath || 0) + (p.shield || 0);
       const prevTot = this.prevHpTotal.get(p.id);
       if (p.alive && prevTot !== undefined && prevTot - curTot >= 8) {
         this.hitFlash.set(p.id, 0.16);
-        this._spawnBurst(sp.x, sp.y, '#ffd166', 6, 95);
+        this._spawnBurst(sp.x, sp.y, '#ffd166', 7, 100);
         if (p.id === myId) this.triggerShake(Math.min(10, (prevTot - curTot) * 0.12));
       }
       this.prevHpTotal.set(p.id, curTot);
 
-      if (p.alive && !p.submerged && Math.hypot(p.vx || 0, p.vy || 0) > 45 && Math.random() < dt * 11) {
-        this._spawnWake(sp.x - Math.cos(sp.aim) * 16, sp.y - Math.sin(sp.aim) * 16);
+      // V-shaped surface wake trail
+      if (p.alive && !p.submerged && Math.hypot(p.vx || 0, p.vy || 0) > 42 && Math.random() < dt * 13) {
+        this._spawnVWake(sp.x, sp.y, sp.aim);
       }
     }
 
@@ -1089,19 +1277,27 @@ export class SeaRenderer3D {
       else this.hitFlash.set(id, hf - dt);
     }
 
-    // Pulse explosions
+    // Pulse explosions & shockwaves
     for (const pu of state.pulses || []) {
       if (this.seenPulses.has(pu.id)) continue;
       this.seenPulses.add(pu.id);
       if (pu.kind === 'boom' || pu.kind === 'barrel') {
-        this._spawnBurst(pu.x, pu.y, '#ff6b35', 14, 150);
+        this._spawnBurst(pu.x, pu.y, '#ff6b35', 16, 160, 110);
+        this._spawnShockRing(pu.x, pu.y, '#fb923c', 16, Math.min(165, pu.maxR || 130), 0.52);
         this.triggerShake(10);
       } else if (pu.kind === 'electric') {
         this._spawnBurst(pu.x, pu.y, '#38bdf8', 10, 120);
+        this._spawnShockRing(pu.x, pu.y, '#38bdf8', 12, 95, 0.42);
+      } else if (pu.kind === 'sonar') {
+        this._spawnShockRing(pu.x, pu.y, '#38bdf8', 22, 320, 0.85);
+      } else if (pu.kind === 'flash') {
+        this._spawnShockRing(pu.x, pu.y, '#fef08a', 14, 150, 0.45);
+      } else if (pu.kind === 'heal') {
+        this._spawnShockRing(pu.x, pu.y, '#06d6a0', 10, 72, 0.45);
       }
     }
 
-    // Follow camera smoothly on player
+    // Follow camera smoothly on player + smooth transition between Taktik & Sinematik angles
     let targetX = WORLD_W / 2;
     let targetZ = WORLD_H / 2;
     if (me) {
@@ -1126,12 +1322,14 @@ export class SeaRenderer3D {
     const szOff = (Math.random() - 0.5) * this.shake * 1.4;
 
     const isNarrow = this.viewW < 640;
-    const camHeight = isNarrow ? 590 : 475;
-    const camBack = isNarrow ? 420 : 340;
-    this.camera.position.set(this.camX + sxOff, camHeight, this.camY + camBack + szOff);
+    const wantH = this.camMode === 'sinematik' ? (isNarrow ? 390 : 310) : (isNarrow ? 590 : 475);
+    const wantB = this.camMode === 'sinematik' ? (isNarrow ? 470 : 405) : (isNarrow ? 420 : 340);
+    this._curCamH += (wantH - this._curCamH) * Math.min(1, dt * 6);
+    this._curCamB += (wantB - this._curCamB) * Math.min(1, dt * 6);
+
+    this.camera.position.set(this.camX + sxOff, this._curCamH, this.camY + this._curCamB + szOff);
     this.camera.lookAt(this.camX + sxOff * 0.4, 8, this.camY + 10 + szOff * 0.4);
 
-    // Move directional light shadow frustum with camera
     this.sunLight.position.set(this.camX + 340, 740, this.camY + 240);
     this.sunLight.target.position.set(this.camX, 0, this.camY);
 
@@ -1149,10 +1347,9 @@ export class SeaRenderer3D {
     this._syncKraken(state.kraken);
     this._syncCrown(state.crown);
 
-    // Storm cylinder
     if (state.storm && state.storm.active) {
       this.stormRing.visible = true;
-      this.stormRing.position.set(state.storm.cx, 58, state.storm.cy);
+      this.stormRing.position.set(state.storm.cx, 60, state.storm.cy);
       this.stormRing.scale.set(Math.max(10, state.storm.r), 1, Math.max(10, state.storm.r));
     } else {
       this.stormRing.visible = false;
@@ -1163,7 +1360,7 @@ export class SeaRenderer3D {
     // Render WebGL 3D scene!
     this.renderer.render(this.scene, this.camera);
 
-    // Render crisp 2D Overlay (nameplates, HP/Breath bars, hearts, damage floats, minimap, touch joystick!)
+    // Render crisp 2D Overlay (vision vignette, storm rain, nameplates, HP/Breath, minimap, touch joystick!)
     this._renderOverlay2D(state, players, me, map, touchJoy);
   }
 
@@ -1194,45 +1391,30 @@ export class SeaRenderer3D {
       rig.root.visible = true;
       rig.root.position.set(sp.x, 0, sp.y);
 
-      // Dive smoothly below ocean surface!
       const targetY = p.submerged ? -14 : (Math.sin(this.time * 4 + sp.x * 0.02) * 1.4);
       rig.diveY += (targetY - rig.diveY) * 0.22;
       rig.body.position.y = rig.diveY;
       rig.body.rotation.y = -sp.aim;
 
-      // Subtle roll tilt when moving fast
       const spd = Math.hypot(p.vx || 0, p.vy || 0);
       rig.body.rotation.x = Math.sin(this.time * 5 + sp.y * 0.02) * 0.045;
       rig.body.rotation.z = Math.min(0.14, spd * 0.0004);
 
-      // Character-specific 3D animations
-      if (rig.animParts.tail) {
-        rig.animParts.tail.rotation.y = Math.sin(this.time * (8 + spd * 0.03)) * 0.42;
-      }
-      if (rig.animParts.sail) {
-        rig.animParts.sail.scale.x = 1 + Math.sin(this.time * 4.5) * 0.14;
-      }
+      if (rig.animParts.tail) rig.animParts.tail.rotation.y = Math.sin(this.time * (8 + spd * 0.03)) * 0.42;
+      if (rig.animParts.sail) rig.animParts.sail.scale.x = 1 + Math.sin(this.time * 4.5) * 0.14;
       if (rig.animParts.tentacles) {
         for (const t of rig.animParts.tentacles) {
           t.group.rotation.y = t.baseA + Math.sin(this.time * 5 + t.idx) * 0.22;
           t.group.rotation.z = Math.cos(this.time * 4 + t.idx) * 0.18;
         }
       }
-      if (rig.animParts.lantern) {
-        rig.animParts.lantern.rotation.y = this.time * 3;
-      }
+      if (rig.animParts.lantern) rig.animParts.lantern.rotation.y = this.time * 3;
 
-      // Shield & Crown/Bounty aura
       rig.shield.visible = (p.shield || 0) > 0 || (p.mirrorTimer || 0) > 0;
-      if (rig.shield.visible) {
-        rig.shield.material.color.set(p.mirrorTimer > 0 ? '#e0f2fe' : '#38bdf8');
-      }
+      if (rig.shield.visible) rig.shield.material.color.set(p.mirrorTimer > 0 ? '#e0f2fe' : '#38bdf8');
       rig.aura.visible = Boolean(p.hasCrown || p.bounty);
-      if (rig.aura.visible) {
-        rig.aura.scale.setScalar(1 + Math.sin(this.time * 7) * 0.08);
-      }
+      if (rig.aura.visible) rig.aura.scale.setScalar(1 + Math.sin(this.time * 7) * 0.08);
 
-      // Hit flash white emissive pulse
       const hf = this.hitFlash.get(p.id) || 0;
       rig.body.traverse((obj) => {
         if (obj.isMesh && obj.material && obj.material.emissive) {
@@ -1243,7 +1425,6 @@ export class SeaRenderer3D {
         }
       });
 
-      // Local player aim guide / ambush dive ring
       if (me && p.id === me.id) {
         if (p.submerged) {
           showDiveRing = true;
@@ -1302,39 +1483,51 @@ export class SeaRenderer3D {
       let m = this.projMeshes.get(pr.id);
       if (!m) {
         const col = pr.color || '#ffd166';
+        const g = new THREE.Group();
+
+        // Projectile head
+        let head;
         if (pr.kind === 'harpoon' || pr.kind === 'hook') {
-          m = new THREE.Mesh(
-            new THREE.CylinderGeometry(2.2, 3.2, 24, 6),
+          head = new THREE.Mesh(
+            new THREE.CylinderGeometry(2.4, 3.6, 26, 6),
             new THREE.MeshBasicMaterial({ color: col })
           );
-          m.rotation.z = Math.PI / 2;
+          head.rotation.z = Math.PI / 2;
         } else if (pr.kind === 'net' || pr.kind === 'electric_net') {
-          m = new THREE.Mesh(
-            new THREE.TorusGeometry(11, 2.5, 6, 12),
+          head = new THREE.Mesh(
+            new THREE.TorusGeometry(11.5, 2.8, 6, 12),
             new THREE.MeshBasicMaterial({ color: col })
           );
-          m.rotation.x = Math.PI / 2;
+          head.rotation.x = Math.PI / 2;
         } else {
-          m = new THREE.Mesh(
-            new THREE.SphereGeometry(pr.r ? pr.r * 0.95 : 6.5, 8, 6),
+          head = new THREE.Mesh(
+            new THREE.SphereGeometry(pr.r ? pr.r * 1.05 : 7, 8, 6),
             new THREE.MeshBasicMaterial({ color: col })
           );
         }
-        this.dynamicGroup.add(m);
-        this.projMeshes.set(pr.id, m);
+        g.add(head);
+
+        // Glowing elongated 3D tracer tail (makes every projectile super crisp & dodgeable!)
+        const trailLen = pr.firearm ? 54 : 32;
+        const trail = new THREE.Mesh(
+          new THREE.ConeGeometry(pr.firearm ? 5.2 : 3.8, trailLen, 6),
+          new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.45, depthWrite: false })
+        );
+        trail.rotation.z = Math.PI / 2;
+        trail.position.x = -trailLen * 0.55;
+        g.add(trail);
+
+        this.dynamicGroup.add(g);
+        this.projMeshes.set(pr.id, g);
+        m = g;
       }
       m.position.set(pr.x, 11, pr.y);
-      if (pr.kind === 'harpoon' || pr.kind === 'hook') {
-        m.rotation.y = -Math.atan2(pr.vy || 0, pr.vx || 1);
-      } else if (pr.kind === 'net' || pr.kind === 'electric_net') {
-        m.rotation.z = this.time * 8;
-      }
+      m.rotation.y = -Math.atan2(pr.vy || 0, pr.vx || 1);
     }
     for (const [id, m] of this.projMeshes.entries()) {
       if (!seen.has(id)) {
         this.dynamicGroup.remove(m);
-        m.geometry?.dispose?.();
-        m.material?.dispose?.();
+        m.traverse?.((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); });
         this.projMeshes.delete(id);
       }
     }
@@ -1615,11 +1808,47 @@ export class SeaRenderer3D {
   }
 
   // ============================================================
-  // 🎯 CRISP 2D OVERLAY (Nameplates, HP/Breath, Hearts, Floats, Minimap)
+  // 🎯 CRISP 2D OVERLAY (Vision Vignette, Storm Rain, Nameplates, Minimap)
   // ============================================================
   _renderOverlay2D(state, players, me, map, touchJoy) {
     const ctx = this.octx;
     ctx.clearRect(0, 0, this.viewW, this.viewH);
+
+    // 0. Atmospheric Vision Vignette centered on local player (matches 2D stealth tension!)
+    if (me && me.alive) {
+      const sp = this.smoothPos.get(me.id) || me;
+      const center = this._worldToScreen(sp.x, 8, sp.y);
+      const isNight = state.roundEvent === 'gece_sisi';
+      const innerR = Math.min(this.viewW, this.viewH) * (isNight ? 0.25 : 0.38);
+      const outerR = Math.max(this.viewW, this.viewH) * (isNight ? 0.62 : 0.78);
+      const vig = ctx.createRadialGradient(center.x, center.y, innerR, center.x, center.y, outerR);
+      vig.addColorStop(0, 'rgba(2, 10, 20, 0)');
+      vig.addColorStop(1, isNight ? 'rgba(1, 6, 14, 0.72)' : 'rgba(2, 10, 20, 0.42)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, this.viewW, this.viewH);
+    }
+
+    // 0b. ⛈️ Fırtına Boğazı animated rain & subtle lightning flash!
+    if (map.id === 'firtina_bogazi') {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.16)';
+      ctx.lineWidth = 1.2;
+      const t = this.time * 540;
+      const drops = this.viewW < 640 ? 28 : 48;
+      ctx.beginPath();
+      for (let i = 0; i < drops; i++) {
+        const rx = ((i * 97 + t * 0.35) % (this.viewW + 80)) - 40;
+        const ry = ((i * 131 + t) % (this.viewH + 60)) - 30;
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(rx - 7, ry + 18);
+      }
+      ctx.stroke();
+      if (this.lightningAlpha > 0.01) {
+        ctx.fillStyle = `rgba(224, 242, 254, ${this.lightningAlpha})`;
+        ctx.fillRect(0, 0, this.viewW, this.viewH);
+      }
+      ctx.restore();
+    }
 
     // 1. Player Nameplates, Bars, Mario Hearts, Status Badges & Emotes
     for (const p of players) {
@@ -1633,7 +1862,6 @@ export class SeaRenderer3D {
       const y = scr.y;
       const ch = CHAR_MAP[p.charId] || { accent: '#e0f2fe' };
 
-      // Name
       ctx.save();
       ctx.textAlign = 'center';
       ctx.font = '800 12px system-ui, sans-serif';
@@ -1646,14 +1874,12 @@ export class SeaRenderer3D {
       ctx.fillStyle = p.hasCrown ? '#ffd166' : (p.role === 'hunter' ? '#ffd166' : p.role === 'ffa' ? ch.accent : '#80ffdb');
       ctx.fillText(nameTxt, x, y - 21);
 
-      // Mario Hearts if maxLives > 1
       if ((p.maxLives || 1) > 1) {
         const heartsStr = '❤️'.repeat(p.lives || 0) + '🖤'.repeat(Math.max(0, (p.maxLives || 1) - (p.lives || 0)));
         ctx.font = '700 11px system-ui, sans-serif';
         ctx.fillText(heartsStr, x, y - 40);
       }
 
-      // Status badge
       const badgeY = (p.maxLives || 1) > 1 ? y - 55 : y - 40;
       ctx.font = '800 10.5px system-ui, sans-serif';
       if (p.rootTimer) { ctx.fillStyle = '#ffb703'; ctx.fillText('⚓ ÇAPALANDI', x, badgeY); }
@@ -1661,7 +1887,6 @@ export class SeaRenderer3D {
       else if (p.submerged) { ctx.fillStyle = '#7dd3fc'; ctx.fillText('🤿 SU ALTI', x, badgeY); }
       else if (p.inStorm) { ctx.fillStyle = '#ff4d6d'; ctx.fillText('🌪️ FIRTINA!', x, badgeY); }
 
-      // Breath + HP bars
       const bw = 48;
       const bx = x - bw / 2;
       const by = y - 14;
@@ -1675,14 +1900,12 @@ export class SeaRenderer3D {
       ctx.fillStyle = hpRatio > 0.45 ? '#06d6a0' : (hpRatio > 0.22 ? '#ffb703' : '#ef476f');
       ctx.fillRect(bx, by + 4.5, bw * hpRatio, 4.5);
 
-      // Shield overlay line
       if (p.shield > 0) {
         const shRatio = Math.min(1, p.shield / 60);
         ctx.fillStyle = '#bae6fd';
         ctx.fillRect(bx, by - 3, bw * shRatio, 2);
       }
 
-      // Active emoji reaction
       if (p.emote && p.emoteTimer > 0) {
         ctx.font = '24px system-ui, sans-serif';
         ctx.fillText(p.emote, x, y - 62);
@@ -1768,7 +1991,7 @@ export class SeaRenderer3D {
       }
     }
 
-    // 6. Minimap (top-right, identical to 2D!)
+    // 6. Minimap
     this._drawMinimap(ctx, state, map, me);
 
     // 7. Mobile Virtual Joystick
@@ -1868,6 +2091,7 @@ export class SeaRenderer3D {
     this._clearGroup(this.mapGroup);
     this._clearGroup(this.dynamicGroup);
     this._clearGroup(this.fxGroup);
+    this.oceanTex?.dispose?.();
     this.renderer.dispose();
   }
 }

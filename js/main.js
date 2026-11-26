@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=5.01';
-import { sfx } from './audio.js?v=5.01';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=5.01';
-import { GameSim } from './sim.js?v=5.01';
-import { SeaRenderer } from './render.js?v=5.01';
+} from './data.js?v=5.1';
+import { sfx } from './audio.js?v=5.1';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=5.1';
+import { GameSim } from './sim.js?v=5.1';
+import { SeaRenderer } from './render.js?v=5.1';
 
 const $ = (id) => document.getElementById(id);
 
@@ -64,7 +64,7 @@ const app = {
   renderer: null,
   renderer3d: null,
   loading3d: false,
-  viewMode: localStorage.getItem('derinav_view_mode') === '3d' ? '3d' : '2d',
+  viewMode: localStorage.getItem('derinav_view_mode') === '2d' ? '2d' : '3d',
   keys: new Set(),
   mouseX: 0,
   mouseY: 0,
@@ -1630,10 +1630,12 @@ function updateViewToggleButtons() {
   const c2 = $('game-canvas');
   const c3 = $('game-canvas-3d');
   const ov = $('game-overlay-2d');
+  const camBtn = $('btn-cam-3d');
   const use3dCanvas = is3d && Boolean(app.renderer3d);
   if (c2) c2.style.display = use3dCanvas ? 'none' : 'block';
   if (c3) c3.style.display = use3dCanvas ? 'block' : 'none';
   if (ov) ov.style.display = use3dCanvas ? 'block' : 'none';
+  if (camBtn) camBtn.style.display = use3dCanvas ? '' : 'none';
 }
 
 async function setViewMode(mode, silent = false) {
@@ -1644,7 +1646,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=5.01');
+        const mod = await import('./render3d.js?v=5.1');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
       } catch (err) {
         console.warn('3D WebGL init error:', err);
@@ -2254,6 +2256,11 @@ function init() {
       e.preventDefault();
       useSpace();
     }
+    if (e.code === 'KeyC' && !e.repeat && app.viewMode === '3d' && app.renderer3d && $('screen-game').classList.contains('active')) {
+      const cm = app.renderer3d.toggleCameraMode();
+      sfx.play('ui');
+      showToast(cm === 'sinematik' ? '🎥 Sinematik Alçak 3D Kamera' : '🎥 Taktiksel Yüksek 3D Kamera');
+    }
   });
 
   window.addEventListener('keyup', (e) => {
@@ -2281,6 +2288,15 @@ function init() {
       };
     }
   });
+  const cam3dBtn = $('btn-cam-3d');
+  if (cam3dBtn) {
+    cam3dBtn.onclick = () => {
+      if (!app.renderer3d) return;
+      const cm = app.renderer3d.toggleCameraMode();
+      sfx.play('ui');
+      showToast(cm === 'sinematik' ? '🎥 Sinematik Alçak 3D Kamera' : '🎥 Taktiksel Yüksek 3D Kamera');
+    };
+  }
 
   let moveTouch = null;
   let aimTouchId = null;

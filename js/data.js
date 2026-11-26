@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v5.01';
+export const GAME_VERSION = 'v5.1';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,16 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v5.1',
+    notes: [
+      '🧊 3D ARTIK VARSAYILAN GÖRÜNÜM! (WebGL olmayan cihazlar otomatik 2D’ye düşer; isteyen tek tıkla 🎨 2D’ye geçebilir.)',
+      '🌊 Canlı Okyanus & V-Köpük İzi: Kayan dalga dokusu, gemi arkasında çift V-köpük izi ve Mercan Plajı’nda hareketli kıyı köpüğü!',
+      '💥 3D Çatışma Efektleri: Parlayan 3D mermi kuyrukları, patlama/sonar/fener şok halkaları, dalış & sürpriz çıkış su sıçramaları ve görüş menzili vinyeti!',
+      '🏝️ Haritalara Özel 3D Atmosfer: Fırtına Boğazı’nda yağmur & şimşek, Volkanik Resif’te yükselen lav kıvılcımları, Hayalet Sis’te hayalet ışıkları, sahilde süzülen martılar!',
+      '🎥 3D Kamera Açısı (C tuşu veya 🎥): Taktiksel Yüksek 3D ↔ Sinematik Alçak 3D arasında akıcı geçiş!'
+    ]
+  },
   {
     ver: 'v5.01',
     notes: [
