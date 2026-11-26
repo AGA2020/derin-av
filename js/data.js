@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v5.34';
+export const GAME_VERSION = 'v5.35';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,12 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v5.35',
+    notes: [
+      '🪨 3D Kayalık Adalar Baştan Dokulandı: Düz alçı görünümü tamamen gitti — her kayaya prosedürel taş damarı/çatlak bump haritası, ıslak su hattı gölgesi, güneşli kireçtaşı/granit ton geçişi ve tepelere doğal 3D kıyı çimleri (grass-patch.glb) eklendi!'
+    ]
+  },
   {
     ver: 'v5.34',
     notes: [

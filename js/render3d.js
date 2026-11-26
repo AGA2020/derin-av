@@ -6,8 +6,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.34';
-import { hasLineOfSight } from './sim.js?v=5.34';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.35';
+import { hasLineOfSight } from './sim.js?v=5.35';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -231,6 +231,83 @@ function createCurrentFlowTexture() {
   return tex;
 }
 
+// Procedural weathered sea-cliff stone albedo + bump texture (replaces flat 1-pixel clay!)
+function createStoneTextures() {
+  const s = 256;
+  const colCanvas = document.createElement('canvas');
+  colCanvas.width = s; colCanvas.height = s;
+  const cctx = colCanvas.getContext('2d');
+
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = s; bumpCanvas.height = s;
+  const bctx = bumpCanvas.getContext('2d');
+
+  // Base warm neutral stone canvas (tinted via vertexColors per map/height!)
+  cctx.fillStyle = '#dcd7cc';
+  cctx.fillRect(0, 0, s, s);
+  bctx.fillStyle = '#808080';
+  bctx.fillRect(0, 0, s, s);
+
+  // Horizontal weathered geological strata bands
+  for (let y = 0; y < s; y += 14) {
+    const shade = 205 + ((y * 37) % 38);
+    cctx.fillStyle = `rgba(${shade}, ${shade - 4}, ${shade - 10}, 0.28)`;
+    cctx.fillRect(0, y, s, 6 + (y % 5));
+    const bShade = 100 + ((y * 53) % 60);
+    bctx.fillStyle = `rgba(${bShade}, ${bShade}, ${bShade}, 0.35)`;
+    bctx.fillRect(0, y, s, 5 + (y % 4));
+  }
+
+  // Organic mineral speckles, pockmarks & micro-cracks
+  let seed = 1337;
+  const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+  for (let i = 0; i < 480; i++) {
+    const x = rand() * s;
+    const y = rand() * s;
+    const rx = 2 + rand() * 8;
+    const ry = 1.5 + rand() * 5;
+    const dark = rand() < 0.55;
+    cctx.fillStyle = dark ? 'rgba(62, 58, 52, 0.16)' : 'rgba(255, 250, 240, 0.18)';
+    cctx.beginPath();
+    cctx.ellipse(x, y, rx, ry, rand() * Math.PI, 0, Math.PI * 2);
+    cctx.fill();
+
+    bctx.fillStyle = dark ? 'rgba(40, 40, 40, 0.35)' : 'rgba(220, 220, 220, 0.32)';
+    bctx.beginPath();
+    bctx.ellipse(x, y, rx, ry, rand() * Math.PI, 0, Math.PI * 2);
+    bctx.fill();
+  }
+
+  // Subtle dark rock crevices / fractures
+  cctx.strokeStyle = 'rgba(45, 42, 38, 0.24)';
+  bctx.strokeStyle = 'rgba(20, 20, 20, 0.65)';
+  cctx.lineWidth = 1.5;
+  bctx.lineWidth = 2.0;
+  for (let i = 0; i < 22; i++) {
+    let cx = rand() * s;
+    let cy = rand() * s;
+    cctx.beginPath(); bctx.beginPath();
+    cctx.moveTo(cx, cy); bctx.moveTo(cx, cy);
+    for (let k = 0; k < 4; k++) {
+      cx += (rand() - 0.5) * 34;
+      cy += (rand() - 0.5) * 20;
+      cctx.lineTo(cx, cy); bctx.lineTo(cx, cy);
+    }
+    cctx.stroke(); bctx.stroke();
+  }
+
+  const mapTex = new THREE.CanvasTexture(colCanvas);
+  mapTex.wrapS = THREE.RepeatWrapping;
+  mapTex.wrapT = THREE.RepeatWrapping;
+  mapTex.colorSpace = THREE.SRGBColorSpace;
+
+  const bumpTex = new THREE.CanvasTexture(bumpCanvas);
+  bumpTex.wrapS = THREE.RepeatWrapping;
+  bumpTex.wrapT = THREE.RepeatWrapping;
+
+  return { mapTex, bumpTex };
+}
+
 // Smooth sculpted shark & octopus for non-ship marine creatures
 function createSmoothSharkGeometry() {
   const pts = [
@@ -386,6 +463,7 @@ export class SeaRenderer3D {
     // Soft procedural textures (zero hard plastic rings/blocks!)
     this.mistTex = createSoftMistTexture();
     this.currentTex = createCurrentFlowTexture();
+    this.stoneTex = createStoneTextures();
     this.lagoonTexCache = new Map();
 
     // Real PBR Fresnel + Specular Ocean Shader
@@ -464,9 +542,10 @@ export class SeaRenderer3D {
       ['rocksB', './vendor/models/pirate/rocks-b.glb'],
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=5.34'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=5.34'],
-      ['barricade', './vendor/models/pirate/barricade.glb?v=5.34'],
+      ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
+      ['chest', './vendor/models/pirate/chest.glb?v=5.35'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=5.35'],
+      ['barricade', './vendor/models/pirate/barricade.glb?v=5.35'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -535,6 +614,94 @@ export class SeaRenderer3D {
     rotWrap.add(clone);
     wrapper.add(rotWrap);
     return wrapper;
+  }
+
+  // Apply real weathered stone bump texture + height/slope vertex coloring (wet tide base + stone cliff + moss/sand top!)
+  _styleTexturedRock(group, mapId) {
+    const palettes = {
+      firtina_bogazi: { wet: '#2a3942', mid: '#7d8a96', light: '#b3bdc4', top: '#4b7352', rough: 0.86 },
+      korsan_enkazi:  { wet: '#364147', mid: '#9e9788', light: '#d1c8b6', top: '#57854d', rough: 0.84 },
+      akinti_koyu:    { wet: '#2c474d', mid: '#a89f8e', light: '#ded5c3', top: '#599153', rough: 0.82 },
+      mercan_plaji:   { wet: '#4c6664', mid: '#c4b89f', light: '#eae0ca', top: '#e2c483', rough: 0.8 },
+      volkanik_resif: { wet: '#4a1b12', mid: '#3a2a2e', light: '#5c4347', top: '#2b2024', rough: 0.9 },
+      hayalet_sis:    { wet: '#1c3333', mid: '#566e6d', light: '#8ea8a4', top: '#3c6e63', rough: 0.88 }
+    };
+    const p = palettes[mapId] || palettes.korsan_enkazi;
+    const cWet = new THREE.Color(p.wet);
+    const cMid = new THREE.Color(p.mid);
+    const cLight = new THREE.Color(p.light);
+    const cTop = new THREE.Color(p.top);
+    const tmp = new THREE.Color();
+
+    group.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(group);
+    const minY = box.min.y;
+    const spanY = Math.max(0.01, box.max.y - minY);
+
+    group.traverse((o) => {
+      if (!o.isMesh || !o.geometry) return;
+      const geo = o.geometry.clone();
+      geo.computeVertexNormals();
+      const pos = geo.attributes.position;
+      const norm = geo.attributes.normal;
+      const count = pos.count;
+
+      // Box-projected world-ish UVs so the weathered stone texture wraps cleanly without stretching!
+      const uvs = new Float32Array(count * 2);
+      const colors = new Float32Array(count * 3);
+      const wp = new THREE.Vector3();
+      const wn = new THREE.Vector3();
+      const normalMat = new THREE.Matrix3().getNormalMatrix(o.matrixWorld);
+
+      for (let i = 0; i < count; i++) {
+        wp.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+        wn.fromBufferAttribute(norm, i).applyMatrix3(normalMat).normalize();
+
+        const ax = Math.abs(wn.x), ay = Math.abs(wn.y), az = Math.abs(wn.z);
+        if (ay >= ax && ay >= az) {
+          uvs[i * 2] = wp.x * 0.025;
+          uvs[i * 2 + 1] = wp.z * 0.025;
+        } else if (ax >= az) {
+          uvs[i * 2] = wp.z * 0.025;
+          uvs[i * 2 + 1] = wp.y * 0.025;
+        } else {
+          uvs[i * 2] = wp.x * 0.025;
+          uvs[i * 2 + 1] = wp.y * 0.025;
+        }
+
+        const h = Math.max(0, Math.min(1, (wp.y - minY) / spanY));
+        // Subtle organic strata & rock variation
+        const strata = Math.sin(wp.y * 0.24 + wp.x * 0.05) * 0.08;
+        if (h < 0.24) {
+          // Wet dark tide line where ocean waves hit the base!
+          tmp.copy(cWet).lerp(cMid, h / 0.24);
+        } else {
+          const t = Math.min(1, (h - 0.24) / 0.76 + strata);
+          tmp.copy(cMid).lerp(cLight, Math.max(0, t));
+        }
+        // Upward-facing ledges get natural coastal moss / grass / sand cap!
+        if (wn.y > 0.62 && h > 0.32) {
+          const capBlend = Math.min(1, (wn.y - 0.62) / 0.28) * Math.min(1, (h - 0.32) / 0.35);
+          tmp.lerp(cTop, capBlend * 0.78);
+        }
+        colors[i * 3] = tmp.r;
+        colors[i * 3 + 1] = tmp.g;
+        colors[i * 3 + 2] = tmp.b;
+      }
+
+      geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      o.geometry = geo;
+      o.material = new THREE.MeshStandardMaterial({
+        map: this.stoneTex.mapTex,
+        bumpMap: this.stoneTex.bumpTex,
+        bumpScale: 1.8,
+        vertexColors: true,
+        roughness: p.rough,
+        metalness: 0.04,
+        envMapIntensity: 0.55
+      });
+    });
   }
 
   _getLagoonTex(hexCol) {
@@ -766,15 +933,19 @@ export class SeaRenderer3D {
         rg.add(shPlane);
 
         const rockKey = (map.id === 'mercan_plaji' || rockIdx % 3 === 0) ? 'rocksSand' : (rockIdx % 2 === 0 ? 'rocksA' : 'rocksB');
-        const rockTint = map.id === 'volkanik_resif' ? '#6b2314' : (map.id === 'mercan_plaji' ? null : '#52606d');
-        const glbRock = this._cloneGLB(rockKey, obs.r * 2.15, -4, (obs.x * 0.017 + obs.y * 0.011) % 6.28, rockTint);
+        const glbRock = this._cloneGLB(rockKey, obs.r * 2.15, -4, (obs.x * 0.017 + obs.y * 0.011) % 6.28, null);
 
         if (glbRock) {
+          // Gerçek aşınmış deniz taşı dokusu + ıslak kıyı tabanı + doğal yosun/kum tepe geçişi!
+          this._styleTexturedRock(glbRock, map.id);
           rg.add(glbRock);
-          // Add a real GLB curved palm on sandy/large sunlit islands!
+          // Büyük kayaların tepesine doğal palmiye veya kıyı çimi serpiştir!
           if (obs.r >= 44 && rockIdx % 2 === 0 && map.id !== 'volkanik_resif' && map.id !== 'hayalet_sis') {
-            const islandPalm = this._cloneGLB('palm', 58, obs.r * 0.75, rockIdx * 1.4);
+            const islandPalm = this._cloneGLB('palm', 58, obs.r * 0.72, rockIdx * 1.4);
             if (islandPalm) rg.add(islandPalm);
+          } else if (obs.r >= 38 && map.id !== 'volkanik_resif') {
+            const tuft = this._cloneGLB('grassPatch', 26, obs.r * 0.72, rockIdx * 2.1);
+            if (tuft) rg.add(tuft);
           }
         } else {
           // Clean smooth fallback while GLB loads (~100ms)
