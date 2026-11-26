@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.5';
-import { hasLineOfSight } from './sim.js?v=8.5';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.6';
+import { hasLineOfSight } from './sim.js?v=8.6';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -1168,14 +1168,44 @@ export class SeaRenderer {
     ctx.stroke();
     ctx.restore();
 
+    // 💥 Vurulunca ani geri savrulma + ezilme (hit-flash süresine bağlı)
+    const hf = this.hitFlash.get(p.id) || 0;
+    const knock = Math.min(1, hf / 0.16);
     ctx.save();
     ctx.scale(submergeScale, submergeScale);
     ctx.rotate(p.aim);
+    if (knock > 0) {
+      ctx.translate(-knock * 6, 0);
+      ctx.scale(1 - knock * 0.12, 1 + knock * 0.08);
+    }
+    if (p.rootTimer && !p.stunTimer) ctx.translate(0, Math.sin(this.time * 38) * 1.3);
     this._drawCharacterBody(ctx, p, ch, mainColor, roleColor, spd, seed);
     ctx.restore();
 
+    // ⭐ Sersemleme yıldızları başın üstünde döner
+    if (p.stunTimer && !p.submerged) {
+      ctx.save();
+      ctx.fillStyle = '#fde047';
+      ctx.strokeStyle = '#a16207';
+      ctx.lineWidth = 1;
+      for (let k = 0; k < 3; k++) {
+        const a = this.time * 5 + (k / 3) * Math.PI * 2;
+        const sx = Math.cos(a) * 13;
+        const sy = -20 + Math.sin(a) * 5;
+        ctx.beginPath();
+        for (let v = 0; v < 8; v++) {
+          const r = v % 2 ? 1.6 : 3.8;
+          const va = (v / 8) * Math.PI * 2 + this.time * 3;
+          ctx.lineTo(sx + Math.cos(va) * r, sy + Math.sin(va) * r);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     // 💥 Beyaz Vuruş Parlaması (Hit-Flash!)
-    const hf = this.hitFlash.get(p.id) || 0;
     if (hf > 0) {
       ctx.save();
       ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.78, hf * 5.2)})`;
@@ -1362,9 +1392,55 @@ export class SeaRenderer {
     const stroke = Math.sin(t * kickSpd + seed);
     const swimAmp = spd > 35 ? 4.5 : 1.2;
     const skinTone = p.charId === 'hayalet' ? '#a5f3fc' : '#f6c39b';
+    const stunned = Boolean(p.stunTimer);
+    const rooted = Boolean(p.rootTimer) && !stunned;
+    const blind = (p.blindTimer || 0) > 0 && !stunned && !rooted;
+    const dashing = !p.submerged && (Boolean(p.ramActive) || spd > 330);
+    const riding = p.charId === 'dalgabinici' && !p.submerged && (spd > 170 || p.inCurrent || Boolean(p.ramActive));
+    const baseAlpha = ctx.globalAlpha;
+
+    // 🏄 Dalga Binicisi sörf tahtası (gövdenin altında; hızlanınca yalpalar)
+    if (p.charId === 'dalgabinici' && !p.submerged) {
+      ctx.save();
+      if (riding) ctx.rotate(Math.sin(t * 4 + seed) * 0.06);
+      ctx.fillStyle = '#f8fafc';
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.ellipse(-1, 0, 25, 8.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = mainColor;
+      ctx.fillRect(-24, -1.4, 47, 2.8);
+      ctx.restore();
+    }
+
+    // 👻 Sis Hayaleti arkasında süzülen sis kuyruğu
+    if (p.charId === 'hayalet' && !p.submerged) {
+      for (let w = 0; w < 4; w++) {
+        ctx.fillStyle = `rgba(103, 232, 249, ${0.28 - w * 0.055})`;
+        ctx.beginPath();
+        ctx.arc(-14 - w * (7 + Math.min(4, spd * 0.012)), Math.sin(t * 3 + w * 1.4 + seed) * (2 + w * 1.5), 7 - w * 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Titreşen yarı saydam beden
+      ctx.globalAlpha = baseAlpha * Math.max(0.45, 0.72 + Math.sin(t * 3.1 + seed) * 0.12);
+    }
+
+    // ⚓ Kaptan'ın arkada dalgalanan paltosu
+    if (p.charId === 'kaptan') {
+      const sway = Math.sin(t * 5 + seed) * (spd > 35 ? 3 : 1);
+      ctx.fillStyle = '#7f1d1d';
+      ctx.beginPath();
+      ctx.moveTo(-6, -9);
+      ctx.quadraticCurveTo(-18, -8 + sway, -22 - Math.min(5, spd * 0.02), sway);
+      ctx.quadraticCurveTo(-18, 8 + sway, -6, 9);
+      ctx.closePath();
+      ctx.fill();
+    }
 
     // Fenerci forward headlamp beam (hidden when submerged)
-    if (p.charId === 'fenerci' && !p.submerged) {
+    if (p.charId === 'fenerci' && !p.submerged && !stunned && !blind) {
       const beam = ctx.createRadialGradient(12, 0, 4, 12, 0, 96);
       beam.addColorStop(0, 'rgba(255, 240, 170, 0.34)');
       beam.addColorStop(1, 'rgba(255, 214, 102, 0)');
@@ -1393,16 +1469,18 @@ export class SeaRenderer {
     ctx.strokeStyle = skinTone;
     ctx.lineWidth = 4.2;
     ctx.lineCap = 'round';
+    const legKick = rooted ? Math.sin(t * 24) * 5 : (stunned ? 0 : stroke * swimAmp * 0.7);
+    const legLen = dashing ? 23 : (riding ? 14 : 19);
     ctx.beginPath();
-    ctx.moveTo(-8, -4.5); ctx.lineTo(-19 - stroke * swimAmp * 0.7, -5.5);
-    ctx.moveTo(-8, 4.5); ctx.lineTo(-19 + stroke * swimAmp * 0.7, 5.5);
+    ctx.moveTo(-8, -4.5); ctx.lineTo(-legLen - legKick, -5.5);
+    ctx.moveTo(-8, 4.5); ctx.lineTo(-legLen + legKick, 5.5);
     ctx.stroke();
 
-    // Ahtapot back mini tentacles
+    // Ahtapot: arkada yelpaze gibi açılan 6 dokunaç
     if (p.charId === 'ahtapot') {
-      for (let k = 0; k < 4; k++) {
-        const yOff = (k - 1.5) * 5.2;
-        const sw = Math.sin(t * 6 + k * 1.2 + seed) * 4.5;
+      for (let k = 0; k < 6; k++) {
+        const yOff = (k - 2.5) * (dashing ? 2.6 : 4.4);
+        const sw = Math.sin(t * (dashing ? 11 : 6) + k * 1.2 + seed) * 4.5;
         ctx.strokeStyle = mainColor;
         ctx.lineWidth = 3.6;
         ctx.beginPath();
@@ -1413,10 +1491,28 @@ export class SeaRenderer {
     }
 
     // 💪 Right & Left swimming arms + REAL 2 HELD ITEMS!
-    const rHandX = 11 + stroke * swimAmp;
-    const rHandY = 13.5;
-    const lHandX = 11 - stroke * swimAmp;
-    const lHandY = -13.5;
+    let rHandX = 11 + stroke * swimAmp;
+    let rHandY = 13.5;
+    let lHandX = 11 - stroke * swimAmp;
+    let lHandY = -13.5;
+    if (stunned) {
+      // Sarkık, sersem kollar
+      rHandX = 3 + Math.sin(t * 3) * 2; lHandX = 3 + Math.sin(t * 3 + 1) * 2;
+      rHandY = 15; lHandY = -15;
+    } else if (rooted) {
+      // Çapadan/ağdan kurtulmak için çırpınma
+      rHandX = 8 + Math.sin(t * 20) * 6; lHandX = 8 - Math.sin(t * 20) * 6;
+      rHandY = 16 + Math.sin(t * 18) * 3; lHandY = -16 + Math.sin(t * 18) * 3;
+    } else if (blind) {
+      // Elleri gözlerine kapatır
+      rHandX = 9; lHandX = 9; rHandY = 4; lHandY = -4;
+    } else if (dashing) {
+      // Süpermen hamlesi: kollar öne kenetli
+      rHandX = 19; lHandX = 19; rHandY = 5; lHandY = -5;
+    } else if (riding) {
+      // Sörf dengesi: kollar yana açık
+      rHandX = 1; lHandX = 1; rHandY = 19 + Math.sin(t * 4) * 1.5; lHandY = -19 - Math.sin(t * 4) * 1.5;
+    }
     ctx.strokeStyle = skinTone;
     ctx.lineWidth = 5.2;
     ctx.beginPath();
@@ -1437,6 +1533,32 @@ export class SeaRenderer {
     ctx.ellipse(0, 0, 10.5, 14.5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+
+    if (p.charId === 'kaptan') {
+      // Omuzlarda altın apoletler
+      ctx.fillStyle = '#fbbf24';
+      ctx.strokeStyle = '#92400e';
+      ctx.lineWidth = 1;
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(0.5, s * 11.5, 4.2, 3.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    } else if (p.charId === 'kopekbaligi') {
+      // Sırtta büyük köpekbalığı yüzgeci
+      const finSw = Math.sin(t * (5 + spd * 0.02) + seed) * 1.5;
+      ctx.fillStyle = mainColor;
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-1, -4.5);
+      ctx.lineTo(-17, finSw);
+      ctx.lineTo(-1, 4.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
 
     // Stylized human head
     ctx.fillStyle = skinTone;
@@ -1512,6 +1634,20 @@ export class SeaRenderer {
       ctx.roundRect(7.5, -5.5, 4.2, 11, 2);
       ctx.fill(); ctx.stroke();
     }
+
+    if (blind) {
+      // Gözleri kapatan eller kafanın üstünde
+      ctx.fillStyle = skinTone;
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1;
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc(9.5, s * 3.6, 3.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = baseAlpha;
   }
 
   _drawPowerups(ctx, powerups) {

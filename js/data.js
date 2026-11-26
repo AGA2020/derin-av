@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v8.5';
+export const GAME_VERSION = 'v8.6';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -67,6 +67,15 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v8.6',
+    notes: [
+      '🎭 ÇARLAR GÖRSEL OLARAK YENİLENDİ — her çar artık uzaktan tek bakışta tanınır!',
+      '⚓ Kaptan’a altın apoletler + dalgalanan palto, 🦈 Köpekbalığı’na büyük sırt yüzgeci, 👻 Hayalet’e titreşen yarı saydam beden + sis kuyruğu, 🔦 Fenerci’nin feneri artık suya ışık konisi düşürür, 🐙 Ahtapot 6 dokunaçlı, 🌊 Dalga Binicisi sörf tahtasıyla — hızlanınca ayağa kalkıp dalga sürer!',
+      '💥 Yeni durum animasyonları: vurulunca geri savrulma, sersemleyince başın üstünde dönen yıldızlar, çapalanınca/ağa takılınca çırpınma, Flaş ile körleşince elleri gözlere kapama, SPACE hamlesinde süpermen pozu, düşük canda bitkin el sallama.',
+      '🎯 İtem kullanınca o eldeki kol ileri savrulur — rakibin hangi itemi kullandığını görebilirsin. Yeniden doğarken sudan fırlama animasyonu eklendi. (3D & 2D)'
+    ]
+  },
   {
     ver: 'v8.5',
     notes: [

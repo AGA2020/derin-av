@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.5';
-import { hasLineOfSight } from './sim.js?v=8.5';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.6';
+import { hasLineOfSight } from './sim.js?v=8.6';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -819,9 +819,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=8.5'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=8.5'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=8.5'],
+      ['chest', './vendor/models/pirate/chest.glb?v=8.6'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=8.6'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=8.6'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -2050,6 +2050,27 @@ export class SeaRenderer3D {
       beard.scale.set(0.75, 0.85, 1.08);
       beard.position.set(5.4, -4.8, 0);
       headGroup.add(beard);
+      // Altın apoletler (yukarıdan bakınca omuzlarda iki parlak altın disk — anında "Kaptan" okunur)
+      for (const s of [-1, 1]) {
+        const ep = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 5.2, 1.6, 12), goldTrim);
+        ep.position.set(0.8, 13.4, s * 11.2);
+        body.add(ep);
+        for (let f = 0; f < 4; f++) {
+          const fringe = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 2.6, 4), goldTrim);
+          fringe.position.set(-2.4 + f * 1.6, 11.9, s * 14.6);
+          body.add(fringe);
+        }
+      }
+      // Arkada dalgalanan uzun kaptan paltosu kuyruğu
+      const coatTail = new THREE.Group();
+      coatTail.position.set(-7.5, 9.5, 0);
+      const coatGeo = new THREE.BoxGeometry(13, 1.4, 15);
+      coatGeo.translate(-6.5, 0, 0);
+      const coat = new THREE.Mesh(coatGeo, new THREE.MeshStandardMaterial({ color: '#7f1d1d', roughness: 0.6 }));
+      coat.rotation.z = 0.35;
+      coatTail.add(coat);
+      body.add(coatTail);
+      animParts.coatTail = coatTail;
     } else if (charId === 'kopekbaligi') {
       // 🦈 Köpekbalığı: Köpekbalığı kapüşonu + sırt yüzgeci!
       const hoodMat = new THREE.MeshStandardMaterial({ color: hasCustomSkin ? hullHex : '#2563eb', roughness: 0.35 });
@@ -2067,6 +2088,21 @@ export class SeaRenderer3D {
       tailFin.scale.set(0.8, 1, 0.35);
       body.add(tailFin);
       animParts.tail = tailFin;
+      // Sırtta büyük köpekbalığı yüzgeci (yukarıdan net üçgen siluet) + beyaz karın şeridi
+      const backFin = new THREE.Mesh(new THREE.ConeGeometry(6.2, 17, 4), hoodMat);
+      backFin.scale.set(1.35, 1, 0.3);
+      backFin.rotation.z = 0.5;
+      backFin.position.set(-6.5, 16, 0);
+      backFin.castShadow = true;
+      body.add(backFin);
+      animParts.backFin = backFin;
+      const belly = new THREE.Mesh(
+        new THREE.CylinderGeometry(6.2, 5.6, 12, 10),
+        new THREE.MeshStandardMaterial({ color: '#e2e8f0', roughness: 0.5 })
+      );
+      belly.scale.set(0.5, 1, 1.1);
+      belly.position.set(6.4, 6, 0);
+      body.add(belly);
     } else if (charId === 'hayalet') {
       // 👻 Sis Hayaleti: Gizemli hayalet dalgıç kapüşonu + parlayan gözler!
       const cloakMat = new THREE.MeshStandardMaterial({ color: hasCustomSkin ? hullHex : '#0f766e', roughness: 0.5, transparent: true, opacity: 0.9 });
@@ -2077,6 +2113,19 @@ export class SeaRenderer3D {
       const gHalo = this._makeGlowSprite('#67e8f9', 26, 0.55);
       gHalo.position.set(7, 2, 0);
       headGroup.add(gHalo);
+      // Yarı saydam, titreşen hayalet beden + arkada süzülen sis kuyruğu
+      suitMat.transparent = true;
+      suitMat.opacity = 0.62;
+      skinMat.transparent = true;
+      skinMat.opacity = 0.8;
+      animParts.ghostMats = [suitMat, skinMat, cloakMat];
+      animParts.wisps = [];
+      for (let w = 0; w < 4; w++) {
+        const wisp = this._makeGlowSprite(w % 2 ? '#caf0f8' : '#67e8f9', 30 - w * 4, 0.7 - w * 0.1);
+        wisp.position.set(-12 - w * 7.5, 7 - w * 1.2, 0);
+        body.add(wisp);
+        animParts.wisps.push(wisp);
+      }
     } else if (charId === 'fenerci') {
       // 🔦 Fenerci: Sarı yağmurluk şapkası + alında parlayan kafa feneri!
       const rainMat = new THREE.MeshStandardMaterial({ color: '#facc15', roughness: 0.38 });
@@ -2093,6 +2142,17 @@ export class SeaRenderer3D {
       lampGlow.position.set(11, 5.5, 0);
       headGroup.add(lampGlow);
       animParts.lamp = lamp;
+      animParts.lampGlow = lampGlow;
+      // Suya düşen ileri fener ışık konisi (geniş görüş pasifini görselleştirir)
+      const beamGeo = new THREE.CircleGeometry(115, 20, -0.3, 0.6);
+      beamGeo.rotateX(-Math.PI / 2);
+      const beam = new THREE.Mesh(
+        beamGeo,
+        new THREE.MeshBasicMaterial({ map: this.glowTex, color: '#fde68a', transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending })
+      );
+      beam.position.set(0, 2.6, 0);
+      root.add(beam);
+      animParts.beam = beam;
     } else if (charId === 'ahtapot') {
       // 🐙 Ahtapot: Mor ahtapot şapkası + sırtta sallanan 4 dokunaç!
       const octoMat = new THREE.MeshStandardMaterial({ color: hasCustomSkin ? hullHex : '#9333ea', roughness: 0.32 });
@@ -2106,13 +2166,14 @@ export class SeaRenderer3D {
         headGroup.add(ce);
       }
       animParts.tentacles = [];
-      for (let k = 0; k < 4; k++) {
-        const a = ((k - 1.5) / 3) * 1.1;
+      // 6 dokunaç, arkada geniş bir yelpaze açar (yukarıdan net "ahtapot" siluet)
+      for (let k = 0; k < 6; k++) {
+        const a = ((k - 2.5) / 5) * 1.9;
         const tg = new THREE.Group();
         tg.position.set(-7, 6, 0);
         tg.rotation.y = a;
         const arm = new THREE.Mesh(this._sharedGeo.tentacle, octoMat);
-        arm.scale.setScalar(0.68);
+        arm.scale.setScalar(k === 0 || k === 5 ? 0.6 : 0.72);
         tg.add(arm);
         body.add(tg);
         animParts.tentacles.push({ group: tg, baseA: a, idx: k });
@@ -2127,8 +2188,38 @@ export class SeaRenderer3D {
       const goggles = new THREE.Mesh(new THREE.BoxGeometry(4.5, 4.2, 12.5), new THREE.MeshBasicMaterial({ color: '#38bdf8' }));
       goggles.position.set(8.2, 4.2, 0);
       headGroup.add(goggles);
+      // 🏄 Sörf tahtası: yavaşken üstünde kürek çeker, hızlanınca ayağa kalkıp dalga sürer
+      const board = new THREE.Group();
+      const boardMat = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.35 });
+      const deck = new THREE.Mesh(new THREE.CylinderGeometry(7.5, 7.5, 1.8, 18), boardMat);
+      deck.scale.set(3.4, 1, 1);
+      board.add(deck);
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(46, 2, 2.6), new THREE.MeshBasicMaterial({ color: hasCustomSkin ? hullHex : '#06d6a0' }));
+      board.add(stripe);
+      const fin = new THREE.Mesh(new THREE.ConeGeometry(2.4, 5, 4), darkMat);
+      fin.position.set(-20, -2.6, 0);
+      fin.rotation.x = Math.PI;
+      fin.scale.set(1, 1, 0.3);
+      board.add(fin);
+      board.position.set(-1, 3.6, 0);
+      root.add(board);
+      animParts.board = board;
     }
     body.add(headGroup);
+
+    // ⭐ Sersemleme yıldızları (başın üstünde döner) — tüm çarlarda ortak
+    const stunStars = new THREE.Group();
+    stunStars.position.set(2, 36, 0);
+    const starMat = new THREE.MeshBasicMaterial({ color: '#fde047' });
+    for (let k = 0; k < 3; k++) {
+      const star = new THREE.Mesh(new THREE.OctahedronGeometry(2.6, 0), starMat);
+      const a = (k / 3) * Math.PI * 2;
+      star.position.set(Math.cos(a) * 11, 0, Math.sin(a) * 11);
+      stunStars.add(star);
+    }
+    stunStars.visible = false;
+    root.add(stunStars);
+    animParts.stunStars = stunStars;
 
     // 💪 Natural Bent RIGHT & LEFT ARMS (angled comfortably inward holding Slot 0 & Slot 1!)
     const makeArm = (side) => {
@@ -2195,6 +2286,14 @@ export class SeaRenderer3D {
     animParts.rightLeg = rightLeg;
     animParts.leftLeg = leftLeg;
     animParts.head = headGroup;
+
+    // Malzemelerin kendi parıltısını sakla (vuruş parlaması bitince buna geri dönülür)
+    body.traverse((obj) => {
+      if (obj.isMesh && obj.material?.emissive && obj.material.userData.baseE === undefined) {
+        obj.material.userData.baseE = obj.material.emissive.getHex();
+        obj.material.userData.baseEI = obj.material.emissiveIntensity;
+      }
+    });
 
     return {
       root,
@@ -2638,6 +2737,8 @@ export class SeaRenderer3D {
     sinkRig.ring.visible = false;
     sinkRig.root.position.set(sp.x, 0, sp.y);
     sinkRig.body.rotation.y = -sp.aim;
+    if (sinkRig.animParts.beam) sinkRig.animParts.beam.visible = false;
+    if (sinkRig.animParts.board) sinkRig.animParts.board.rotation.y = -sp.aim + 0.6; // tahta yüzerek geride kalır
     this.fxGroup.add(sinkRig.root);
     this.sinkingRigs.push({
       rig: sinkRig,
@@ -3061,7 +3162,11 @@ export class SeaRenderer3D {
     let showDiveRing = false;
 
     for (const p of players) {
-      if (!p.alive) continue;
+      if (!p.alive) {
+        const deadRig = this.playerRigs.get(p.id);
+        if (deadRig?.anim) deadRig.anim.dead = true;
+        continue;
+      }
       if (!this._canViewerSee(me, p, map, state.roundEvent)) continue;
       aliveIds.add(p.id);
 
@@ -3082,12 +3187,46 @@ export class SeaRenderer3D {
       rig.root.visible = true;
       rig.root.position.set(sp.x, 0, sp.y);
 
-      // When submerged, glide horizontally face-down (natural proportions — NO squashed pancake head!)
-      const targetY = p.submerged ? -3.2 : (Math.sin(this.time * 3.8 + sp.x * 0.02) * 1.4);
+      // 🎭 Durum tabanlı poz sistemi: tüm çarlar ortak pozları paylaşır, çar başına sadece aksesuarlar değişir
+      const anim = rig.anim || (rig.anim = { hitT: 0, castT: [0, 0], prevItems: null, spawnT: 0, lastHf: 0, lastT: this.time, sy: 1, dead: false });
+      const adt = Math.max(0, Math.min(0.1, this.time - anim.lastT));
+      anim.lastT = this.time;
+      if (anim.dead) { anim.dead = false; anim.spawnT = 0.5; anim.hitT = 0; }
+      const hf = this.hitFlash.get(p.id) || 0;
+      if (hf > anim.lastHf + 0.01) anim.hitT = 0.34;
+      anim.lastHf = hf;
+      anim.hitT = Math.max(0, anim.hitT - adt);
+      anim.spawnT = Math.max(0, anim.spawnT - adt);
+      const curItems = p.items || [];
+      for (let s = 0; s < 2; s++) {
+        const it = curItems[s];
+        const prev = anim.prevItems?.[s];
+        if (it && prev && prev.id === it.id && (it.usesLeft < prev.usesLeft || it.cd > prev.cd + 0.3)) anim.castT[s] = 0.3;
+        anim.castT[s] = Math.max(0, anim.castT[s] - adt);
+      }
+      anim.prevItems = curItems.map(it => ({ id: it.id, usesLeft: it.usesLeft, cd: it.cd }));
+
+      const spd = Math.hypot(p.vx || 0, p.vy || 0);
+      const knock = anim.hitT / 0.34; // 1 → 0: vurulunca ani geri savrulma, sonra toparlanma
+      const stunned = Boolean(p.stunTimer);
+      const rooted = Boolean(p.rootTimer) && !stunned;
+      const blind = (p.blindTimer || 0) > 0 && !stunned && !rooted;
+      const dashing = !p.submerged && (Boolean(p.ramActive) || spd > 330);
+      const hpRatio = (p.hp || 0) / Math.max(1, p.maxHp || 120);
+      const lowHp = hpRatio < 0.25 && !p.submerged;
+      const riding = rig.charId === 'dalgabinici' && !p.submerged && (spd > 170 || p.inCurrent || Boolean(p.ramActive));
+
+      // Su üstünde hafif sallanma; su altında yüzüstü süzülme (oranlar korunur)
+      const targetY = p.submerged ? -3.2 : (Math.sin(this.time * 3.8 + sp.x * 0.02) * 1.4) + (riding ? 5 : 0) + (lowHp ? -1.6 : 0);
       rig.diveY += (targetY - rig.diveY) * 0.22;
-      rig.body.position.y = rig.diveY;
+      const spawnK = anim.spawnT / 0.5;
+      rig.body.position.y = rig.diveY - spawnK * spawnK * 14;
       const targetSy = p.submerged ? 0.86 : 1.0;
-      rig.body.scale.y += (targetSy - rig.body.scale.y) * 0.2;
+      anim.sy += (targetSy - anim.sy) * 0.2;
+      rig.body.scale.set(1 + knock * 0.08, anim.sy * (1 - knock * 0.12), 1 + knock * 0.08);
+      // Yeniden doğunca sudan fırlayıp hafif esneyerek yerine oturma
+      const popScale = spawnK > 0 ? 1 + Math.sin((1 - spawnK) * Math.PI) * 0.18 - spawnK * 0.25 : 1;
+      rig.root.scale.setScalar(popScale);
       rig.body.rotation.y = -sp.aim;
       rig.ring.material.opacity = p.submerged ? 0.92 : 0.78;
       rig.ring.material.color.set(p.submerged ? '#38bdf8' : rig.roleHex);
@@ -3095,8 +3234,6 @@ export class SeaRenderer3D {
       // Sync the real 2 items held in the swimmer's right & left hands!
       this._syncHandheldItems(rig, p);
 
-      const spd = Math.hypot(p.vx || 0, p.vy || 0);
-      // Dynamic swimmer stroke, underwater legs, lunge arms & weapon recoil!
       const prevA = this.prevAim.get(p.id);
       let dAim = 0;
       if (prevA !== undefined) {
@@ -3107,56 +3244,159 @@ export class SeaRenderer3D {
       rig.bankAngle = (rig.bankAngle || 0) + (targetBank - (rig.bankAngle || 0)) * 0.18;
       const recoil = this.shipRecoil.get(p.id) || 0;
       const recoilPush = recoil > 0 ? -(recoil / 0.16) * 6.5 : 0;
-      rig.body.position.x = Math.cos(sp.aim) * recoilPush;
-      rig.body.position.z = Math.sin(sp.aim) * recoilPush;
-      rig.body.rotation.x = Math.sin(this.time * 4.5 + sp.y * 0.02) * 0.05 + rig.bankAngle;
-      // Natural upright treading above water, horizontal face-down glide underwater!
-      rig.body.rotation.z = p.submerged ? -0.78 : (-Math.min(0.14, spd * 0.00045) + (recoil > 0 ? 0.14 : 0));
+      const push = recoilPush - knock * 7;
+      const jitter = rooted ? Math.sin(this.time * 38) * 1.3 : 0;
+      const cosAim = Math.cos(sp.aim);
+      const sinAim = Math.sin(sp.aim);
+      rig.body.position.x = cosAim * push - sinAim * jitter;
+      rig.body.position.z = sinAim * push + cosAim * jitter;
 
-      const kickSpd = 6 + spd * 0.055;
+      let roll = Math.sin(this.time * 4.5 + sp.y * 0.02) * 0.05 + rig.bankAngle;
+      if (stunned) roll += Math.sin(this.time * 6) * 0.18;
+      if (rooted) roll += Math.sin(this.time * 22) * 0.12;
+      rig.body.rotation.x = roll;
+      // Pitch: negatif = öne eğilme, pozitif = geriye yaslanma
+      let pitch;
+      if (p.submerged) pitch = -0.78;
+      else if (dashing) pitch = -0.62;
+      else if (riding) pitch = -0.2;
+      else pitch = -Math.min(0.14, spd * 0.00045) + (recoil > 0 ? 0.14 : 0) + (lowHp ? 0.1 : 0);
+      pitch += knock * 0.42;
+      rig.body.rotation.z = pitch;
+
+      const slowMul = p.slowTimer ? 0.55 : 1;
+      const kickSpd = (6 + spd * 0.055) * slowMul;
       const stroke = Math.sin(this.time * kickSpd + (p.id?.length || 0));
-      const isLunge = spd > 330;
-      if (rig.animParts.rightArm && rig.animParts.leftArm) {
-        const recPitch = recoil > 0 ? 0.42 : 0;
-        if (isLunge) {
-          rig.animParts.rightArm.rotation.y = 0.25;
-          rig.animParts.leftArm.rotation.y = -0.25;
-          rig.animParts.rightArm.rotation.z = 0.12;
-          rig.animParts.leftArm.rotation.z = 0.12;
+      const ap = rig.animParts;
+      if (ap.rightArm && ap.leftArm) {
+        const R = ap.rightArm.rotation;
+        const L = ap.leftArm.rotation;
+        if (stunned) {
+          // Kollar sarkık, sersem sallanma
+          R.y = 0.05 + Math.sin(this.time * 3) * 0.12; L.y = -0.05 + Math.sin(this.time * 3 + 1) * 0.12;
+          R.z = -0.35; L.z = -0.35;
+        } else if (rooted) {
+          // Çapadan/ağdan kurtulmak için çırpınma
+          R.y = 0.2 + Math.sin(this.time * 20) * 0.35; L.y = -0.2 - Math.sin(this.time * 20 + 1.3) * 0.35;
+          R.z = 0.75 + Math.sin(this.time * 18) * 0.5; L.z = 0.75 - Math.sin(this.time * 18) * 0.5;
+        } else if (blind) {
+          // Elleri gözlerine kapatır
+          R.y = 0.85; L.y = -0.85; R.z = 0.92; L.z = 0.92;
+        } else if (dashing) {
+          // Süpermen hamlesi: iki kol öne kenetli
+          R.y = 0.25; L.y = -0.25; R.z = 0.12; L.z = 0.12;
+        } else if (riding) {
+          // Sörf dengesi: kollar yana açık
+          R.y = -0.55 + Math.sin(this.time * 4) * 0.08; L.y = 0.55 - Math.sin(this.time * 4) * 0.08;
+          R.z = 0.35; L.z = 0.35;
         } else {
-          rig.animParts.rightArm.rotation.y = 0.08 + stroke * (spd > 35 ? 0.2 : 0.05);
-          rig.animParts.leftArm.rotation.y = -0.08 - stroke * (spd > 35 ? 0.2 : 0.05);
-          rig.animParts.rightArm.rotation.z = recPitch + stroke * (spd > 35 ? 0.14 : 0.04);
-          rig.animParts.leftArm.rotation.z = recPitch - stroke * (spd > 35 ? 0.14 : 0.04);
+          const recPitch = recoil > 0 ? 0.42 : 0;
+          R.y = 0.08 + stroke * (spd > 35 ? 0.2 : 0.05);
+          L.y = -0.08 - stroke * (spd > 35 ? 0.2 : 0.05);
+          R.z = recPitch + stroke * (spd > 35 ? 0.14 : 0.04);
+          L.z = recPitch - stroke * (spd > 35 ? 0.14 : 0.04);
+          if (lowHp && Math.sin(this.time * 1.7 + sp.x * 0.01) > 0.3) {
+            // Bitkin, yardım ister gibi el sallama
+            R.z = 1.15 + Math.sin(this.time * 14) * 0.3;
+          }
+        }
+        // İtem kullanımı: o eldeki kol ileri savrulur (rakip hangi itemi kullandığını görür)
+        const c0 = anim.castT[0] / 0.3;
+        const c1 = anim.castT[1] / 0.3;
+        if (c0 > 0) { R.z += Math.sin(c0 * Math.PI) * 0.9; R.y += c0 * 0.45; }
+        if (c1 > 0) { L.z += Math.sin(c1 * Math.PI) * 0.9; L.y -= c1 * 0.45; }
+        if (knock > 0) { R.z += knock * 0.55; L.z += knock * 0.55; }
+      }
+      if (ap.rightLeg && ap.leftLeg) {
+        let base = 0.55;
+        let legAmp = spd > 35 ? 0.34 : 0.1;
+        let legSpd = kickSpd * 1.35;
+        if (riding) { base = 1.3; legAmp = 0.05; }
+        else if (dashing) { base = 0.2; legAmp = 0.12; legSpd *= 1.6; }
+        else if (rooted) { legAmp = 0.5; legSpd = 24; }
+        else if (stunned) { legAmp = 0.04; }
+        ap.rightLeg.rotation.z = base + Math.sin(this.time * legSpd) * legAmp;
+        ap.leftLeg.rotation.z = base - Math.sin(this.time * legSpd) * legAmp;
+      }
+      if (ap.head) {
+        if (stunned) {
+          ap.head.rotation.x = Math.sin(this.time * 7) * 0.3;
+          ap.head.rotation.z = Math.cos(this.time * 7) * 0.12;
+        } else {
+          ap.head.rotation.x = 0;
+          ap.head.rotation.z = knock * 0.4 + (lowHp ? 0.22 : 0);
         }
       }
-      if (rig.animParts.rightLeg && rig.animParts.leftLeg) {
-        const legAmp = spd > 35 ? 0.34 : 0.1;
-        rig.animParts.rightLeg.rotation.z = 0.55 + Math.sin(this.time * kickSpd * 1.35) * legAmp;
-        rig.animParts.leftLeg.rotation.z = 0.55 - Math.sin(this.time * kickSpd * 1.35) * legAmp;
+      if (ap.stunStars) {
+        ap.stunStars.visible = stunned && !p.submerged;
+        if (ap.stunStars.visible) {
+          ap.stunStars.rotation.y = this.time * 5;
+          ap.stunStars.position.y = 36 + rig.diveY + Math.sin(this.time * 6) * 1.5;
+        }
       }
-      if (rig.animParts.swimCollar) {
+      if (ap.swimCollar) {
         const sc = 0.94 + Math.sin(this.time * 4.5 + sp.x * 0.02) * 0.08 + Math.min(0.12, spd * 0.00035);
-        rig.animParts.swimCollar.scale.set(sc, sc, 1);
-        rig.animParts.swimCollar.rotation.z += 0.015;
-        rig.animParts.swimCollar.visible = !p.submerged;
+        ap.swimCollar.scale.set(sc, sc, 1);
+        ap.swimCollar.rotation.z += 0.015;
+        ap.swimCollar.visible = !p.submerged;
       }
-      if (rig.animParts.snorkel) {
-        rig.animParts.snorkel.visible = Boolean(p.submerged);
+      if (ap.snorkel) {
+        ap.snorkel.visible = Boolean(p.submerged);
         // Keep snorkel pointing straight UP toward the sky even while tilted face-down!
-        rig.animParts.snorkel.rotation.z = p.submerged ? 0.78 : 0;
+        ap.snorkel.rotation.z = p.submerged ? 0.78 : 0;
       }
 
-      if (rig.animParts.tail) rig.animParts.tail.rotation.y = Math.sin(this.time * (8 + spd * 0.035)) * 0.44;
-      if (rig.animParts.tentacles) {
-        for (const t of rig.animParts.tentacles) {
-          t.group.rotation.y = t.baseA + Math.sin(this.time * 5 + t.idx) * 0.24;
-          t.group.rotation.z = Math.cos(this.time * 4 + t.idx) * 0.18;
+      // Çara özel aksesuar animasyonları
+      if (ap.tail) ap.tail.rotation.y = Math.sin(this.time * (8 + spd * 0.035)) * 0.44;
+      if (ap.backFin) ap.backFin.rotation.x = Math.sin(this.time * (5 + spd * 0.02)) * 0.12;
+      if (ap.tentacles) {
+        const tSpd = dashing ? 11 : 5;
+        for (const t of ap.tentacles) {
+          t.group.rotation.y = t.baseA * (dashing ? 0.45 : 1) + Math.sin(this.time * tSpd + t.idx) * 0.24;
+          t.group.rotation.z = Math.cos(this.time * (tSpd - 1) + t.idx) * 0.18;
         }
       }
+      if (ap.coatTail) {
+        ap.coatTail.rotation.y = Math.sin(this.time * 5 + sp.x * 0.01) * (spd > 35 ? 0.18 : 0.06);
+        ap.coatTail.rotation.z = -Math.min(0.32, spd * 0.0011);
+      }
+      if (ap.ghostMats) {
+        const flick = 0.62 + Math.sin(this.time * 3.1 + sp.x * 0.01) * 0.12 + (Math.random() < 0.03 ? -0.2 : 0) - (p.inFog ? 0.14 : 0);
+        ap.ghostMats[0].opacity = Math.max(0.3, flick);
+        ap.ghostMats[1].opacity = Math.max(0.4, flick + 0.18);
+        ap.ghostMats[2].opacity = Math.max(0.45, flick + 0.26);
+        for (let w = 0; w < ap.wisps.length; w++) {
+          const wisp = ap.wisps[w];
+          wisp.visible = !p.submerged;
+          wisp.position.z = Math.sin(this.time * 3 + w * 1.4) * (2 + w * 1.6);
+          wisp.position.y = 7 - w * 1.2 + Math.sin(this.time * 4 + w) * 1.2;
+          wisp.position.x = -12 - w * (7.5 + Math.min(4, spd * 0.012));
+        }
+      }
+      if (ap.beam) {
+        ap.beam.visible = !p.submerged && !stunned && !blind;
+        ap.beam.rotation.y = -sp.aim;
+        ap.beam.position.y = 2.6 + rig.diveY * 0.3;
+        ap.beam.material.opacity = 0.26 + Math.sin(this.time * 11) * 0.02 + Math.sin(this.time * 2.3) * 0.03;
+      }
+      if (ap.lampGlow) {
+        const lg = 34 * (0.92 + Math.sin(this.time * 9) * 0.08);
+        ap.lampGlow.scale.set(lg, lg, 1);
+      }
+      if (ap.board) {
+        const board = ap.board;
+        board.rotation.order = 'YXZ';
+        board.visible = !p.submerged;
+        board.rotation.y = -sp.aim;
+        board.rotation.x = riding ? rig.bankAngle * 2.4 : Math.sin(this.time * 3.4 + sp.x * 0.02) * 0.05;
+        board.rotation.z = riding ? 0.07 : 0;
+        board.position.y = 3.6 + (riding ? 1.6 : rig.diveY * 0.4);
+        board.position.x = cosAim * (push * 0.6);
+        board.position.z = sinAim * (push * 0.6);
+      }
 
-      if (rig.animParts.flag) {
-        const flag = rig.animParts.flag;
+      if (ap.flag) {
+        const flag = ap.flag;
         flag.material.color.set(p.hasCrown ? '#fde047' : rig.roleHex);
         const pos = flag.geometry.attributes.position;
         const flutter = 8.5 + spd * 0.03;
@@ -3188,9 +3428,10 @@ export class SeaRenderer3D {
       rig.aura.visible = Boolean(p.hasCrown || p.bounty);
       if (rig.aura.visible) rig.aura.scale.setScalar(1 + Math.sin(this.time * 7) * 0.08);
 
-      const hf = this.hitFlash.get(p.id) || 0;
+      // Vuruş parlaması / dalış tonu; yoksa malzemenin kendi parıltısına geri dön (Hayalet'in mavi ışıltısı korunur)
       rig.body.traverse((obj) => {
         if (obj.isMesh && obj.material && obj.material.emissive) {
+          const ud = obj.material.userData;
           if (hf > 0) {
             obj.material.emissive.set('#ffffff');
             obj.material.emissiveIntensity = 0.85;
@@ -3198,8 +3439,8 @@ export class SeaRenderer3D {
             obj.material.emissive.set('#0284c7');
             obj.material.emissiveIntensity = 0.55;
           } else {
-            obj.material.emissive.set('#000000');
-            obj.material.emissiveIntensity = 0;
+            obj.material.emissive.setHex(ud.baseE ?? 0x000000);
+            obj.material.emissiveIntensity = ud.baseEI ?? 0;
           }
         }
       });
@@ -3263,6 +3504,9 @@ export class SeaRenderer3D {
       }
       rig.root.position.set(d.x, 0, d.y);
       rig.body.rotation.y = -d.aim;
+      // Root'a bağlı fener konisi / sörf tahtası da aynı yöne baksın (yoksa sahte olduğu belli olur)
+      if (rig.animParts.beam) rig.animParts.beam.rotation.y = -d.aim;
+      if (rig.animParts.board) rig.animParts.board.rotation.y = -d.aim;
     }
     for (const [id, rig] of this.decoyRigs.entries()) {
       if (!seen.has(id)) {
