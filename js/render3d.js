@@ -6,8 +6,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.3';
-import { hasLineOfSight } from './sim.js?v=5.3';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.31';
+import { hasLineOfSight } from './sim.js?v=5.31';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -263,8 +263,8 @@ function createSmoothTentacleGeometry(length = 26, baseR = 3.5) {
 // Rich bright daytime / sunset / moonlight lighting palettes per map!
 const MAP_PALETTES = {
   firtina_bogazi: {
-    sunCol: '#e0f2fe', sunInt: 1.9, hemiSky: '#93c5fd', hemiGround: '#0c3554',
-    deep: '#0b2d4d', shallow: '#155e8a', sky: '#4b86b4', bg: '#0c2742', lagoon: '#38bdf8'
+    sunCol: '#e0f2fe', sunInt: 2.1, hemiSky: '#bae6fd', hemiGround: '#104569',
+    deep: '#0f3c63', shallow: '#1d7aa8', sky: '#70b3de', bg: '#0e3252', lagoon: '#38bdf8'
   },
   korsan_enkazi: {
     sunCol: '#fef08a', sunInt: 2.25, hemiSky: '#e0f2fe', hemiGround: '#114a66',
@@ -453,20 +453,20 @@ export class SeaRenderer3D {
   _loadAllModels() {
     const loader = new GLTFLoader();
     const manifest = [
-      ['shipPirate', './vendor/models/ship-pirate.glb'],
-      ['shipGhost', './vendor/models/ship-ghost.glb'],
-      ['shipWreck', './vendor/models/ship-wreck.glb'],
-      ['boatSpeed', './vendor/models/boat-speed.glb'],
-      ['boatTug', './vendor/models/boat-tug.glb'],
-      ['rocksA', './vendor/models/rocks-a.glb'],
-      ['rocksB', './vendor/models/rocks-b.glb'],
-      ['rocksSand', './vendor/models/rocks-sand.glb'],
-      ['palm', './vendor/models/palm.glb'],
-      ['chest', './vendor/models/chest.glb'],
-      ['barrel', './vendor/models/barrel.glb'],
-      ['barricade', './vendor/models/barricade.glb'],
-      ['dock', './vendor/models/dock.glb'],
-      ['buoy', './vendor/models/buoy.glb']
+      ['shipPirate', './vendor/models/pirate/ship-pirate.glb'],
+      ['shipGhost', './vendor/models/pirate/ship-ghost.glb'],
+      ['shipWreck', './vendor/models/pirate/ship-wreck.glb'],
+      ['boatSpeed', './vendor/models/watercraft/boat-speed.glb'],
+      ['boatTug', './vendor/models/watercraft/boat-tug.glb'],
+      ['rocksA', './vendor/models/pirate/rocks-a.glb'],
+      ['rocksB', './vendor/models/pirate/rocks-b.glb'],
+      ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
+      ['palm', './vendor/models/pirate/palm.glb'],
+      ['chest', './vendor/models/pirate/chest.glb'],
+      ['barrel', './vendor/models/pirate/barrel.glb'],
+      ['barricade', './vendor/models/pirate/barricade.glb'],
+      ['dock', './vendor/models/pirate/dock.glb'],
+      ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
 
     Promise.all(manifest.map(([key, url]) => new Promise((resolve) => {
