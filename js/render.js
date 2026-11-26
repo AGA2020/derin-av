@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.66';
-import { hasLineOfSight } from './sim.js?v=4.66';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=4.67';
+import { hasLineOfSight } from './sim.js?v=4.67';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -155,7 +155,7 @@ export class SeaRenderer {
     ctx.restore();
   }
 
-  render(state, myId, dt, localAim, localPred) {
+  render(state, myId, dt, localAim, localPred, touchJoy = null) {
     this.resize();
     this.time += dt;
     this.shake = Math.max(0, this.shake - dt * 28);
@@ -350,13 +350,15 @@ export class SeaRenderer {
         ctx.fillRect(0, 0, this.viewW, this.viewH);
 
         ctx.textAlign = 'center';
-        ctx.font = '900 15px system-ui, sans-serif';
+        const isNarrow = this.viewW < 640;
+        ctx.font = isNarrow ? '900 12px system-ui, sans-serif' : '900 15px system-ui, sans-serif';
+        const warnY = isNarrow ? 82 : 118;
         if (me.diveTime >= 1.0) {
           ctx.fillStyle = '#ffd166';
-          ctx.fillText('🦈 SÜRPRİZ ÇIKIŞ HAZIR! Düşmanın dibinde [SHIFT / E] bas!', this.viewW / 2, 118);
+          ctx.fillText(isNarrow ? '🦈 SÜRPRİZ ÇIKIŞ HAZIR! Dalış butonuna bas!' : '🦈 SÜRPRİZ ÇIKIŞ HAZIR! Düşmanın dibinde [SHIFT / E] bas!', this.viewW / 2, warnY);
         } else {
           ctx.fillStyle = '#7dd3fc';
-          ctx.fillText('🤿 SU ALTINDASIN — Gizleniyorsun (Çıkış: SHIFT / E)', this.viewW / 2, 118);
+          ctx.fillText(isNarrow ? '🤿 SU ALTINDASIN — Gizleniyorsun' : '🤿 SU ALTINDASIN — Gizleniyorsun (Çıkış: SHIFT / E)', this.viewW / 2, warnY);
         }
       }
 
@@ -375,10 +377,11 @@ export class SeaRenderer {
         ctx.fillRect(0, 0, this.viewW, this.viewH);
 
         if (me.inStorm) {
+          const isNarrow = this.viewW < 640;
           ctx.fillStyle = '#ff8fa3';
-          ctx.font = '900 16px system-ui, sans-serif';
+          ctx.font = isNarrow ? '900 12.5px system-ui, sans-serif' : '900 16px system-ui, sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText('🌪️ FIRTINA DIŞINDASIN! ÇEMBERE GİR!', this.viewW / 2, 118);
+          ctx.fillText('🌪️ FIRTINA DIŞINDASIN! ÇEMBERE GİR!', this.viewW / 2, isNarrow ? 100 : 118);
         }
       }
     }
@@ -386,6 +389,31 @@ export class SeaRenderer {
     // Minimap (sağ üst)
     this._drawMinimap(ctx, state, map, me);
 
+    // 📱 Mobil sanal kumanda göstergesi (sadece dokunulurken görünür)
+    if (touchJoy) {
+      this._drawTouchJoy(ctx, touchJoy);
+    }
+
+    ctx.restore();
+  }
+
+  _drawTouchJoy(ctx, joy) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(125, 211, 252, 0.42)';
+    ctx.fillStyle = 'rgba(4, 18, 34, 0.34)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(joy.bx, joy.by, 46, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.72)';
+    ctx.strokeStyle = 'rgba(224, 242, 254, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(joy.cx, joy.cy, 19, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -2382,10 +2410,11 @@ export class SeaRenderer {
   }
 
   _drawMinimap(ctx, state, map, me) {
-    const mw = 176;
+    const isNarrow = this.viewW < 640;
+    const mw = isNarrow ? 104 : 176;
     const mh = Math.round(mw * (WORLD_H / WORLD_W));
-    const mx = this.viewW - mw - 16;
-    const my = 72;
+    const mx = this.viewW - mw - (isNarrow ? 8 : 16);
+    const my = isNarrow ? 56 : 72;
     const sx = mw / WORLD_W;
     const sy = mh / WORLD_H;
 

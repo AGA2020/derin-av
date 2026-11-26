@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v4.66';
+export const GAME_VERSION = 'v4.67';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,15 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v4.67',
+    notes: [
+      '📱 MOBİL ARAYÜZ & İTEM SEÇİMİ TAMAMEN YENİLENDİ:',
+      '🎒 Draft (İtem & Yetenek Seçimi) ekranında item listesinin telefonda 0px’e ezilme hatası giderildi — 2 sütunlu rahat kaydırma, 3 sütunlu kompakt yetenek ağacı ve altta sabit (sticky) Onayla butonu eklendi!',
+      '🕹️ Mobil kontroller baştan yapıldı: dokununca yanlışlıkla silah sıkma (sentetik tıklama) ve nişanın sol üste kilitlenmesi çözüldü; görsel sanal joystick + çift parmak hareket/nişan eklendi.',
+      '📐 Mobil üst HUD, alt 4 büyük başparmak butonu, mini harita ve lobi/menü ekranları telefon boyutuna tam uyarlandı.'
+    ]
+  },
   {
     ver: 'v4.66',
     notes: [

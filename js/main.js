@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=4.66';
-import { sfx } from './audio.js?v=4.66';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.66';
-import { GameSim } from './sim.js?v=4.66';
-import { SeaRenderer } from './render.js?v=4.66';
+} from './data.js?v=4.67';
+import { sfx } from './audio.js?v=4.67';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=4.67';
+import { GameSim } from './sim.js?v=4.67';
+import { SeaRenderer } from './render.js?v=4.67';
 
 const $ = (id) => document.getElementById(id);
 
@@ -82,7 +82,11 @@ const app = {
   joinTimeout: null,
   lastHostPacketAt: 0,
   exitArmTimer: null,
-  touchMove: { mx: 0, my: 0 }
+  touchMove: { mx: 0, my: 0 },
+  touchAimMode: false,
+  touchAimActive: false,
+  lastTouchAt: 0,
+  touchJoy: null
 };
 
 // ============================================================
@@ -1675,7 +1679,7 @@ function renderLoop(now) {
 
   if (app.renderer && app.liveState && app.liveState.phase === 'playing') {
     const me = app.liveState.players?.find(p => p.id === app.myId);
-    if (me) {
+    if (me && (!app.touchAimMode || app.touchAimActive)) {
       const worldMouse = app.renderer.screenToWorld(app.mouseX, app.mouseY);
       const sp = app.pred || app.renderer.smoothPos.get(me.id) || me;
       app.localAim = Math.atan2(worldMouse.y - sp.y, worldMouse.x - sp.x);
@@ -1701,7 +1705,7 @@ function renderLoop(now) {
     if (app.sim) {
       updateHudFromState(app.liveState);
     }
-    app.renderer.render(app.liveState, app.myId, dt, app.localAim, app.pred);
+    app.renderer.render(app.liveState, app.myId, dt, app.localAim, app.pred, app.touchJoy);
   }
 
   requestAnimationFrame(renderLoop);
@@ -2200,12 +2204,17 @@ function init() {
 
   const canvas = $('game-canvas');
   canvas.addEventListener('mousemove', (e) => {
+    if (performance.now() - app.lastTouchAt < 700) return;
+    app.touchAimMode = false;
+    app.touchAimActive = false;
     const rect = canvas.getBoundingClientRect();
     app.mouseX = e.clientX - rect.left;
     app.mouseY = e.clientY - rect.top;
   });
 
   canvas.addEventListener('mousedown', (e) => {
+    // Mobilde dokunma sonrası gelen sentetik mousedown tek atımlık silahı yanlışlıkla harcamasın!
+    if (performance.now() - app.lastTouchAt < 700) return;
     if (isInfoModalOpen()) return;
     if (e.button === 0) useSlot(0);
     if (e.button === 2) useSlot(1);
@@ -2213,38 +2222,80 @@ function init() {
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-  let touchStart = null;
-  canvas.addEventListener('touchstart', (e) => {
-    const t = e.touches[0];
-    if (t.clientX < window.innerWidth * 0.55) {
-      touchStart = { id: t.identifier, x: t.clientX, y: t.clientY };
-    } else {
-      const rect = canvas.getBoundingClientRect();
-      app.mouseX = t.clientX - rect.left;
-      app.mouseY = t.clientY - rect.top;
-    }
-  }, { passive: true });
+  let moveTouch = null;
+  let aimTouchId = null;
 
-  canvas.addEventListener('touchmove', (e) => {
-    for (const t of e.touches) {
-      if (touchStart && t.identifier === touchStart.id) {
-        const dx = t.clientX - touchStart.x;
-        const dy = t.clientY - touchStart.y;
-        const len = Math.hypot(dx, dy) || 1;
-        const mag = Math.min(1, len / 45);
-        app.touchMove.mx = (dx / len) * mag;
-        app.touchMove.my = (dy / len) * mag;
-        if (mag > 0.2) app.localAim = Math.atan2(dy, dx);
+  canvas.addEventListener('touchstart', (e) => {
+    if (isInfoModalOpen()) return;
+    e.preventDefault();
+    app.lastTouchAt = performance.now();
+    app.touchAimMode = true;
+    const rect = canvas.getBoundingClientRect();
+    for (const t of e.changedTouches) {
+      const lx = t.clientX - rect.left;
+      const ly = t.clientY - rect.top;
+      if (moveTouch === null && lx < rect.width * 0.55) {
+        moveTouch = { id: t.identifier, x: lx, y: ly };
+        app.touchJoy = { bx: lx, by: ly, cx: lx, cy: ly };
+      } else if (aimTouchId === null) {
+        aimTouchId = t.identifier;
+        app.mouseX = lx;
+        app.mouseY = ly;
+        app.touchAimActive = true;
       }
     }
-  }, { passive: true });
+  }, { passive: false });
 
-  canvas.addEventListener('touchend', (e) => {
-    if (touchStart && ![...e.touches].some(t => t.identifier === touchStart.id)) {
-      touchStart = null;
-      app.touchMove = { mx: 0, my: 0 };
+  canvas.addEventListener('touchmove', (e) => {
+    if (!moveTouch && aimTouchId === null) return;
+    e.preventDefault();
+    app.lastTouchAt = performance.now();
+    const rect = canvas.getBoundingClientRect();
+    for (const t of e.touches) {
+      const lx = t.clientX - rect.left;
+      const ly = t.clientY - rect.top;
+      if (moveTouch && t.identifier === moveTouch.id) {
+        const dx = lx - moveTouch.x;
+        const dy = ly - moveTouch.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const maxR = 46;
+        const mag = Math.min(1, len / maxR);
+        app.touchMove.mx = (dx / len) * mag;
+        app.touchMove.my = (dy / len) * mag;
+        app.touchJoy = {
+          bx: moveTouch.x,
+          by: moveTouch.y,
+          cx: moveTouch.x + (dx / len) * Math.min(len, maxR),
+          cy: moveTouch.y + (dy / len) * Math.min(len, maxR)
+        };
+        if (aimTouchId === null && mag > 0.16) {
+          app.touchAimActive = false;
+          app.localAim = Math.atan2(dy, dx);
+        }
+      } else if (aimTouchId !== null && t.identifier === aimTouchId) {
+        app.mouseX = lx;
+        app.mouseY = ly;
+        app.touchAimActive = true;
+      }
     }
-  }, { passive: true });
+  }, { passive: false });
+
+  const endTouches = (e) => {
+    app.lastTouchAt = performance.now();
+    const activeIds = new Set([...e.touches].map(t => t.identifier));
+    if (moveTouch && !activeIds.has(moveTouch.id)) {
+      moveTouch = null;
+      app.touchMove = { mx: 0, my: 0 };
+      app.touchJoy = null;
+      if (app.mode === 'client') sendClientInputNow();
+    }
+    if (aimTouchId !== null && !activeIds.has(aimTouchId)) {
+      aimTouchId = null;
+      app.touchAimActive = false;
+    }
+  };
+  canvas.addEventListener('touchend', endTouches, { passive: true });
+  canvas.addEventListener('touchcancel', endTouches, { passive: true });
 
   requestAnimationFrame(renderLoop);
 }

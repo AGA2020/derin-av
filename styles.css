@@ -439,12 +439,21 @@ input:focus { border-color: var(--aqua); }
 .char-stats { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #dbeafe; }
 
 /* GAME SCREEN & HUD */
-#screen-game { overflow: hidden; }
+#screen-game {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  touch-action: none;
+}
 #game-canvas {
   width: 100%;
   height: 100%;
   display: block;
   cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .hud-top {
@@ -2135,4 +2144,519 @@ kbd {
 }
 @media (max-width: 560px) {
   .seg-group.map-seg-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* === v4.67: COMPLETE MOBILE UI, DRAFT SCROLL & TOUCH HUD === */
+.hud-item-slot,
+.emote-btn,
+.item-card,
+.skill-node,
+.btn,
+.btn-icon,
+.btn-mini,
+.qmode-btn,
+.qlives-btn {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 860px) {
+  .overlay {
+    padding: 8px;
+    align-items: center;
+  }
+  .modal {
+    max-height: 94vh;
+    max-height: 94dvh;
+    border-radius: 16px;
+    padding: 14px 12px;
+    width: min(98vw, 720px);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 🎯 DRAFT MODAL: Tek kaydırılabilir akış — item grid asla 0px'e ezilmez! */
+  .modal.draft-modal {
+    display: block;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 98vw;
+    max-height: 94vh;
+    max-height: 94dvh;
+    padding: 10px 10px 0;
+  }
+  .draft-modal .draft-header {
+    margin-bottom: 6px;
+  }
+  .draft-modal .draft-header h2 {
+    font-size: 18px;
+  }
+  .draft-modal .draft-timer {
+    font-size: 20px;
+    padding: 4px 10px;
+    border-radius: 10px;
+  }
+  .draft-modal .role-banner {
+    padding: 7px 10px;
+    margin-bottom: 7px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .draft-modal .event-pill-inline {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  /* 🌿 YETENEK AĞACI: 3 sütunlu ultra kompakt mobil görünüm */
+  .draft-modal .draft-skill-tree {
+    padding: 7px 8px;
+    margin-bottom: 7px;
+  }
+  .draft-modal .skill-tree-head {
+    font-size: 11px;
+    gap: 5px;
+    margin-bottom: 6px;
+  }
+  .draft-modal .skill-branches {
+    gap: 6px;
+  }
+  .draft-modal .skill-branch {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+  .draft-modal .branch-title {
+    font-size: 11px;
+  }
+  .draft-modal .branch-nodes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+  .draft-modal .sk-arrow {
+    display: none;
+  }
+  .draft-modal .skill-node {
+    min-width: 0;
+    padding: 5px 5px;
+    gap: 3px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .draft-modal .sk-ico {
+    font-size: 14px;
+  }
+  .draft-modal .sk-txt b {
+    font-size: 10.5px;
+    line-height: 1.15;
+  }
+  .draft-modal .sk-txt small {
+    font-size: 9px;
+    line-height: 1.15;
+  }
+  .draft-modal .sk-check {
+    position: absolute;
+    top: 3px;
+    right: 5px;
+    margin-left: 0;
+    font-size: 11px;
+  }
+  .draft-modal .skill-node {
+    position: relative;
+  }
+
+  /* İtem filtre & seçili slot önizleme */
+  .draft-modal .draft-toolbar {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .draft-modal .dfilter-btn {
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+  .draft-modal .draft-loadout-preview {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .draft-modal .preview-slot {
+    font-size: 11px;
+    padding: 5px 7px;
+    justify-content: space-between;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /* İtem kartları: asla ezilmez, 2 sütun rahat dokunulur */
+  .draft-modal .draft-grid {
+    flex: none;
+    min-height: auto;
+    overflow-y: visible;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 7px;
+    padding: 2px 0 12px;
+  }
+  .draft-modal .item-card {
+    padding: 8px 8px;
+    border-radius: 11px;
+  }
+  .draft-modal .item-top {
+    gap: 4px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+  }
+  .draft-modal .item-ico {
+    font-size: 18px;
+  }
+  .draft-modal .badge-firearm,
+  .draft-modal .badge-util {
+    font-size: 9px;
+    padding: 2px 5px;
+  }
+  .draft-modal .item-name {
+    font-size: 12.5px;
+    margin-bottom: 2px;
+  }
+  .draft-modal .item-desc {
+    font-size: 10.5px;
+    line-height: 1.28;
+  }
+  .draft-modal .slot-badge {
+    margin-top: 5px;
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  /* Yapışkan (sticky) onay çubuğu: altta her zaman erişilebilir! */
+  .draft-modal .draft-footer {
+    position: sticky;
+    bottom: 0;
+    margin: 4px -10px 0;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: rgba(9, 29, 50, 0.97);
+    backdrop-filter: blur(8px);
+    z-index: 6;
+    gap: 7px;
+  }
+  .draft-modal .ready-list {
+    width: 100%;
+    gap: 4px;
+  }
+  .draft-modal .ready-pill {
+    font-size: 10.5px;
+    padding: 3px 7px;
+  }
+  .draft-modal #btn-lock-items {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 720px) {
+  /* ANA MENÜ & LOBİ MOBİL */
+  #screen-home.active,
+  #screen-lobby.active {
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+  }
+  .home-top-controls {
+    top: 8px;
+    right: 10px;
+    gap: 6px;
+  }
+  .home-shell {
+    width: 100%;
+    padding: 50px 12px 36px;
+  }
+  .brand-badge {
+    font-size: 10.5px;
+    padding: 5px 10px;
+  }
+  .brand-title {
+    font-size: clamp(32px, 10vw, 48px);
+  }
+  .brand-sub {
+    font-size: 13.5px;
+    margin-bottom: 14px;
+  }
+  .home-card {
+    padding: 16px 14px;
+    border-radius: 16px;
+  }
+  .rules-strip {
+    gap: 6px;
+    margin-top: 14px;
+  }
+  .rule-pill {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+
+  .lobby-shell {
+    width: 100%;
+    padding: 10px 8px 46px;
+    gap: 10px;
+  }
+  .lobby-header {
+    padding: 10px 12px;
+    gap: 8px;
+    border-radius: 14px;
+  }
+  .lobby-header-right {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .room-code-wrap {
+    gap: 6px;
+    font-size: 13px;
+  }
+  .code-pill {
+    font-size: 16px;
+    padding: 2px 8px;
+  }
+  .lobby-teams,
+  .lobby-chars {
+    padding: 12px 10px;
+    border-radius: 14px;
+  }
+  .quick-mode-bar {
+    gap: 4px;
+    padding: 3px;
+  }
+  .qmode-btn {
+    font-size: 11px;
+    padding: 6px 2px;
+  }
+  .quick-lives-bar {
+    gap: 4px;
+  }
+  .qlives-btn {
+    font-size: 11px;
+    padding: 5px 4px;
+  }
+  .char-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 7px;
+  }
+  .char-card {
+    padding: 9px 8px;
+    border-radius: 12px;
+  }
+  .char-head {
+    gap: 6px;
+    margin-bottom: 5px;
+  }
+  .char-ico {
+    font-size: 20px;
+  }
+  .char-title {
+    font-size: 13px;
+  }
+  .char-sub {
+    font-size: 10.5px;
+  }
+  .char-passive {
+    font-size: 11px;
+    min-height: auto;
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+  .char-stats {
+    font-size: 10.5px;
+  }
+  .skin-picker-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 5px;
+  }
+  .skin-chip {
+    font-size: 11px;
+    padding: 6px 6px;
+  }
+
+  /* MAÇ İÇİ ÜST HUD: Çakışmasız kompakt şerit */
+  .hud-top {
+    top: 6px;
+    left: 6px;
+    right: 6px;
+    gap: 4px;
+  }
+  .score-badge {
+    padding: 4px 7px;
+    font-size: 10px;
+    gap: 4px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+  .score-badge b {
+    font-size: 14px;
+  }
+  .score-row-right {
+    gap: 4px;
+  }
+  .hud-top .btn-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+    border-radius: 8px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+  }
+  .hud-top #btn-fullscreen,
+  .hud-top #btn-ambient {
+    display: none;
+  }
+  .mini-team {
+    display: none;
+  }
+  .hud-center {
+    padding: 4px 10px;
+    border-radius: 11px;
+  }
+  .hud-round {
+    font-size: 9.5px;
+  }
+  .hud-timer {
+    font-size: 18px;
+  }
+  .hud-role-pill {
+    font-size: 10px;
+    padding: 1px 7px;
+  }
+  .hud-feed {
+    top: 62px;
+    left: 6px;
+    max-width: 205px;
+    gap: 3px;
+  }
+  .feed-item {
+    font-size: 10.5px;
+    padding: 4px 7px;
+  }
+  .hud-banner {
+    top: 66px;
+    padding: 7px 14px;
+    max-width: 90vw;
+  }
+  .hb-title {
+    font-size: 15px;
+  }
+  .hb-sub {
+    font-size: 11px;
+  }
+
+  /* MAÇ İÇİ ALT DOK: Başparmak dostu 4 büyük buton */
+  .hud-bottom {
+    bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    width: 98vw;
+    gap: 4px;
+  }
+  .hud-top-row {
+    gap: 5px;
+    margin-bottom: 0;
+  }
+  .hud-hearts {
+    padding: 3px 9px;
+    gap: 3px;
+  }
+  .hud-hearts .m-heart {
+    font-size: 15px;
+  }
+  .hud-hearts .m-heart-lbl {
+    font-size: 9.5px;
+  }
+  .eff-pill {
+    font-size: 10px;
+    padding: 2px 7px;
+  }
+  .hud-dock {
+    padding: 5px 6px;
+    gap: 5px;
+    border-radius: 13px;
+  }
+  .bars-head {
+    margin-bottom: 3px;
+  }
+  .hp-text,
+  .breath-text {
+    font-size: 10px;
+  }
+  .slots-bar {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+  }
+  .hud-item-slot {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 2px;
+    padding: 6px 3px;
+    min-height: 54px;
+    border-radius: 10px;
+  }
+  .hud-item-slot > div {
+    width: 100%;
+    min-width: 0;
+  }
+  .slot-key {
+    display: none;
+  }
+  .slot-ico {
+    font-size: 19px;
+    line-height: 1;
+  }
+  .slot-title {
+    font-size: 10.5px;
+    padding-right: 0;
+    width: 100%;
+  }
+  .slot-uses {
+    font-size: 9.5px;
+  }
+
+  /* EMOJİ ÇUBUĞU: Alt dokun hemen üstünde, sade ikonlar */
+  .emote-bar {
+    left: 6px;
+    bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+    gap: 3px;
+    padding: 3px;
+    border-radius: 10px;
+  }
+  .emote-btn {
+    width: 32px;
+    height: 30px;
+    font-size: 15px;
+  }
+  .emote-btn span {
+    display: none;
+  }
+
+  /* Oyun içi sürüm rozeti mobil sağ alt dalış butonunu kapatmasın */
+  #screen-game.active ~ .version-pill {
+    display: none;
+  }
+
+  /* Diğer modallar (Ayarlar, Rehber, VS, Maç Sonu) */
+  .guide-cards,
+  .toggle-grid {
+    grid-template-columns: 1fr;
+  }
+  .guide-tab {
+    min-width: 0;
+    font-size: 11px;
+    padding: 7px 6px;
+  }
+  .vs-center-emblem {
+    font-size: 24px;
+  }
+  .big-score {
+    font-size: 18px;
+    padding: 9px;
+  }
+  .mvp-name {
+    font-size: 15px;
+  }
 }
