@@ -6,8 +6,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.31';
-import { hasLineOfSight } from './sim.js?v=5.31';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.32';
+import { hasLineOfSight } from './sim.js?v=5.32';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -754,7 +754,7 @@ export class SeaRenderer3D {
         rg.add(shPlane);
 
         const rockKey = (map.id === 'mercan_plaji' || rockIdx % 3 === 0) ? 'rocksSand' : (rockIdx % 2 === 0 ? 'rocksA' : 'rocksB');
-        const rockTint = map.id === 'volkanik_resif' ? '#7c2d12' : null;
+        const rockTint = map.id === 'volkanik_resif' ? '#6b2314' : (map.id === 'mercan_plaji' ? null : '#52606d');
         const glbRock = this._cloneGLB(rockKey, obs.r * 2.15, -4, (obs.x * 0.017 + obs.y * 0.011) % 6.28, rockTint);
 
         if (glbRock) {
@@ -853,9 +853,9 @@ export class SeaRenderer3D {
       for (let k = 0; k < 3; k++) {
         const mistMat = new THREE.MeshBasicMaterial({
           map: this.mistTex,
-          color: map.id === 'hayalet_sis' ? '#99f6e4' : '#dbeafe',
+          color: map.id === 'hayalet_sis' ? '#99f6e4' : '#cbd5e1',
           transparent: true,
-          opacity: 0.52 - k * 0.08,
+          opacity: 0.34 - k * 0.06,
           depthWrite: false
         });
         const layer = new THREE.Mesh(new THREE.PlaneGeometry(fg.r * (2.35 - k * 0.25), fg.r * (2.35 - k * 0.25)), mistMat);
@@ -990,23 +990,23 @@ export class SeaRenderer3D {
 
     if (charId === 'kaptan' && this.models.shipPirate) {
       // ⚓ KAPTAN KARA — Real Kenney Pirate Galleon GLB!
-      const glb = this._cloneGLB('shipPirate', 58, -3, Math.PI / 2, skinTint);
+      const glb = this._cloneGLB('shipPirate', 66, -3, Math.PI / 2, skinTint);
       if (glb) body.add(glb);
     } else if (charId === 'hayalet' && this.models.shipGhost) {
       // 👻 SİS HAYALETİ — Real Kenney Ghost Ship GLB!
-      const glb = this._cloneGLB('shipGhost', 58, -3, Math.PI / 2, skinTint || '#67e8f9');
+      const glb = this._cloneGLB('shipGhost', 66, -3, Math.PI / 2, skinTint || '#67e8f9');
       if (glb) body.add(glb);
     } else if (charId === 'fenerci' && this.models.boatTug) {
       // 🔦 FENERCİ — Real Kenney Lighthouse Tender Tugboat GLB + Glowing Beacon!
-      const glb = this._cloneGLB('boatTug', 50, -2, Math.PI / 2, skinTint);
+      const glb = this._cloneGLB('boatTug', 56, -2, Math.PI / 2, skinTint);
       if (glb) body.add(glb);
       const lamp = new THREE.Mesh(new THREE.SphereGeometry(4.5, 10, 8), new THREE.MeshBasicMaterial({ color: '#fde047' }));
-      lamp.position.set(2, 36, 0);
+      lamp.position.set(2, 39, 0);
       body.add(lamp);
       animParts.lamp = lamp;
     } else if (charId === 'dalgabinici' && this.models.boatSpeed) {
       // 🌊 DALGA BİNİCİSİ — Real Kenney Racing Speedboat GLB!
-      const glb = this._cloneGLB('boatSpeed', 48, -2, Math.PI / 2, skinTint);
+      const glb = this._cloneGLB('boatSpeed', 54, -2, Math.PI / 2, skinTint);
       if (glb) body.add(glb);
     } else if (charId === 'kopekbaligi') {
       // 🦈 KÖPEKBALIĞI — Smooth Glossy Wet-Skin Great White Shark!
@@ -1777,19 +1777,19 @@ export class SeaRenderer3D {
       let m = this.barrelMeshes.get(b.id);
       if (!m) {
         const g = new THREE.Group();
-        const glb = this._cloneGLB('barrel', 26, -1, (b.id * 1.3) % 6.28, '#ef4444');
+        const glb = this._cloneGLB('barrel', 18.5, -1, (b.id * 1.3) % 6.28, '#b91c1c');
         if (glb) {
           g.add(glb);
         } else {
           const fb = new THREE.Mesh(
-            new THREE.CylinderGeometry(11, 11, 20, 12),
+            new THREE.CylinderGeometry(8.5, 8.5, 16, 12),
             new THREE.MeshStandardMaterial({ color: '#dc2626', roughness: 0.55 })
           );
-          fb.position.y = 10;
+          fb.position.y = 8;
           g.add(fb);
         }
-        const fuse = new THREE.Mesh(new THREE.SphereGeometry(2.6, 8, 8), new THREE.MeshBasicMaterial({ color: '#fde047' }));
-        fuse.position.y = 25;
+        const fuse = new THREE.Mesh(new THREE.SphereGeometry(2.2, 8, 8), new THREE.MeshBasicMaterial({ color: '#fde047' }));
+        fuse.position.y = 18.5;
         g.add(fuse);
 
         this.dynamicGroup.add(g);
@@ -1816,22 +1816,22 @@ export class SeaRenderer3D {
         const col = def?.color || '#ffd166';
         const g = new THREE.Group();
         const spinWrap = new THREE.Group();
-        const glb = this._cloneGLB('chest', 28, 4, 0, col);
+        const glb = this._cloneGLB('chest', 20, 3, 0, null);
         if (glb) {
           spinWrap.add(glb);
         } else {
           const fb = new THREE.Mesh(
-            new THREE.BoxGeometry(18, 14, 14),
+            new THREE.BoxGeometry(15, 11, 11),
             new THREE.MeshStandardMaterial({ color: col, roughness: 0.4 })
           );
-          fb.position.y = 11;
+          fb.position.y = 9;
           spinWrap.add(fb);
         }
         g.add(spinWrap);
 
         const ring = new THREE.Mesh(
-          new THREE.RingGeometry(18, 21.5, 28),
-          new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: false })
+          new THREE.RingGeometry(15, 18.2, 28),
+          new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false })
         );
         ring.rotation.x = -Math.PI / 2;
         ring.position.y = 2.0;
@@ -1860,9 +1860,12 @@ export class SeaRenderer3D {
       if (!m) {
         const g = new THREE.Group();
         const rad = br.r || 28;
-        const glb = this._cloneGLB('barricade', rad * 1.9, -2, (br.id * 1.1) % 6.28);
-        if (glb) {
-          g.add(glb);
+        // Real crossed wooden pirate palisade barricade (NOT giant rum bottles!)
+        const glb1 = this._cloneGLB('barricade', rad * 1.7, -2, (br.id * 1.1) % 6.28);
+        const glb2 = this._cloneGLB('barricade', rad * 1.7, -2, ((br.id * 1.1) + Math.PI / 2) % 6.28);
+        if (glb1) {
+          g.add(glb1);
+          if (glb2) g.add(glb2);
         } else {
           const fb = new THREE.Mesh(
             new THREE.BoxGeometry(rad * 1.4, 22, rad * 1.4),

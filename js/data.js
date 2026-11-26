@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v5.31';
+export const GAME_VERSION = 'v5.32';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,12 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v5.32',
+    notes: [
+      '📐 3D Ölçek & Model Cilası: Kırılabilir barikatlardaki dev şişe kasası gerçek çapraz ahşap korsan barikatı (structure-fence.glb) ile değiştirildi; hazine sandığı ve barut fıçısı gemilere göre gerçekçi boyuta çekildi, kayalara doğal koyu taş tonu ve daha yumuşak sis opaklığı verildi.'
+    ]
+  },
   {
     ver: 'v5.31',
     notes: [
