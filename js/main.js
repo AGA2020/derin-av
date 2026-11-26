@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=6.3';
-import { sfx } from './audio.js?v=6.3';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=6.3';
-import { GameSim } from './sim.js?v=6.3';
-import { SeaRenderer } from './render.js?v=6.3';
+} from './data.js?v=7.0';
+import { sfx } from './audio.js?v=7.0';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=7.0';
+import { GameSim } from './sim.js?v=7.0';
+import { SeaRenderer } from './render.js?v=7.0';
 
 const $ = (id) => document.getElementById(id);
 
@@ -67,6 +67,9 @@ const app = {
   renderer3d: null,
   loading3d: false,
   viewMode: localStorage.getItem('derinav_view_mode') === '2d' ? '2d' : '3d',
+  gfxQuality: ['low', 'medium', 'ultra'].includes(localStorage.getItem('derinav_gfx_quality'))
+    ? localStorage.getItem('derinav_gfx_quality')
+    : (window.innerWidth < 760 ? 'medium' : 'ultra'),
   keys: new Set(),
   mouseX: 0,
   mouseY: 0,
@@ -1808,11 +1811,51 @@ function updateViewToggleButtons() {
   const c3 = $('game-canvas-3d');
   const ov = $('game-overlay-2d');
   const camBtn = $('btn-cam-3d');
+  const gfxGameBtn = $('btn-gfx-game');
   const use3dCanvas = is3d && Boolean(app.renderer3d);
   if (c2) c2.style.display = use3dCanvas ? 'none' : 'block';
   if (c3) c3.style.display = use3dCanvas ? 'block' : 'none';
   if (ov) ov.style.display = use3dCanvas ? 'block' : 'none';
   if (camBtn) camBtn.style.display = use3dCanvas ? '' : 'none';
+  if (gfxGameBtn) gfxGameBtn.style.display = use3dCanvas ? '' : 'none';
+  updateGfxQualityButtons();
+}
+
+function updateGfxQualityButtons() {
+  const q = app.gfxQuality || 'ultra';
+  const labelMap = { low: '⚡ Düşük', medium: '⚖️ Orta', ultra: '✨ Ultra' };
+  const iconMap = { low: '⚡', medium: '⚖️', ultra: '✨' };
+  const cls = `q-${q}`;
+  for (const id of ['btn-gfx-home', 'btn-gfx-lobby']) {
+    const el = $(id);
+    if (!el) continue;
+    el.textContent = labelMap[q];
+    el.classList.remove('q-low', 'q-medium', 'q-ultra');
+    el.classList.add(cls);
+  }
+  const gEl = $('btn-gfx-game');
+  if (gEl) {
+    gEl.textContent = iconMap[q];
+    gEl.title = `Grafik Kalitesi: ${labelMap[q]} (Değiştirmek için tıkla)`;
+    gEl.classList.remove('q-low', 'q-medium', 'q-ultra');
+    gEl.classList.add(cls);
+  }
+}
+
+function cycleGfxQuality() {
+  const order = ['ultra', 'medium', 'low'];
+  const next = order[(order.indexOf(app.gfxQuality) + 1) % order.length];
+  app.gfxQuality = next;
+  try { localStorage.setItem('derinav_gfx_quality', next); } catch (_) {}
+  app.renderer3d?.setQuality(next);
+  updateGfxQualityButtons();
+  sfx.play('ui');
+  const msgMap = {
+    low: '⚡ Grafik: Performans (Düşük — Maksimum FPS)',
+    medium: '⚖️ Grafik: Dengeli (Orta Kalite)',
+    ultra: '✨ Grafik: Ultra (Gökyüzü, Caustics & Tam Efektler)'
+  };
+  showToast(msgMap[next]);
 }
 
 async function setViewMode(mode, silent = false) {
@@ -1823,8 +1866,9 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=6.3');
+        const mod = await import('./render3d.js?v=7.0');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
+        app.renderer3d.setQuality(app.gfxQuality, true);
       } catch (err) {
         console.warn('3D WebGL init error:', err);
         app.viewMode = '2d';
@@ -2510,6 +2554,10 @@ function init() {
         setViewMode(app.viewMode === '3d' ? '2d' : '3d');
       };
     }
+  });
+  ['btn-gfx-home', 'btn-gfx-lobby', 'btn-gfx-game'].forEach(id => {
+    const el = $(id);
+    if (el) el.onclick = cycleGfxQuality;
   });
   const cam3dBtn = $('btn-cam-3d');
   if (cam3dBtn) {

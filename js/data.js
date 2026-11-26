@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v6.3';
+export const GAME_VERSION = 'v7.0';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,17 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v7.0',
+    notes: [
+      '🌟 BÜYÜK ULTRA 3D GÖRSEL & GRAFİK AYARLARI SÜRÜMÜ:',
+      '🎚️ 3 Kademeli Canlı Grafik Ayarı (⚡ Düşük / ⚖️ Orta / ✨ Ultra): Her oyuncu kendi cihazına göre Ana Menü, Lobi veya maç ortasında sayfayı yenilemeden 1 tıkla kalite değiştirebilir!',
+      '☀️ Haritaya Özel 3D Gökyüzü Kubbesi & Sığ Su Caustics: Her haritada ufuk gradyanı, güneş/ay parlaması, bulutlar ve sığ turkuaz sularda dans eden güneş ışığı kırılmaları!',
+      '🚩 Dalgalanan 3D Gemi Bayrakları & Fenerler: Her geminin direğinde rüzgârda canlı dalgalanan takım/rol bayrağı ve pruvada sıcak parlayan gemi feneri.',
+      '⚡ İtemlere Özel 3D Efektler & Dinamik Patlama Işığı: Çekiş Kancası 3D halatı, Çekim Bombası dönen 3D girdap hunisi, kristal Ayna Kalkanı kubbesi, Elektrik kafesi, Wind-Waker su sütunları, suda yüzen kırık tahtalar ve patlamalarda çevreyi aydınlatan dinamik ışık!',
+      '🏝️ Ada Hikâye Detayları & Hız Hissi: Adalarda titreyen kamp ateşleri, Volkanik Resif lav parıltısı, Mercan Plajı su altı mercanları + hızlanmada dinamik FOV & rüzgâr çizgileri!'
+    ]
+  },
   {
     ver: 'v6.3',
     notes: [

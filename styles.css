@@ -532,6 +532,26 @@ input:focus { border-color: var(--aqua); }
 .hud-ping-pill.warn { border-color: rgba(255, 183, 3, 0.55); color: #fde68a; }
 .hud-ping-pill.bad { border-color: rgba(239, 71, 111, 0.6); color: #fecdd3; }
 
+/* 🎚️ 3-KADEMELİ CANLI GRAFİK KALİTESİ SEÇİCİSİ */
+.btn-gfx-pill {
+  padding: 6px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  background: rgba(6, 20, 36, 0.8);
+  color: #e0f2fe;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  transition: transform 0.12s, border-color 0.15s, background 0.15s;
+}
+.btn-gfx-pill:hover { transform: translateY(-1px); }
+.btn-gfx-pill.q-low { border-color: rgba(6, 214, 160, 0.55); color: #80ffdb; background: rgba(6, 48, 42, 0.82); }
+.btn-gfx-pill.q-medium { border-color: rgba(56, 189, 248, 0.55); color: #bae6fd; background: rgba(7, 38, 66, 0.84); }
+.btn-gfx-pill.q-ultra { border-color: rgba(255, 209, 102, 0.65); color: #fef08a; background: rgba(66, 40, 8, 0.84); }
+.btn-icon.btn-gfx-pill { padding: 0; font-size: 15px; display: grid; place-items: center; }
+
 .score-badge {
   display: inline-flex;
   align-items: center;
