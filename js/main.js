@@ -15,12 +15,14 @@ import {
   PREY_ITEMS,
   FFA_ITEMS,
   ALL_ITEMS,
-  SEA_MAPS
-} from './data.js?v=5.36';
-import { sfx } from './audio.js?v=5.36';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=5.36';
-import { GameSim } from './sim.js?v=5.36';
-import { SeaRenderer } from './render.js?v=5.36';
+  SEA_MAPS,
+  getActiveCombo,
+  getComboPartners
+} from './data.js?v=6.0';
+import { sfx } from './audio.js?v=6.0';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=6.0';
+import { GameSim } from './sim.js?v=6.0';
+import { SeaRenderer } from './render.js?v=6.0';
 
 const $ = (id) => document.getElementById(id);
 
@@ -84,6 +86,8 @@ const app = {
   verClickTimer: null,
   joinTimeout: null,
   lastHostPacketAt: 0,
+  pingMs: null,
+  lastPingSent: 0,
   exitArmTimer: null,
   touchMove: { mx: 0, my: 0 },
   touchAimMode: false,
@@ -521,6 +525,8 @@ function joinOnlineRoom(rawCode) {
   app.mode = 'client';
   app.sim = null;
   app.pred = null;
+  app.pingMs = null;
+  app.lastPingSent = 0;
   app.lobbyState = null;
   app.liveState = null;
   initNet(false, code);
@@ -534,6 +540,9 @@ function leaveRoom() {
   clearTimeout(app.joinTimeout);
   app.joinTimeout = null;
   app.lastHostPacketAt = 0;
+  app.pingMs = null;
+  app.lastPingSent = 0;
+  sfx.setMusicIntensity('off');
   if (app.mode === 'client' && app.net?.connected) {
     app.net.send({ type: 'leave' });
   } else if (app.mode === 'host' && app.net?.connected) {
@@ -626,12 +635,26 @@ function handleHostReceive(msg) {
       app.sim.triggerEmote(sender, msg.idx);
       break;
     }
+    case 'ping': {
+      app.sim.triggerPing(sender, msg.x, msg.y);
+      break;
+    }
+    case 'pingMs': {
+      app.net?.send({ type: 'pongMs', to: sender, t: msg.t });
+      break;
+    }
   }
 }
 
 function handleClientReceive(msg) {
   app.lastHostPacketAt = performance.now();
   switch (msg.type) {
+    case 'pongMs': {
+      if (msg.to === app.myId && typeof msg.t === 'number') {
+        app.pingMs = Math.max(1, Math.min(999, Date.now() - msg.t));
+      }
+      break;
+    }
     case 'hostClosed': {
       leaveRoom();
       showToast('ℹ️ Oda kurucusu odadan ayrıldı.');
@@ -796,6 +819,7 @@ function broadcastState() {
 function syncPhaseScreens(phase) {
   if (phase === 'lobby') {
     app.hudCache = {};
+    sfx.setMusicIntensity('off');
     setScreen('lobby');
     $('overlay-draft').classList.remove('active');
     $('overlay-intro').classList.remove('active');
@@ -805,8 +829,10 @@ function syncPhaseScreens(phase) {
     setScreen('game');
     $('overlay-draft').classList.toggle('active', phase === 'draft');
     $('overlay-intro').classList.toggle('active', phase === 'intro');
-    $('overlay-round').classList.toggle('active', phase === 'round_end');
+    // 🎬 Son Vuruş Slow-Mo (0.95s) boyunca tur sonu penceresini gizle ki yavaş çekim görünsün!
+    $('overlay-round').classList.toggle('active', phase === 'round_end' && !app.liveState?.slowMo);
     $('overlay-match').classList.toggle('active', phase === 'match_end');
+    if (phase !== 'playing') sfx.setMusicIntensity('off');
 
     if (phase === 'draft') {
       const roundNum = (app.lobbyState?.round || app.liveState?.round || 1);
@@ -1114,14 +1140,36 @@ function renderDraftUI() {
       return true;
     });
 
+    // 🔗 İkili İtem Kombo Bannerı & Uyumlu İtem İşaretleri
+    const activeCombo = getActiveCombo(picks);
+    const partnerList = picks.length === 1 ? getComboPartners(picks[0]) : [];
+    const partnerIds = new Set(partnerList.map(x => x.partnerId));
+    const comboBanner = $('draft-combo-banner');
+    if (comboBanner) {
+      if (activeCombo) {
+        comboBanner.className = 'draft-combo-banner';
+        comboBanner.innerHTML = `🔥 <b>İKİLİ KOMBO AKTİF:</b> ${activeCombo.icon} <b>${activeCombo.name}</b> — ${activeCombo.desc}`;
+        comboBanner.style.display = 'block';
+      } else if (partnerList.length > 0) {
+        const names = partnerList.map(x => ALL_ITEMS[x.partnerId]?.name).filter(Boolean).join(', ');
+        comboBanner.className = 'draft-combo-banner hint';
+        comboBanner.innerHTML = `🔗 <b>KOMBO İPUCU:</b> <b>${names}</b> ile eşleştirirsen ekstra sinerji bonusu açılır!`;
+        comboBanner.style.display = 'block';
+      } else {
+        comboBanner.style.display = 'none';
+      }
+    }
+
     $('draft-grid').innerHTML = visiblePool.map(it => {
       const idx = picks.indexOf(it.id);
       const isPicked = idx >= 0;
+      const isPartner = !isPicked && partnerIds.has(it.id);
       return `
-        <button class="item-card ${isPicked ? 'picked' : ''} ${it.firearm ? 'firearm' : ''}" data-item="${it.id}" ${locked ? 'disabled' : ''}>
+        <button class="item-card ${isPicked ? 'picked' : ''} ${isPartner ? 'combo-partner' : ''} ${it.firearm ? 'firearm' : ''}" data-item="${it.id}" ${locked ? 'disabled' : ''}>
           <div class="item-top">
             <span class="item-ico">${it.icon}</span>
             <div class="item-badges">
+              ${isPartner ? '<span class="badge-combo">🔗 KOMBO</span>' : ''}
               ${it.firearm
                 ? '<span class="badge-firearm">🔥 TEK KULLANIM</span>'
                 : `<span class="badge-util">${it.category} · ${it.uses}x</span>`}
@@ -1395,6 +1443,33 @@ function updateHudFromState(st) {
   setIfChanged('feed', feedKey, () => {
     $('hud-feed').innerHTML = (st.feed || []).map(f => `<div class="feed-item ${f.kind}">${f.text}</div>`).join('');
   });
+
+  // 🟢 Canlı Ping Göstergesi (HOST / SOLO / ms)
+  const pingLabel = app.mode === 'offline'
+    ? '🟢 SOLO'
+    : app.mode === 'host'
+      ? '🟢 HOST'
+      : app.pingMs == null
+        ? '🟡 --ms'
+        : `${app.pingMs < 95 ? '🟢' : app.pingMs < 185 ? '🟡' : '🔴'} ${app.pingMs}ms`;
+  const pingCls = app.mode !== 'client'
+    ? 'good'
+    : (app.pingMs == null || app.pingMs < 95 ? 'good' : app.pingMs < 185 ? 'warn' : 'bad');
+  setIfChanged('pingPill', pingLabel, () => {
+    const el = $('hud-ping');
+    if (!el) return;
+    el.textContent = pingLabel;
+    el.className = `hud-ping-pill ${pingCls}`;
+  });
+
+  // 🎵 Dinamik Korsan & Fırtına Gerilim Müziği
+  if (st.phase === 'playing') {
+    const aliveCount = (st.players || []).filter(p => p.alive).length;
+    const intense = Boolean(st.storm?.active || st.phaseTimer <= 25 || (aliveCount <= 2 && (st.players?.length || 0) >= 3));
+    sfx.setMusicIntensity(intense ? 'intense' : 'calm');
+  } else {
+    sfx.setMusicIntensity('off');
+  }
 }
 
 function renderIntroVS(st) {
@@ -1646,7 +1721,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=5.36');
+        const mod = await import('./render3d.js?v=6.0');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
       } catch (err) {
         console.warn('3D WebGL init error:', err);
@@ -1710,6 +1785,31 @@ function useEmote(idx) {
   }
 }
 
+function triggerTeamPing(usePlayerPos = false) {
+  const st = app.liveState;
+  if (!st || st.phase !== 'playing') return;
+  sfx.unlock();
+  const me = st.players?.find(p => p.id === app.myId);
+  const activeR = getActiveRenderer();
+  let wx = me?.x ?? WORLD_W * 0.5;
+  let wy = me?.y ?? WORLD_H * 0.5;
+  if (!usePlayerPos && !app.touchAimMode && activeR) {
+    const wm = activeR.screenToWorld(app.mouseX, app.mouseY);
+    if (Number.isFinite(wm?.x) && Number.isFinite(wm?.y)) {
+      wx = wm.x;
+      wy = wm.y;
+    }
+  } else if (app.pred) {
+    wx = app.pred.x;
+    wy = app.pred.y;
+  }
+  if (app.sim) {
+    app.sim.triggerPing(app.myId, wx, wy);
+  } else {
+    app.net?.send({ type: 'ping', x: Math.round(wx), y: Math.round(wy) });
+  }
+}
+
 function getMoveVector() {
   let mx = app.touchMove.mx;
   let my = app.touchMove.my;
@@ -1741,6 +1841,12 @@ function renderLoop(now) {
   if (app.mode === 'client' && (app.lobbyState || app.liveState) && app.lastHostPacketAt > 0 && now - app.lastHostPacketAt > 9500) {
     leaveRoom();
     showToast('⚠️ Oda kurucusuyla bağlantı kesildi!');
+  }
+
+  // 🟢 Client canlı ms ping ölçümü (3.5 sn'de bir)
+  if (app.mode === 'client' && app.net?.connected && $('screen-game').classList.contains('active') && now - app.lastPingSent >= 3500) {
+    app.lastPingSent = now;
+    app.net.send({ type: 'pingMs', t: Date.now() });
   }
 
   const activeR = getActiveRenderer();
@@ -2108,6 +2214,17 @@ function init() {
     };
   }
 
+  const toggleMusic = () => {
+    const next = !sfx.musicOn;
+    sfx.setMusic(next);
+    const op = next ? '1' : '0.45';
+    if ($('btn-music')) $('btn-music').style.opacity = op;
+    if ($('btn-home-music')) $('btn-home-music').style.opacity = op;
+    showToast(next ? '🎵 Korsan gerilim müziği açıldı' : '🎵 Korsan gerilim müziği kapatıldı');
+  };
+  if ($('btn-music')) $('btn-music').onclick = toggleMusic;
+  if ($('btn-home-music')) $('btn-home-music').onclick = toggleMusic;
+
   // ⛶ Tam Ekran Butonları (Ana Menü & Oyun İçi)
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -2221,6 +2338,7 @@ function init() {
   document.querySelectorAll('[data-emote]').forEach(btn => {
     btn.onclick = () => useEmote(Number(btn.dataset.emote));
   });
+  if ($('btn-team-ping')) $('btn-team-ping').onclick = () => triggerTeamPing(true);
 
   const INFO_MODALS = ['overlay-guide', 'overlay-settings', 'overlay-career', 'overlay-admin', 'overlay-changelog'];
   const isInfoModalOpen = () => INFO_MODALS.some(id => $(id)?.classList.contains('active'));
@@ -2255,6 +2373,9 @@ function init() {
     if (e.code === 'Space') {
       e.preventDefault();
       useSpace();
+    }
+    if (e.code === 'KeyT' && !e.repeat) {
+      triggerTeamPing(false);
     }
     if (e.code === 'KeyC' && !e.repeat && app.viewMode === '3d' && app.renderer3d && $('screen-game').classList.contains('active')) {
       const cm = app.renderer3d.toggleCameraMode();
@@ -2317,6 +2438,7 @@ function init() {
       if (performance.now() - app.lastTouchAt < 700) return;
       if (isInfoModalOpen()) return;
       if (e.button === 0) useSlot(0);
+      if (e.button === 1) { e.preventDefault(); triggerTeamPing(false); }
       if (e.button === 2) useSlot(1);
     });
 

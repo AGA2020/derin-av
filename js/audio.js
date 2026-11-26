@@ -5,6 +5,10 @@ class SoundEngine {
     this.ctx = null;
     this.muted = false;
     this.ambientOn = true;
+    this.musicOn = localStorage.getItem('derinav_music') !== '0';
+    this.musicIntensity = 'off'; // off | calm | intense
+    this._musicStep = 0;
+    this._musicTimer = null;
     this._ambNodes = null;
   }
 
@@ -19,6 +23,7 @@ class SoundEngine {
     if (this.ambientOn && !this.muted && !this._ambNodes) {
       this._startOceanAmbient();
     }
+    this._syncMusicLoop();
   }
 
   setMuted(m) {
@@ -26,6 +31,65 @@ class SoundEngine {
     if (this._ambNodes?.masterGain && this.ctx) {
       this._ambNodes.masterGain.gain.setTargetAtTime(m || !this.ambientOn ? 0 : 0.055, this.ctx.currentTime, 0.2);
     }
+    this._syncMusicLoop();
+  }
+
+  setMusic(on) {
+    this.musicOn = on;
+    try { localStorage.setItem('derinav_music', on ? '1' : '0'); } catch (_) {}
+    if (on && !this.muted) this.unlock();
+    this._syncMusicLoop();
+  }
+
+  setMusicIntensity(level) {
+    if (this.musicIntensity === level) return;
+    this.musicIntensity = level;
+    this._syncMusicLoop();
+  }
+
+  _syncMusicLoop() {
+    clearInterval(this._musicTimer);
+    this._musicTimer = null;
+    if (this.muted || !this.musicOn || this.musicIntensity === 'off' || !this.ctx) return;
+    // 🎵 Gerilim ritmi: son 25 sn fırtınada / 1v1'de hızlı korsan davulu + bas!
+    const bpmMs = this.musicIntensity === 'intense' ? 210 : 340;
+    this._musicTimer = setInterval(() => this._playMusicBeat(), bpmMs);
+  }
+
+  _playMusicBeat() {
+    if (this.muted || !this.musicOn || !this.ctx || this.ctx.state !== 'running') return;
+    const now = this.ctx.currentTime;
+    const step = this._musicStep++ % 8;
+    const intense = this.musicIntensity === 'intense';
+    // D-minor pirate bassline (D2, D2, F2, G2, A2, G2, F2, E2)
+    const notes = [73.42, 73.42, 87.31, 98.0, 110.0, 98.0, 87.31, 82.41];
+    try {
+      // Deep naval war drum on strong beats
+      if (step === 0 || step === 4 || (intense && (step === 2 || step === 6))) {
+        const dOsc = this.ctx.createOscillator();
+        dOsc.type = 'sine';
+        dOsc.frequency.setValueAtTime(intense ? 115 : 95, now);
+        dOsc.frequency.exponentialRampToValueAtTime(36, now + 0.14);
+        const dg = this.ctx.createGain();
+        dg.gain.setValueAtTime(intense ? 0.14 : 0.08, now);
+        dg.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+        dOsc.connect(dg).connect(this.ctx.destination);
+        dOsc.start(now);
+        dOsc.stop(now + 0.17);
+      }
+      // Plucked pirate bass note
+      if (intense || step % 2 === 0) {
+        const bOsc = this.ctx.createOscillator();
+        bOsc.type = 'triangle';
+        bOsc.frequency.setValueAtTime(notes[step], now);
+        const bg = this.ctx.createGain();
+        bg.gain.setValueAtTime(intense ? 0.075 : 0.045, now);
+        bg.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        bOsc.connect(bg).connect(this.ctx.destination);
+        bOsc.start(now);
+        bOsc.stop(now + 0.19);
+      }
+    } catch (_) {}
   }
 
   setAmbient(on) {
@@ -303,6 +367,21 @@ class SoundEngine {
             osc.connect(g).connect(this.ctx.destination);
             osc.start(now + i * 0.1);
             osc.stop(now + i * 0.1 + 0.35);
+          });
+          break;
+        }
+        case 'ping': {
+          // 📍 2v2 Takım Sinyali çift parlak bip!
+          [880, 1180].forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(vol * 0.28, now + idx * 0.07);
+            g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.14);
+            osc.connect(g).connect(this.ctx.destination);
+            osc.start(now + idx * 0.07);
+            osc.stop(now + idx * 0.07 + 0.15);
           });
           break;
         }

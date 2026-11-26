@@ -6,8 +6,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.36';
-import { hasLineOfSight } from './sim.js?v=5.36';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=6.0';
+import { hasLineOfSight } from './sim.js?v=6.0';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -504,6 +504,7 @@ export class SeaRenderer3D {
     this.geyserMeshes = new Map();
     this.krakenRig = null;
     this.crownRig = null;
+    this.megaChestRig = null;
     this.stormRing = null;
     this.aimGuideMesh = null;
     this.diveRingMesh = null;
@@ -543,9 +544,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=5.36'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=5.36'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=5.36'],
+      ['chest', './vendor/models/pirate/chest.glb?v=6.0'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=6.0'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=6.0'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -1766,8 +1767,9 @@ export class SeaRenderer3D {
     const szOff = (Math.random() - 0.5) * this.shake * 1.4;
 
     const isNarrow = this.viewW < 640;
-    const wantH = this.camMode === 'sinematik' ? (isNarrow ? 390 : 300) : (isNarrow ? 590 : 465);
-    const wantB = this.camMode === 'sinematik' ? (isNarrow ? 470 : 405) : (isNarrow ? 420 : 335);
+    const slowZoom = state.slowMo ? 0.78 : 1.0;
+    const wantH = (this.camMode === 'sinematik' ? (isNarrow ? 390 : 300) : (isNarrow ? 590 : 465)) * slowZoom;
+    const wantB = (this.camMode === 'sinematik' ? (isNarrow ? 470 : 405) : (isNarrow ? 420 : 335)) * slowZoom;
     this._curCamH += (wantH - this._curCamH) * Math.min(1, dt * 6);
     this._curCamB += (wantB - this._curCamB) * Math.min(1, dt * 6);
 
@@ -1790,6 +1792,7 @@ export class SeaRenderer3D {
     this._syncGeysers(state.geysers || []);
     this._syncKraken(state.kraken);
     this._syncCrown(state.crown);
+    this._syncMegaChest(state.megaChest);
 
     if (state.storm && state.storm.active) {
       this.stormRing.visible = true;
@@ -2310,6 +2313,45 @@ export class SeaRenderer3D {
     this.crownRig.rotation.y = this.time * 2.1;
   }
 
+  _syncMegaChest(mc) {
+    if (!mc) {
+      if (this.megaChestRig) this.megaChestRig.group.visible = false;
+      return;
+    }
+    if (!this.megaChestRig) {
+      const g = new THREE.Group();
+      const spin = new THREE.Group();
+      const glb = this._cloneGLB('chest', 36, 4, 0, '#ffd166');
+      if (glb) spin.add(glb);
+      else {
+        const fb = new THREE.Mesh(new THREE.BoxGeometry(26, 20, 20), new THREE.MeshStandardMaterial({ color: '#ffd166', roughness: 0.3 }));
+        fb.position.y = 14;
+        spin.add(fb);
+      }
+      g.add(spin);
+      const beam = new THREE.Mesh(
+        new THREE.CylinderGeometry(18, 28, 180, 16, 1, true),
+        new THREE.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false })
+      );
+      beam.position.y = 90;
+      g.add(beam);
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(mc.r - 4, mc.r, 36),
+        new THREE.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 3.6;
+      g.add(ring);
+      this.dynamicGroup.add(g);
+      this.megaChestRig = { group: g, spin, ring };
+    }
+    this.megaChestRig.group.visible = true;
+    this.megaChestRig.group.position.set(mc.x, 0, mc.y);
+    this.megaChestRig.spin.position.y = Math.sin(this.time * 3.5) * 3.5;
+    this.megaChestRig.spin.rotation.y = this.time * 1.2;
+    this.megaChestRig.ring.material.color.set(mc.contested ? '#ef476f' : '#ffd166');
+  }
+
   // ============================================================
   // 🎯 CRISP 2D OVERLAY (Vision Vignette, Storm Rain, Nameplates, Minimap)
   // ============================================================
@@ -2435,7 +2477,44 @@ export class SeaRenderer3D {
       }
     }
 
-    // 3. Rescue Buoy Progress
+    // 3. Rescue Buoy & Mega Chest Progress + 2v2 Team Pings!
+    if (state.megaChest) {
+      const mc = state.megaChest;
+      const scr = this._worldToScreen(mc.x, 52, mc.y);
+      if (scr.inFront) {
+        const pct = Math.round(((mc.progress || 0) / (mc.duration || 2.5)) * 100);
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = '900 12.5px system-ui, sans-serif';
+        ctx.fillStyle = mc.contested ? '#fda4af' : '#fef08a';
+        ctx.fillText(mc.contested ? '⚔️ ÇEKİŞMELİ SANDIK!' : `💎 BÜYÜK SANDIK ${pct}%`, scr.x, scr.y - 12);
+        const bw = 82;
+        ctx.fillStyle = 'rgba(2, 10, 22, 0.85)';
+        ctx.fillRect(scr.x - bw / 2, scr.y - 6, bw, 6);
+        ctx.fillStyle = mc.contested ? '#ef476f' : '#ffd166';
+        ctx.fillRect(scr.x - bw / 2, scr.y - 6, bw * (pct / 100), 6);
+        ctx.restore();
+      }
+    }
+    for (const pg of state.pings || []) {
+      if (me && pg.team !== me.team) continue;
+      const scr = this._worldToScreen(pg.x, 12, pg.y);
+      if (!scr.inFront) continue;
+      const alpha = Math.max(0, Math.min(1, pg.life / 1.2));
+      const wave = (this.time * 2.2) % 1;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      ctx.arc(scr.x, scr.y, 12 + wave * 34, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.font = '900 12px system-ui, sans-serif';
+      ctx.fillStyle = '#ffd166';
+      ctx.fillText(`📍 ${pg.by}`, scr.x, scr.y - 18);
+      ctx.restore();
+    }
     for (const rb of state.rescueBuoys || []) {
       const scr = this._worldToScreen(rb.x, 34, rb.y);
       if (!scr.inFront) continue;
@@ -2496,6 +2575,19 @@ export class SeaRenderer3D {
 
     // 6. Minimap
     this._drawMinimap(ctx, state, map, me);
+
+    // 6b. 🎬 Son Vuruş Ağır Çekim sinematik çerçeve!
+    if (state.slowMo) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(2, 8, 16, 0.72)';
+      ctx.fillRect(0, 0, this.viewW, 38);
+      ctx.fillRect(0, this.viewH - 38, this.viewW, 38);
+      ctx.textAlign = 'center';
+      ctx.font = '900 18px system-ui, sans-serif';
+      ctx.fillStyle = '#ffd166';
+      ctx.fillText('🎬 SON VURUŞ!', this.viewW / 2, 26);
+      ctx.restore();
+    }
 
     // 7. Mobile Virtual Joystick
     if (touchJoy) {
@@ -2567,6 +2659,29 @@ export class SeaRenderer3D {
       ctx.beginPath();
       ctx.arc(state.crown.x * sx, state.crown.y * sy, 5, 0, Math.PI * 2);
       ctx.fill();
+    }
+    if (state.megaChest) {
+      const mx0 = state.megaChest.x * sx;
+      const my0 = state.megaChest.y * sy;
+      ctx.fillStyle = '#ffd166';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(mx0, my0 - 5.5);
+      ctx.lineTo(mx0 + 5.5, my0);
+      ctx.lineTo(mx0, my0 + 5.5);
+      ctx.lineTo(mx0 - 5.5, my0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    for (const pg of state.pings || []) {
+      if (me && pg.team !== me.team) continue;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(pg.x * sx, pg.y * sy, 4.5 + Math.sin(this.time * 10) * 1.5, 0, Math.PI * 2);
+      ctx.stroke();
     }
     if (state.storm && state.storm.active) {
       ctx.save();

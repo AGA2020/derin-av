@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v5.36';
+export const GAME_VERSION = 'v6.0';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,17 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v6.0',
+    notes: [
+      '🚀 BÜYÜK AKŞAM SÜRÜMÜ — 5 YENİ ÇOK OYUNCULU MEKANİK:',
+      '🔗 İKİLİ İTEM KOMBOLARI (8 Sinerji): Belli 2 itemi birlikte seçince Draft’ta gizli Kombo Rozeti & pasif bonus açılır! (Örn: Çekiş Kancası + Gemi Pompalısı, Mürekkep + Mayın, Sonar + Zıpkın...)',
+      '💎 BÜYÜK HAZİNE SANDIĞI: Turun ortasında harita merkezinde parlayan dev Altın Sandık çıkar — 2.5 sn tutan takım TÜM tükenmiş silahlarını doldurur + 45 Kalkan + 25 Can kazanır!',
+      '🎬 SON VURUŞ AĞIR ÇEKİMİ (Slow-Mo): Turu bitiren son darbede 0.9 saniyelik sinematik ağır çekim!',
+      '📍 2v2 TAKIM SİNYALİ (T / Orta Tık) & 🟢 CANLI PİNG (ms): Takım arkadaşına haritada anlık sinyal at, sağ üstte canlı pingini gör!',
+      '🎵 DİNAMİK GERİLİM MÜZİĞİ: Son 25 sn fırtınada veya 1v1 kaldığında temposu artan WebAudio deniz gerilim ritmi (🎵 aç/kapa).'
+    ]
+  },
   {
     ver: 'v5.36',
     notes: [
@@ -927,6 +938,35 @@ export const FFA_ITEMS = [...HUNTER_ITEMS, ...PREY_ITEMS];
 export const ALL_ITEMS = Object.fromEntries(
   FFA_ITEMS.map(i => [i.id, i])
 );
+
+// 🔗 İKİ İTEMLİ OYUN — 8 İMZA İKİLİ KOMBO / SİNERJİ!
+export const ITEM_COMBOS = [
+  { id: 'kanca_pompa', items: ['grapple_hook', 'blunderbuss'], icon: '🪝', name: 'Kanca-Pompa Kasabı', desc: 'Kancayla çekilen hedef 2.5 sn +%15 ekstra hasar alır!' },
+  { id: 'avci_kilidi', items: ['sonar', 'harpoon_cannon'], icon: '📡', name: 'Keskin Avcı Kilidi', desc: 'Zıpkın Topu +%15 daha hızlı uçar, işaretli hedefe +12 hasar!' },
+  { id: 'firtina_kapani', items: ['storm_surge', 'anchor_trap'], icon: '⚡', name: 'Fırtına Kapanı', desc: 'Hız takviyesinde SPACE darbesi +12 hasar & çapa CD -%15!' },
+  { id: 'sok_girdabi', items: ['electric_net', 'gravity_bomb'], icon: '🌀', name: 'Şok Girdabı', desc: 'Girdap içindeki düşmanlara Elektrik Ağı +%25 hasar vurur!' },
+  { id: 'karanlik_pusu', items: ['ink_cloud', 'sea_mine'], icon: '🦑', name: 'Karanlık Pusu', desc: 'Su Altı Mayını anında kurulur (0.15s) ve +10 ekstra hasar verir!' },
+  { id: 'kor_atis', items: ['flash_flare', 'flintlock'], icon: '✨', name: 'Kör Atış Ustası', desc: 'Kör veya sersemlemiş rakibe Korsan Tabancası +18 hasar vurur!' },
+  { id: 'hayalet_kacisi', items: ['jet_stream', 'decoy_buoy'], icon: '👻', name: 'Hayalet Kaçışı', desc: 'Sahte Klon çıkarınca +1.5 sn hız takviyesi kazanırsın!' },
+  { id: 'zirhli_yosun', items: ['mirror_shield', 'kelp_trail'], icon: '🪞', name: 'Zırhlı Yosun', desc: 'Yosun İzi açınca anında +18 Kalkan kazanırsın!' }
+];
+
+export function getActiveCombo(itemIds = []) {
+  if (!Array.isArray(itemIds) || itemIds.length < 2) return null;
+  for (const c of ITEM_COMBOS) {
+    if (itemIds.includes(c.items[0]) && itemIds.includes(c.items[1])) return c;
+  }
+  return null;
+}
+
+export function getComboPartners(itemId) {
+  const res = [];
+  for (const c of ITEM_COMBOS) {
+    if (c.items[0] === itemId) res.push({ partnerId: c.items[1], combo: c });
+    else if (c.items[1] === itemId) res.push({ partnerId: c.items[0], combo: c });
+  }
+  return res;
+}
 
 // 3 DÖNÜŞÜMLÜ DENİZ HARİTASI (Turbo Deniz Akıntıları & Power-up noktaları)
 export const SEA_MAPS = [

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>İKİ İTEMLİ OYUN — Online Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=5.36" />
+  <link rel="stylesheet" href="./styles.css?v=6.0" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -14,6 +14,7 @@
     <canvas id="home-canvas" class="home-canvas"></canvas>
     <div class="home-top-controls">
       <button id="btn-view-home" class="btn-view-toggle is-3d" title="2D / 3D Görünüm Değiştir">🧊 3D Açık</button>
+      <button id="btn-home-music" class="btn-icon" title="Gerilim Müziğini Aç/Kapat">🎵</button>
       <button id="btn-home-mute" class="btn-icon" title="Sesleri Aç/Kapat">🔊</button>
       <button id="btn-home-fs" class="btn-icon" title="Tam Ekran">⛶</button>
     </div>
@@ -152,7 +153,10 @@
     <!-- ÜST HUD -->
     <div class="hud-top">
       <div class="hud-team-col left">
-        <div id="hud-score-badge-a" class="score-badge a">TAKIM A <b id="hud-score-a">0</b></div>
+        <div class="score-row-left">
+          <div id="hud-score-badge-a" class="score-badge a">TAKIM A <b id="hud-score-a">0</b></div>
+          <span id="hud-ping" class="hud-ping-pill" title="Bağlantı Gecikmesi">🟢 HOST</span>
+        </div>
         <div id="hud-team-a" class="mini-team"></div>
       </div>
 
@@ -169,6 +173,7 @@
           <button id="btn-cam-3d" class="btn-icon" title="3D Kamera Açısı Değiştir (C: Taktik / Sinematik)" style="display:none">🎥</button>
           <button id="btn-fullscreen" class="btn-icon" title="Tam Ekran">⛶</button>
           <button id="btn-guide-game" class="btn-icon" title="Nasıl Oynanır? (Rehber)">❓</button>
+          <button id="btn-music" class="btn-icon" title="Gerilim Müziğini Aç/Kapat">🎵</button>
           <button id="btn-ambient" class="btn-icon" title="Dalga Sesi Ambıyansı Aç/Kapat">🌊</button>
           <button id="btn-mute" class="btn-icon" title="Tüm Sesleri Aç/Kapat">🔊</button>
           <button id="btn-game-exit" class="btn-icon" title="Lobiye Dön / Çık">🚪</button>
@@ -183,12 +188,13 @@
     <!-- 🔥 SERİ & ÖZEL ANONS BANNERI -->
     <div id="hud-banner" class="hud-banner"></div>
 
-    <!-- HIZLI EMOJİ TEPKİ ÇUBUĞU (3-6) -->
-    <div class="emote-bar" title="Tekne üstü emoji tepkisi (3-6)">
+    <!-- HIZLI EMOJİ & TAKIM SİNYAL ÇUBUĞU (3-6, T) -->
+    <div class="emote-bar" title="Tekne üstü emoji tepkisi (3-6) ve Takım Sinyali (T)">
       <button class="emote-btn" data-emote="0" title="3: Gülme"><span>3</span>😂</button>
       <button class="emote-btn" data-emote="1" title="4: Köpekbalığı"><span>4</span>🦈</button>
       <button class="emote-btn" data-emote="2" title="5: Alev"><span>5</span>🔥</button>
       <button class="emote-btn" data-emote="3" title="6: Batırdım"><span>6</span>💀</button>
+      <button id="btn-team-ping" class="emote-btn ping-btn" title="T / Orta Tık: Takım Sinyali At"><span>T</span>📍</button>
     </div>
 
     <!-- ALT HUD (KOMPAKT TAKTİKSEL BAR + MARİO KALPLER + CANLI ETKİ ROZETLERİ) -->
@@ -235,6 +241,7 @@
           </div>
           <div id="draft-loadout-preview" class="draft-loadout-preview"></div>
         </div>
+        <div id="draft-combo-banner" class="draft-combo-banner" style="display:none"></div>
         <div id="draft-grid" class="draft-grid"></div>
         <div class="draft-footer">
           <div id="draft-ready-list" class="ready-list"></div>
@@ -286,7 +293,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v5.36</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v6.0</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -482,6 +489,7 @@
           <div class="key-row"><kbd>SPACE</kbd><span>Avcı: Suya Bastır · Av: Dalga Kaçışı</span></div>
           <div class="key-row"><kbd>SHIFT</kbd> / <kbd>E</kbd><span>Su Altına Dal / Yüzeye Çık (Sürpriz Çıkış!)</span></div>
           <div class="key-row"><kbd>3</kbd> <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd><span>Tekne üstü mini emoji tepkileri (😂 🦈 🔥 💀)</span></div>
+          <div class="key-row"><kbd>T</kbd> / <kbd>Orta Tık</kbd><span>Takım arkadaşına harita sinyali (📍 Ping) at</span></div>
         </div>
       </div>
     </div>
@@ -527,7 +535,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=5.36"></script>
+  <script type="module" src="./js/main.js?v=6.0"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

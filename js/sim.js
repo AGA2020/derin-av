@@ -18,10 +18,11 @@ import {
   PREY_ITEMS,
   FFA_ITEMS,
   ALL_ITEMS,
+  getActiveCombo,
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=5.36';
+} from './data.js?v=6.0';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -123,6 +124,9 @@ export class GameSim {
     this.geyserTimer = 4.5; // 🌋 Lav gayzeri sayacı
     this.kraken = null; // 🐙 Kraken Boss (7. Tur Olayı)
     this.krakenSpawnTimer = 0;
+    this.megaChest = null; // 💎 Tur Ortası Büyük Hazine Sandığı
+    this.megaChestSpawned = false;
+    this.pings = []; // 📍 2v2 Takım Sinyalleri
     this.matchStats = {}; // playerId -> cumulative match stats across all rounds!
     this.phaseTimer = 0;
     this.roundWinnerRole = null;
@@ -580,6 +584,9 @@ export class GameSim {
     this.geyserTimer = 4.2;
     this.kraken = null;
     this.krakenSpawnTimer = this.roundEvent === 'kraken_uyanisi' ? 16.0 : 0;
+    this.megaChest = null;
+    this.megaChestSpawned = false;
+    this.pings = [];
 
     // 👑 Altın Taç Modu: Tacı merkezdeki en yakın açık suya yerleştir!
     this.crownScores = {};
@@ -648,6 +655,9 @@ export class GameSim {
         skinId: s.skinId || 'auto',
         skills: [...(s.skills || [])],
         sk,
+        combo: getActiveCombo(s.items),
+        grappleVuln: 0,
+        pingCd: 0,
         x: sp.x,
         y: sp.y,
         vx: 0,
@@ -898,7 +908,8 @@ export class GameSim {
     } else {
       itemState.usesLeft -= 1;
       const utilMult = def.firearm ? 1.0 : sk.utilCdMult;
-      itemState.cd = def.cooldown * (ch.cdMult || 1) * utilMult;
+      const comboCdMult = (def.id === 'anchor_trap' && p.combo?.id === 'firtina_kapani') ? 0.85 : 1.0;
+      itemState.cd = def.cooldown * (ch.cdMult || 1) * utilMult * comboCdMult;
     }
 
     if (def.firearm) {
@@ -906,7 +917,8 @@ export class GameSim {
     }
 
     const trapBonus = ch.trapBonus || 1;
-    const pSpeedMult = (ch.projSpeedMult || 1) * (def.firearm ? sk.projSpeedMult : 1.0);
+    const comboSpdBonus = (def.id === 'harpoon_cannon' && p.combo?.id === 'avci_kilidi') ? 1.15 : 1.0;
+    const pSpeedMult = (ch.projSpeedMult || 1) * (def.firearm ? sk.projSpeedMult : 1.0) * comboSpdBonus;
     const dmgMult = sk.dmgMult;
     const kbMult = def.firearm ? sk.kbMult : 1.0;
 
@@ -1183,6 +1195,11 @@ export class GameSim {
           life: def.dur,
           wakeTimer: 0
         });
+        if (p.combo?.id === 'hayalet_kacisi') {
+          p.speedBoost = Math.max(p.speedBoost, 1.5);
+          p.speedMult = Math.max(p.speedMult, 1.28);
+          this._addFloatText(p.x, p.y - 28, '👻 KOMBO HIZI!', '#80ffdb');
+        }
         this.onEvent({ type: 'sfx', name: 'splash' });
         break;
       }
@@ -1197,6 +1214,7 @@ export class GameSim {
         break;
       }
       case 'sea_mine': {
+        const isDarkCombo = p.combo?.id === 'karanlik_pusu';
         this.traps.push({
           id: this._nextEntityId++,
           kind: 'mine',
@@ -1205,9 +1223,9 @@ export class GameSim {
           x: p.x - Math.cos(angle) * 24,
           y: p.y - Math.sin(angle) * 24,
           r: def.trapRadius * trapBonus,
-          damage: def.damage,
+          damage: def.damage + (isDarkCombo ? 10 : 0),
           stunDur: def.stunDur,
-          armTimer: 0.5,
+          armTimer: isDarkCombo ? 0.15 : 0.5,
           life: 32
         });
         this.onEvent({ type: 'sfx', name: 'trap' });
@@ -1239,11 +1257,37 @@ export class GameSim {
         p.kelpDropCd = 0;
         p.speedBoost = Math.max(p.speedBoost, def.dur);
         p.speedMult = Math.max(p.speedMult, def.speedMult);
+        if (p.combo?.id === 'zirhli_yosun') {
+          p.shield = Math.min(65, (p.shield || 0) + 18);
+          p.shieldTimer = Math.max(p.shieldTimer, 5.0);
+          this._addFloatText(p.x, p.y - 28, '🪞 +18 KOMBO KALKAN!', '#bae6fd');
+        }
         this._addPulse(p.x, p.y, 90, 'splash', p.team);
         this.onEvent({ type: 'sfx', name: 'splash' });
         break;
       }
     }
+  }
+
+  // 📍 2v2 Takım Sinyali (Ping — sadece takım arkadaşları ve kendin görür!)
+  triggerPing(playerId, wx, wy) {
+    if (this.phase !== 'playing') return;
+    const p = this.players.find(pl => pl.id === playerId);
+    if (!p || (p.pingCd || 0) > 0) return;
+    p.pingCd = 1.4;
+    const x = clamp(Number.isFinite(wx) ? wx : p.x, 30, WORLD_W - 30);
+    const y = clamp(Number.isFinite(wy) ? wy : p.y, 30, WORLD_H - 30);
+    this.pings.push({
+      id: this._nextEntityId++,
+      x,
+      y,
+      team: p.team,
+      by: p.name,
+      life: 4.5,
+      maxLife: 4.5
+    });
+    if (this.pings.length > 6) this.pings.shift();
+    this.onEvent({ type: 'sfx', name: 'ping' });
   }
 
   triggerSpace(playerId, aimAngle) {
@@ -1599,6 +1643,24 @@ export class GameSim {
 
     if (this.phase === 'round_end') {
       this.phaseTimer -= dt;
+      // 🎬 İlk 0.95 sn: sinematik ağır çekim (0.22x) — patlamalar & batma animasyonu akmaya devam eder!
+      const slowDt = dt * (this.phaseTimer > 4.25 ? 0.22 : 0.65);
+      for (let i = this.pulses.length - 1; i >= 0; i--) {
+        const pu = this.pulses[i];
+        pu.life -= slowDt;
+        const prog = 1 - Math.max(0, pu.life / pu.maxLife);
+        pu.r = 12 + (pu.maxR - 12) * prog;
+        if (pu.life <= 0) this.pulses.splice(i, 1);
+      }
+      for (let i = this.sinkEffects.length - 1; i >= 0; i--) {
+        this.sinkEffects[i].life -= slowDt;
+        if (this.sinkEffects[i].life <= 0) this.sinkEffects.splice(i, 1);
+      }
+      for (let i = this.floatTexts.length - 1; i >= 0; i--) {
+        this.floatTexts[i].life -= slowDt;
+        this.floatTexts[i].y -= slowDt * 26;
+        if (this.floatTexts[i].life <= 0) this.floatTexts.splice(i, 1);
+      }
       if (this.phaseTimer <= 0) {
         this._advanceAfterRound();
       }
@@ -1626,6 +1688,79 @@ export class GameSim {
     if (this.banner) {
       this.banner.life -= dt;
       if (this.banner.life <= 0) this.banner = null;
+    }
+    for (let i = this.pings.length - 1; i >= 0; i--) {
+      this.pings[i].life -= dt;
+      if (this.pings[i].life <= 0) this.pings.splice(i, 1);
+    }
+    for (const pl of this.players) {
+      if (pl.pingCd > 0) pl.pingCd = Math.max(0, pl.pingCd - dt);
+      if (pl.grappleVuln > 0) pl.grappleVuln = Math.max(0, pl.grappleVuln - dt);
+    }
+
+    // 💎 TUR ORTASI BÜYÜK HAZİNE SANDIĞI (Zorunlu Teamfight — Taç modu hariç!)
+    const totalDur = this.settings.roundDuration || ROUND_DURATION;
+    if (this.settings.mode !== 'crown' && this.settings.powerups !== false && !this.megaChestSpawned && this.phaseTimer <= totalDur * 0.56) {
+      this.megaChestSpawned = true;
+      let mx = WORLD_W / 2;
+      let my = WORLD_H / 2;
+      const mOffsets = [[0, 0], [0, -125], [0, 125], [-130, 0], [130, 0], [0, 185], [0, -185]];
+      for (const [ox, oy] of mOffsets) {
+        if (!this._hitsObstacle(mx + ox, my + oy, 38, this.currentMap)) {
+          mx += ox; my += oy; break;
+        }
+      }
+      this.megaChest = { x: mx, y: my, r: 74, progress: 0, duration: 2.5, team: null, contested: false };
+      this._addPulse(mx, my, 170, 'flash', 'N');
+      this.onEvent({ type: 'sfx', name: 'round_start' });
+      this._triggerBanner('💎 BÜYÜK HAZİNE SANDIĞI!', 'Merkezde açıldı! 2.5 sn tut: Tam Cephane + 45 Kalkan!', '#ffd166');
+      this._pushFeed('💎 BÜYÜK HAZİNE SANDIĞI ORTADA! 2.5 sn tutan tüm silahlarını doldurur!', 'firearm');
+    }
+
+    if (this.megaChest) {
+      const mc = this.megaChest;
+      const inside = this.players.filter(p => p.alive && !p.submerged && dist(p.x, p.y, mc.x, mc.y) <= mc.r);
+      const uniqueTeams = new Set(inside.map(p => this.isSoloMode() ? p.id : p.team));
+      if (uniqueTeams.size === 1) {
+        const capper = inside[0];
+        const capKey = this.isSoloMode() ? capper.id : capper.team;
+        mc.contested = false;
+        if (mc.team && mc.team !== capKey) {
+          mc.progress = Math.max(0, mc.progress - dt * 1.4);
+          if (mc.progress <= 0) mc.team = capKey;
+        } else {
+          mc.team = capKey;
+          mc.progress = Math.min(mc.duration, mc.progress + dt);
+          if (mc.progress >= mc.duration) {
+            const winners = this.isSoloMode()
+              ? [capper]
+              : this.players.filter(p => p.alive && p.team === capper.team);
+            for (const w of winners) {
+              for (const it of w.items) {
+                if (it.usesLeft < it.maxUses) {
+                  it.usesLeft = it.maxUses;
+                  it.cd = 0;
+                }
+              }
+              w.shield = Math.min(80, (w.shield || 0) + 45);
+              w.shieldTimer = Math.max(w.shieldTimer, 10.0);
+              w.hp = Math.min(w.maxHp, w.hp + 25);
+              this._addPulse(w.x, w.y, 130, 'heal', w.team);
+              this._addFloatText(w.x, w.y - 36, '💎 TAM CEPHANE + 45 KALKAN!', '#ffd166');
+            }
+            this._addPulse(mc.x, mc.y, 185, 'boom', capper.team);
+            this.onEvent({ type: 'sfx', name: 'boost' });
+            this._triggerBanner('💎 HAZİNE KAPILDI!', `${capper.name} Büyük Sandığı açtı!`, '#ffd166');
+            this._pushFeed(`💎 ${capper.name} Büyük Hazine Sandığını açtı! (+Tam Cephane & +45 Kalkan)`, 'firearm');
+            this.megaChest = null;
+          }
+        }
+      } else if (uniqueTeams.size > 1) {
+        mc.contested = true;
+      } else {
+        mc.contested = false;
+        mc.progress = Math.max(0, mc.progress - dt * 0.35);
+      }
     }
     for (let i = this.feed.length - 1; i >= 0; i--) {
       this.feed[i].ttl -= dt;
@@ -2121,8 +2256,12 @@ export class GameSim {
           if (dist(p.x, p.y, other.x, other.y) <= p.r + other.r + 14) {
             p.ramHitIds.add(other.id);
             const pushA = angleBetween(p.x, p.y, other.x, other.y);
-            const dmg = p.speedBoost > 0 ? 52 : 42;
+            const comboRamBonus = (p.combo?.id === 'firtina_kapani' && p.speedBoost > 0) ? 12 : 0;
+            const dmg = (p.speedBoost > 0 ? 52 : 42) + comboRamBonus;
             const kb = p.speedBoost > 0 ? 450 : 360;
+            if (comboRamBonus > 0) {
+              this._addFloatText(other.x, other.y - 34, '⚡ +12 KOMBO DARBE!', '#ffd166');
+            }
             this._applyDamage(other, dmg, p.id, Math.cos(pushA) * kb, Math.sin(pushA) * kb, 'Suya Bastırma');
             other.slowTimer = Math.max(other.slowTimer, 0.8);
             other.slowFactor = Math.min(other.slowFactor, 0.65);
@@ -2375,10 +2514,34 @@ export class GameSim {
             if (pr.revealHitDur) {
               p.revealTimer = Math.max(p.revealTimer, pr.revealHitDur);
             }
-            this._applyDamage(p, pr.damage || 0, pr.ownerId, kx, ky, '', Boolean(pr.firearm));
+            // 🔗 İKİLİ KOMBO HASAR & İŞARET BONUSLARI!
+            const shooter = this.players.find(pl => pl.id === pr.ownerId);
+            let finalDmg = pr.damage || 0;
+            if (pr.kind === 'hook' && shooter?.combo?.id === 'kanca_pompa') {
+              p.grappleVuln = 2.5;
+              this._addFloatText(p.x, p.y - 30, '🪝 KOMBO AÇILDI!', '#ffd166');
+            }
+            if (pr.itemId === 'blunderbuss' && shooter?.combo?.id === 'kanca_pompa' && (p.grappleVuln || 0) > 0) {
+              finalDmg = Math.round(finalDmg * 1.15);
+            }
+            if (pr.itemId === 'harpoon_cannon' && shooter?.combo?.id === 'avci_kilidi' && p.revealTimer > 0) {
+              finalDmg += 12;
+              this._addFloatText(p.x, p.y - 34, '📡 +12 KOMBO!', '#38bdf8');
+            }
+            if (pr.itemId === 'flintlock' && shooter?.combo?.id === 'kor_atis' && (p.blindTimer > 0 || p.stunTimer > 0)) {
+              finalDmg += 18;
+              this._addFloatText(p.x, p.y - 34, '✨ +18 KOMBO!', '#fde047');
+            }
+            if (pr.kind === 'shock' && shooter?.combo?.id === 'sok_girdabi') {
+              const inGrav = this.zones.some(z => z.kind === 'gravity' && dist(p.x, p.y, z.x, z.y) <= z.r + p.r);
+              if (inGrav) {
+                finalDmg = Math.round(finalDmg * 1.25);
+                this._addFloatText(p.x, p.y - 34, '🌀 +25% ŞOK!', '#c084fc');
+              }
+            }
+            this._applyDamage(p, finalDmg, pr.ownerId, kx, ky, '', Boolean(pr.firearm));
             // 🎯 KESKİN NİŞANCI (Saldırı Tier 3): Ateşli silahla ilk isabette +1 mermi iadesi!
             if (pr.firearm) {
-              const shooter = this.players.find(pl => pl.id === pr.ownerId);
               if (shooter && shooter.alive && shooter.sk?.sniperRefund && !shooter.sniperRefundUsed) {
                 const gun = shooter.items.find(it => it.id === pr.itemId && !it.longCd)
                   || shooter.items.find(it => it.firearm && !it.longCd && it.usesLeft < it.maxUses);
@@ -3104,6 +3267,24 @@ export class GameSim {
       roundWinnerTeam: this.roundWinnerTeam,
       roundWinnerName: this.roundWinnerName,
       roundReason: this.roundReason,
+      slowMo: this.phase === 'round_end' && this.phaseTimer > 4.25,
+      megaChest: this.megaChest ? {
+        x: Math.round(this.megaChest.x),
+        y: Math.round(this.megaChest.y),
+        r: this.megaChest.r,
+        progress: Number(this.megaChest.progress.toFixed(2)),
+        duration: this.megaChest.duration,
+        contested: Boolean(this.megaChest.contested)
+      } : null,
+      pings: this.pings.map(pg => ({
+        id: pg.id,
+        x: Math.round(pg.x),
+        y: Math.round(pg.y),
+        team: pg.team,
+        by: pg.by,
+        life: Number(pg.life.toFixed(2)),
+        maxLife: pg.maxLife
+      })),
       matchWinnerTeam: this.matchWinnerTeam,
       matchWinnerName: this.matchWinnerName,
       matchStats: this.phase === 'match_end' ? Object.values(this.matchStats) : undefined,

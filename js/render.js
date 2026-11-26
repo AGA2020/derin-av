@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.36';
-import { hasLineOfSight } from './sim.js?v=5.36';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=6.0';
+import { hasLineOfSight } from './sim.js?v=6.0';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -294,6 +294,8 @@ export class SeaRenderer {
     this._drawBreakables(ctx, state.breakables || []);
     this._drawKraken(ctx, state.kraken);
     this._drawCrown(ctx, state.crown);
+    this._drawMegaChest(ctx, state.megaChest);
+    this._drawPings(ctx, state.pings || [], me);
     this._drawSinkEffects(ctx, state.sinkEffects || []);
     this._drawDecoys(ctx, state.decoys || [], me, map);
     this._drawPlayers(ctx, players, me, map, state.roundEvent);
@@ -388,6 +390,19 @@ export class SeaRenderer {
 
     // Minimap (sağ üst)
     this._drawMinimap(ctx, state, map, me);
+
+    // 🎬 Son Vuruş Ağır Çekim sinematik çerçeve!
+    if (state.slowMo) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(2, 8, 16, 0.72)';
+      ctx.fillRect(0, 0, this.viewW, 38);
+      ctx.fillRect(0, this.viewH - 38, this.viewW, 38);
+      ctx.textAlign = 'center';
+      ctx.font = '900 18px system-ui, sans-serif';
+      ctx.fillStyle = '#ffd166';
+      ctx.fillText('🎬 SON VURUŞ!', this.viewW / 2, 26);
+      ctx.restore();
+    }
 
     // 📱 Mobil sanal kumanda göstergesi (sadece dokunulurken görünür)
     if (touchJoy) {
@@ -2409,6 +2424,62 @@ export class SeaRenderer {
     }
   }
 
+  _drawMegaChest(ctx, mc) {
+    if (!mc) return;
+    const pulse = Math.sin(this.time * 5) * 4;
+    const pct = Math.max(0, Math.min(1, (mc.progress || 0) / (mc.duration || 2.5)));
+    ctx.save();
+    ctx.translate(mc.x, mc.y);
+
+    // Outer capture zone
+    ctx.fillStyle = mc.contested ? 'rgba(239, 71, 111, 0.14)' : 'rgba(255, 209, 102, 0.13)';
+    ctx.strokeStyle = mc.contested ? '#ef476f' : 'rgba(255, 209, 102, 0.78)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, mc.r + pulse * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Capture progress arc
+    if (pct > 0) {
+      ctx.strokeStyle = '#ffd166';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(0, 0, mc.r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct);
+      ctx.stroke();
+    }
+
+    // Chest icon & label
+    ctx.font = '32px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('💎', 0, 10 + Math.sin(this.time * 4) * 3);
+    ctx.font = '900 12px system-ui, sans-serif';
+    ctx.fillStyle = mc.contested ? '#fda4af' : '#fef08a';
+    ctx.fillText(mc.contested ? '⚔️ ÇEKİŞMELİ!' : `BÜYÜK SANDIK ${Math.round(pct * 100)}%`, 0, -mc.r - 8);
+    ctx.restore();
+  }
+
+  _drawPings(ctx, pings, me) {
+    for (const pg of pings) {
+      if (me && pg.team !== me.team) continue;
+      const alpha = Math.max(0, Math.min(1, pg.life / 1.2));
+      const wave = ((this.time * 2.2) % 1);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(pg.x, pg.y);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 14 + wave * 42, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#ffd166';
+      ctx.font = '900 13px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`📍 ${pg.by}`, 0, -20);
+      ctx.restore();
+    }
+  }
+
   _drawMinimap(ctx, state, map, me) {
     const isNarrow = this.viewW < 640;
     const mw = isNarrow ? 104 : 176;
@@ -2523,6 +2594,33 @@ export class SeaRenderer {
       ctx.beginPath();
       ctx.arc(state.crown.x * sx, state.crown.y * sy, 5.2, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
+    }
+
+    // Mega Chest on minimap (pulsing golden diamond!)
+    if (state.megaChest) {
+      const mx0 = state.megaChest.x * sx;
+      const my0 = state.megaChest.y * sy;
+      ctx.fillStyle = '#ffd166';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(mx0, my0 - 6);
+      ctx.lineTo(mx0 + 6, my0);
+      ctx.lineTo(mx0, my0 + 6);
+      ctx.lineTo(mx0 - 6, my0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Team Pings on minimap
+    for (const pg of state.pings || []) {
+      if (me && pg.team !== me.team) continue;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(pg.x * sx, pg.y * sy, 5 + Math.sin(this.time * 10) * 2, 0, Math.PI * 2);
       ctx.stroke();
     }
 
