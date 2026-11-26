@@ -2373,8 +2373,25 @@ kbd {
 .seg-group.map-seg-grid .map-all-btn {
   grid-column: 1 / -1;
 }
+.seg-group.event-seg-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+.seg-group.event-seg-grid .seg-btn {
+  grid-column: span 2;
+  min-width: 0;
+  white-space: nowrap;
+  padding: 9px 8px;
+}
+.seg-group.event-seg-grid .seg-btn.ev-wide {
+  grid-column: span 3;
+}
 @media (max-width: 560px) {
   .seg-group.map-seg-grid { grid-template-columns: repeat(2, 1fr); }
+  .seg-group.event-seg-grid { grid-template-columns: repeat(2, 1fr); }
+  .seg-group.event-seg-grid .seg-btn,
+  .seg-group.event-seg-grid .seg-btn.ev-wide { grid-column: span 1; }
 }
 
 /* === v4.67: COMPLETE MOBILE UI, DRAFT SCROLL & TOUCH HUD === */

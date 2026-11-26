@@ -22,7 +22,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=8.4';
+} from './data.js?v=8.5';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -127,6 +127,9 @@ export class GameSim {
     this.krakenSpawnTimer = 0;
     this.edgeTentacles = []; // 🐙 Harita kenarından çıkan dev tentaküller!
     this.edgeTentTimer = 0;
+    this.tsunami = null; // 🌊 Tsunami (8. Tur Olayı — Dev Gelgit Su Duvarı)
+    this.tsunamiTimer = 0;
+    this.lastTsunamiDir = null;
     this.megaChest = null; // 💎 Tur Ortası Büyük Hazine Sandığı
     this.megaChestSpawned = false;
     this.pings = []; // 📍 2v2 Takım Sinyalleri
@@ -433,6 +436,8 @@ export class GameSim {
     this.kraken = null;
     this.edgeTentacles = [];
     this.edgeTentTimer = 0;
+    this.tsunami = null;
+    this.tsunamiTimer = 0;
     this.banner = null;
     this.pulses = [];
     this.sinkEffects = [];
@@ -606,6 +611,9 @@ export class GameSim {
     this.krakenSpawnTimer = this.roundEvent === 'kraken_uyanisi' ? 12.0 : 0;
     this.edgeTentacles = [];
     this.edgeTentTimer = 2.6;
+    this.tsunami = null;
+    this.tsunamiTimer = this.roundEvent === 'tsunami' ? 6.5 : 0;
+    this.lastTsunamiDir = null;
     this.megaChest = null;
     this.megaChestSpawned = false;
     this.pings = [];
@@ -2047,6 +2055,11 @@ export class GameSim {
       }
     }
 
+    // 🌊 TSUNAMİ (8. TUR OLAYI — DEV GELGİT SU DUVARI!)
+    if (this.roundEvent === 'tsunami') {
+      this._updateTsunami(dt, this.currentMap);
+    }
+
     // 👑 ALTIN TAÇ MODU SİMÜLASYONU
     if (this.crown) {
       if (this.crown.dropGrace > 0) this.crown.dropGrace = Math.max(0, this.crown.dropGrace - dt);
@@ -3168,6 +3181,133 @@ export class GameSim {
     }
   }
 
+  _updateTsunami(dt, map) {
+    if (!this.tsunami) {
+      this.tsunamiTimer -= dt;
+      if (this.tsunamiTimer <= 0) {
+        const dirs = [
+          { dir: 'E', dx: 1, dy: 0, start: 0, speed: 435, label: 'BATIDAN DOĞUYA ➡️' },
+          { dir: 'W', dx: -1, dy: 0, start: WORLD_W, speed: 435, label: 'DOĞUDAN BATIYA ⬅️' },
+          { dir: 'S', dx: 0, dy: 1, start: 0, speed: 345, label: 'KUZEYDEN GÜNEYE ⬇️' },
+          { dir: 'N', dx: 0, dy: -1, start: WORLD_H, speed: 345, label: 'GÜNEYDEN KUZEYE ⬆️' }
+        ];
+        const pool = dirs.filter(d => d.dir !== this.lastTsunamiDir);
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        this.lastTsunamiDir = pick.dir;
+        this.tsunami = {
+          id: this._nextEntityId++,
+          dir: pick.dir,
+          dx: pick.dx,
+          dy: pick.dy,
+          state: 'telegraph',
+          timer: 2.3,
+          maxTelegraph: 2.3,
+          pos: pick.start,
+          speed: pick.speed,
+          thickness: 78,
+          hitIds: []
+        };
+        this._triggerBanner(`🌊 TSUNAMİ GELİYOR!`, `${pick.label} · Kaya arkasına saklan veya SHIFT ile dal!`, '#0ea5e9');
+        this._pushFeed(`🌊 TSUNAMİ UYARISI (${pick.label})!`, 'event');
+        this.onEvent({ type: 'sfx', name: 'tsunamiWarn' });
+      }
+      return;
+    }
+
+    const ts = this.tsunami;
+    if (ts.state === 'telegraph') {
+      ts.timer -= dt;
+      if (ts.timer <= 0) {
+        ts.state = 'sweeping';
+        ts.timer = 0;
+        this.onEvent({ type: 'sfx', name: 'tsunamiRoar' });
+      }
+      return;
+    }
+
+    // Sweeping giant wave across the arena!
+    const isHoriz = ts.dir === 'E' || ts.dir === 'W';
+    const stepAxis = (ts.dx + ts.dy) * ts.speed * dt;
+    ts.pos += stepAxis;
+
+    // 1. Players vs Tsunami (3 counterplay paths + exposed slam!)
+    for (const p of this.players) {
+      if (!p.alive || ts.hitIds.includes(p.id)) continue;
+      const pAxis = isHoriz ? p.x : p.y;
+      if (Math.abs(pAxis - ts.pos) > 44) continue;
+      ts.hitIds.push(p.id);
+
+      // Shelter check: rock or shipwreck directly upstream within 220px creates a wave shadow!
+      const sheltered = !hasLineOfSight(map, p.x, p.y, p.x - ts.dx * 220, p.y - ts.dy * 220);
+      if (sheltered) {
+        this._addFloatText(p.x, p.y - 32, '🪨 DALGA SİPERİ!', '#34d399');
+        this._addPulse(p.x, p.y, 48, 'splash', p.team);
+        continue;
+      }
+
+      // Diving underwater avoids all damage, only gentle underwater surge!
+      if (p.submerged) {
+        p.vx += ts.dx * 145;
+        p.vy += ts.dy * 145;
+        this._addFloatText(p.x, p.y - 32, '🤿 ALTINDAN GEÇTİ!', '#38bdf8');
+        continue;
+      }
+
+      // Dalga Binicisi signature perk: swimming WITH the wave surfs it for a speed boost!
+      const inp = this.inputs[p.id];
+      const align = inp ? (inp.mx * ts.dx + inp.my * ts.dy) : 0;
+      if (p.charId === 'dalga' && align > 0.35) {
+        p.speedBoost = Math.max(p.speedBoost || 0, 1.8);
+        p.speedMult = Math.max(p.speedMult || 1, 1.32);
+        p.vx += ts.dx * 250;
+        p.vy += ts.dy * 250;
+        this._addPulse(p.x, p.y, 72, 'splash', p.team);
+        this._addFloatText(p.x, p.y - 34, '🏄 DALGA SÖRFÜ!', '#38bdf8');
+        this.onEvent({ type: 'sfx', name: 'splash' });
+        continue;
+      }
+
+      // Exposed on surface -> heavy slam + massive wave push!
+      p.slowTimer = Math.max(p.slowTimer || 0, 0.45);
+      this._applyDamage(p, 32, null, ts.dx * 610, ts.dy * 610, '🌊 Tsunami');
+      this._addPulse(p.x, p.y, 92, 'boom', 'N');
+      this._addFloatText(p.x, p.y - 36, '🌊 TSUNAMİ! -32', '#38bdf8');
+      this.onEvent({ type: 'sfx', name: 'tsunamiHit' });
+    }
+
+    // 2. Sweep unsheltered powder barrels along the wave!
+    for (const b of this.barrels) {
+      const bAxis = isHoriz ? b.x : b.y;
+      if (Math.abs(bAxis - ts.pos) > 58) continue;
+      if (!hasLineOfSight(map, b.x, b.y, b.x - ts.dx * 200, b.y - ts.dy * 200)) continue;
+      b.vx = clamp((b.vx || 0) + ts.dx * 1650 * dt, -460, 460);
+      b.vy = clamp((b.vy || 0) + ts.dy * 1650 * dt, -460, 460);
+    }
+
+    // 3. Gently drift unsheltered power-up chests along the wave!
+    for (const pu of this.powerups) {
+      const puAxis = isHoriz ? pu.x : pu.y;
+      if (Math.abs(puAxis - ts.pos) > 56) continue;
+      if (!hasLineOfSight(map, pu.x, pu.y, pu.x - ts.dx * 180, pu.y - ts.dy * 180)) continue;
+      const nx = clamp(pu.x + ts.dx * 175 * dt, 58, WORLD_W - 58);
+      const ny = clamp(pu.y + ts.dy * 175 * dt, 58, WORLD_H - 58);
+      if (!this._hitsObstacle(nx, ny, 22, map)) {
+        pu.x = nx;
+        pu.y = ny;
+      }
+    }
+
+    // Finish wave once completely past the opposite border
+    const done = ts.dir === 'E' ? ts.pos > WORLD_W + 130
+      : ts.dir === 'W' ? ts.pos < -130
+      : ts.dir === 'S' ? ts.pos > WORLD_H + 130
+      : ts.pos < -130;
+    if (done) {
+      this.tsunami = null;
+      this.tsunamiTimer = 10.5;
+    }
+  }
+
   _canSee(viewer, target, map) {
     if (!target.alive) return false;
     if (viewer.team === target.team) return true;
@@ -3193,6 +3333,20 @@ export class GameSim {
     const st = bot.botState;
     st.thinkCd -= dt;
     st.repath -= dt;
+
+    // 🌊 Tsunami refleksi: Dalga yaklaşıyorsa ve siperde değilse bot su altına dalsın!
+    if (this.tsunami && this.tsunami.state === 'sweeping' && !this.tsunami.hitIds.includes(bot.id)) {
+      const ts = this.tsunami;
+      const isHoriz = ts.dir === 'E' || ts.dir === 'W';
+      const bAxis = isHoriz ? bot.x : bot.y;
+      const aheadDist = (bAxis - ts.pos) * (ts.dx + ts.dy);
+      if (aheadDist > 0 && aheadDist < 190 && !bot.submerged && bot.breath >= 22 && !bot.inShallow && bot.diveCd <= 0) {
+        const sheltered = !hasLineOfSight(map, bot.x, bot.y, bot.x - ts.dx * 210, bot.y - ts.dy * 210);
+        if (!sheltered && (!this.crown || this.crown.holderId !== bot.id)) {
+          this.toggleDive(bot.id);
+        }
+      }
+    }
 
     // Find visible enemies
     const enemies = this.players.filter(o => o.alive && o.team !== bot.team);
@@ -3459,6 +3613,17 @@ export class GameSim {
         phase: et.phase,
         pct: Number((1 - Math.max(0, et.timer) / (et.maxTimer || 1)).toFixed(2))
       })),
+      tsunami: this.tsunami ? {
+        id: this.tsunami.id,
+        dir: this.tsunami.dir,
+        dx: this.tsunami.dx,
+        dy: this.tsunami.dy,
+        state: this.tsunami.state,
+        timer: Number(Math.max(0, this.tsunami.timer).toFixed(2)),
+        maxTelegraph: this.tsunami.maxTelegraph,
+        pos: Math.round(this.tsunami.pos),
+        thickness: this.tsunami.thickness
+      } : null,
       lighthouse: this.currentMap.lighthouse ? {
         x: this.currentMap.lighthouse.x,
         y: this.currentMap.lighthouse.y,

@@ -58,7 +58,7 @@ check(indexHtml.includes(`>${GAME_VERSION}</button>`), `[SÜRÜM] index.html ver
 
 check(CHARACTERS.length === 6, `[VERİ] 6 çar bekleniyor, bulunan: ${CHARACTERS.length}`);
 check(HUNTER_ITEMS.length === 10 && PREY_ITEMS.length === 10 && FFA_ITEMS.length === 20, `[VERİ] İtem sayıları hatalı`);
-check(ROUND_EVENTS.length === 7, `[VERİ] 7 tur olayı bekleniyor, bulunan: ${ROUND_EVENTS.length}`);
+check(ROUND_EVENTS.length === 8, `[VERİ] 8 tur olayı bekleniyor, bulunan: ${ROUND_EVENTS.length}`);
 check(SEA_MAPS.length === 6, `[VERİ] 6 harita bekleniyor, bulunan: ${SEA_MAPS.length}`);
 
 // Harita geometri denetimi: spawn, barrel, powerup, breakable kayaya veya kumsala gömülü mü?
@@ -153,6 +153,47 @@ for (const itemDef of FFA_ITEMS) {
     evSim.updateSettings({ eventMode: ev.id });
     evSim.startDraft();
     check(evSim.roundEvent === ev.id && evSim.settings.roundEvents === true, `[EVENT_MODE] ${ev.id} sabitlendiğinde doğrudan seçilmeli!`);
+  }
+}
+
+// 2c. 🌊 Tsunami (8. Tur Olayı) mekanik doğrulama (Açıkta hasar, SHIFT dalış, Kaya siperi, Fıçı sürükleme)
+{
+  const tSim = new GameSim();
+  tSim.addHuman('p1', 'Exposed');
+  tSim.addHuman('p2', 'Diver');
+  tSim.switchTeam('p2');
+  tSim.updateSettings({ mode: 'ffa', mapMode: '0', eventMode: 'tsunami', lives: 2, barrels: true });
+  tSim.startMatch();
+  tSim.setPlayerItems('p1', ['electric_net', 'kelp_trail'], true);
+  tSim.setPlayerItems('p2', ['mirror_shield', 'kelp_trail'], true);
+  for (let i = 0; i < 125; i++) tSim.step(0.05);
+
+  const p1 = tSim.players.find(p => p.id === 'p1');
+  const p2 = tSim.players.find(p => p.id === 'p2');
+  // Open water spot (no rock directly west within 220px)
+  p1.x = 260; p1.y = 200; p1.submerged = false; p1.charId = 'kaptan';
+  p2.x = 260; p2.y = 800; p2.submerged = true; p2.breath = 70;
+  const p1Before = p1.hp + p1.breath;
+  const p2Before = p2.hp + p2.breath;
+
+  tSim.tsunami = { id: 9999, dir: 'E', dx: 1, dy: 0, state: 'sweeping', timer: 0, maxTelegraph: 2.3, pos: 210, speed: 435, thickness: 78, hitIds: [] };
+  tSim.barrels = [{ id: 8888, x: 260, y: 260, vx: 0, vy: 0, r: 19, hp: 30, maxHp: 30 }];
+  for (let i = 0; i < 10; i++) tSim.step(0.03);
+
+  check(p1.hp + p1.breath < p1Before && p1.x > 290, '[TSUNAMI] Açıkta yakalanan oyuncu hasar ve savrulma almalı!');
+  check(p2.hp === p2.maxHp, '[TSUNAMI] Su altında (SHIFT) olan oyuncu hasar almamalı!');
+  check((tSim.barrels[0]?.vx || 0) > 40, '[TSUNAMI] Barut fıçısı dalgayla sürüklenmeli!');
+
+  // Rock shelter check: pick first circular rock on map 0 and stand right east of it
+  const rock = tSim.currentMap.rocks.find(r => r.type === 'rock');
+  if (rock) {
+    p1.alive = true; p1.hp = p1.maxHp; p1.breath = p1.maxBreath; p1.vx = 0; p1.vy = 0; p1.submerged = false;
+    p1.x = rock.x + rock.r + 30;
+    p1.y = rock.y;
+    const shBefore = p1.hp + p1.breath;
+    tSim.tsunami = { id: 10000, dir: 'E', dx: 1, dy: 0, state: 'sweeping', timer: 0, maxTelegraph: 2.3, pos: p1.x - 45, speed: 435, thickness: 78, hitIds: [] };
+    for (let i = 0; i < 10; i++) tSim.step(0.03);
+    check(p1.hp + p1.breath >= shBefore - 0.1, '[TSUNAMI] Kaya arkasında siperde olan oyuncu hasar almamalı!');
   }
 }
 

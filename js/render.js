@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.4';
-import { hasLineOfSight } from './sim.js?v=8.4';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.5';
+import { hasLineOfSight } from './sim.js?v=8.5';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -294,6 +294,7 @@ export class SeaRenderer {
     this._drawBreakables(ctx, state.breakables || []);
     this._drawKraken(ctx, state.kraken);
     this._drawEdgeTentacles(ctx, state.edgeTentacles || []);
+    this._drawTsunami(ctx, state.tsunami);
     this._drawCrown(ctx, state.crown);
     this._drawMegaChest(ctx, state.megaChest);
     this._drawPings(ctx, state.pings || [], me);
@@ -2011,6 +2012,97 @@ export class SeaRenderer {
     }
   }
 
+  _drawTsunami(ctx, ts) {
+    if (!ts) return;
+    const t = this.time;
+    const isHoriz = ts.dir === 'E' || ts.dir === 'W';
+    const span = isHoriz ? WORLD_H : WORLD_W;
+
+    ctx.save();
+    if (isHoriz) {
+      ctx.translate(ts.pos, WORLD_H / 2);
+      if (ts.dir === 'W') ctx.scale(-1, 1);
+    } else {
+      ctx.translate(WORLD_W / 2, ts.pos);
+      ctx.rotate(ts.dir === 'S' ? Math.PI / 2 : -Math.PI / 2);
+    }
+
+    if (ts.state === 'telegraph') {
+      const pct = 1 - (ts.timer / (ts.maxTelegraph || 2.3));
+      const pulse = 0.55 + 0.45 * Math.sin(t * 14);
+      const warnDepth = 115;
+      const g = ctx.createLinearGradient(0, 0, warnDepth, 0);
+      g.addColorStop(0, `rgba(14, 165, 233, ${(0.42 + pulse * 0.24).toFixed(2)})`);
+      g.addColorStop(0.55, `rgba(56, 189, 248, ${(0.18 + pct * 0.16).toFixed(2)})`);
+      g.addColorStop(1, 'rgba(56, 189, 248, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, -span / 2, warnDepth, span);
+
+      // Animated warning chevrons pointing inward
+      const slide = (t * 95) % 52;
+      ctx.strokeStyle = `rgba(224, 242, 254, ${(0.65 + pulse * 0.35).toFixed(2)})`;
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (let y = -span / 2 + 80; y < span / 2 - 60; y += 135) {
+        const ax = 18 + slide;
+        ctx.beginPath();
+        ctx.moveTo(ax - 14, y - 18);
+        ctx.lineTo(ax + 8, y);
+        ctx.lineTo(ax - 14, y + 18);
+        ctx.stroke();
+      }
+      // Rising dark swell lip right at the border
+      ctx.fillStyle = 'rgba(2, 132, 199, 0.78)';
+      ctx.fillRect(-16, -span / 2, 16 + pct * 26, span);
+      ctx.strokeStyle = '#e0f2fe';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(pct * 26, -span / 2);
+      ctx.lineTo(pct * 26, span / 2);
+      ctx.stroke();
+    } else {
+      // Sweeping giant wall of water! Local +X is wave travel direction
+      const bodyG = ctx.createLinearGradient(-120, 0, 56, 0);
+      bodyG.addColorStop(0, 'rgba(3, 105, 161, 0)');
+      bodyG.addColorStop(0.45, 'rgba(2, 132, 199, 0.56)');
+      bodyG.addColorStop(0.82, 'rgba(14, 165, 233, 0.86)');
+      bodyG.addColorStop(1, 'rgba(224, 242, 254, 0.94)');
+      ctx.fillStyle = bodyG;
+      ctx.fillRect(-120, -span / 2, 176, span);
+
+      // Deep dark trough shadow right ahead of the curling lip
+      ctx.fillStyle = 'rgba(7, 37, 64, 0.44)';
+      ctx.fillRect(42, -span / 2, 28, span);
+
+      // Ragged frothy white crest ribbon
+      ctx.fillStyle = 'rgba(240, 249, 255, 0.94)';
+      ctx.beginPath();
+      ctx.moveTo(22, -span / 2);
+      for (let y = -span / 2; y <= span / 2; y += 26) {
+        const j = Math.sin(y * 0.045 + t * 11) * 10 + Math.cos(y * 0.11 - t * 8) * 5;
+        ctx.lineTo(44 + j, y);
+      }
+      for (let y = span / 2; y >= -span / 2; y -= 26) {
+        const j = Math.sin(y * 0.055 - t * 9) * 7;
+        ctx.lineTo(14 + j, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      // Flying spray droplets ahead of crest
+      ctx.fillStyle = 'rgba(224, 242, 254, 0.82)';
+      for (let y = -span / 2 + 24; y < span / 2; y += 44) {
+        const sx = 54 + ((Math.sin(y * 0.17 + t * 14) + 1) * 16);
+        const r = 2.6 + ((Math.cos(y * 0.23 - t * 9) + 1) * 1.6);
+        ctx.beginPath();
+        ctx.arc(sx, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
   _drawCrown(ctx, crown) {
     if (!crown || crown.holderId) return;
     const bob = Math.sin(this.time * 4.5) * 4;
@@ -2394,6 +2486,52 @@ export class SeaRenderer {
       ctx.beginPath();
       ctx.arc(br.x * sx, br.y * sy, 3.2, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // Tsunami wave line on minimap
+    if (state.tsunami) {
+      const ts = state.tsunami;
+      ctx.strokeStyle = ts.state === 'telegraph' ? '#fde047' : '#38bdf8';
+      ctx.lineWidth = ts.state === 'telegraph' ? 3 : 4;
+      ctx.beginPath();
+      if (ts.dir === 'E' || ts.dir === 'W') {
+        const x = Math.max(0, Math.min(mw, ts.pos * sx));
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, mh);
+      } else {
+        const y = Math.max(0, Math.min(mh, ts.pos * sy));
+        ctx.moveTo(0, y);
+        ctx.lineTo(mw, y);
+      }
+      ctx.stroke();
+    }
+    // 2D Top Warning Banner during Tsunami telegraph
+    if (state.tsunami && state.tsunami.state === 'telegraph') {
+      const ts = state.tsunami;
+      const dirTxt = ts.dir === 'E' ? 'BATIDAN DOĞUYA ➡️' : ts.dir === 'W' ? 'DOĞUDAN BATIYA ⬅️' : ts.dir === 'S' ? 'KUZEYDEN GÜNEYE ⬇️' : 'GÜNEYDEN KUZEYE ⬆️';
+      const pulse = 0.65 + 0.35 * Math.sin(this.time * 12);
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const dpr = Math.min((typeof window !== 'undefined' && window.devicePixelRatio) || 1, 2);
+      ctx.scale(dpr, dpr);
+      const bw = Math.min(470, this.viewW - 24);
+      const bx = (this.viewW - bw) / 2;
+      const by = 68;
+      ctx.fillStyle = `rgba(2, 132, 199, ${(0.76 * pulse).toFixed(2)})`;
+      ctx.strokeStyle = '#bae6fd';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, 42, 12);
+      ctx.fill();
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 14px system-ui, sans-serif';
+      ctx.fillText(`🌊 TSUNAMİ GELİYOR (${ts.timer.toFixed(1)}s) · ${dirTxt}`, this.viewW / 2, by + 18);
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '700 11.5px system-ui, sans-serif';
+      ctx.fillText('🪨 Kaya arkasına saklan veya 🤿 SHIFT ile su altına dal!', this.viewW / 2, by + 35);
+      ctx.restore();
     }
 
     // Kraken Boss on minimap

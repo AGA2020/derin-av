@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>İKİ İTEMLİ OYUN — Online Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=8.4" />
+  <link rel="stylesheet" href="./styles.css?v=8.5" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -297,7 +297,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v8.4</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v8.5</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -378,10 +378,11 @@
 
         <div class="setting-row">
           <div class="setting-label">Tur Olayı Seçimi</div>
-          <div class="seg-group map-seg-grid" data-setting="eventMode">
-            <button class="seg-btn" data-val="random">🎲 Rastgele (7 Olay)</button>
-            <button class="seg-btn" data-val="off">🚫 Olay Kapalı</button>
-            <button class="seg-btn" data-val="kraken_uyanisi">🐙 Kraken Uyanışı</button>
+          <div class="seg-group event-seg-grid" data-setting="eventMode">
+            <button class="seg-btn ev-wide" data-val="random">🎲 Rastgele (8 Olay)</button>
+            <button class="seg-btn ev-wide" data-val="off">🚫 Olay Kapalı</button>
+            <button class="seg-btn ev-wide" data-val="tsunami">🌊 Tsunami (Dev Gelgit)</button>
+            <button class="seg-btn ev-wide" data-val="kraken_uyanisi">🐙 Kraken Uyanışı</button>
             <button class="seg-btn" data-val="barut_yagmuru">🧨 Barut Yağmuru</button>
             <button class="seg-btn" data-val="seken_mermiler">🎱 Seken Mermiler</button>
             <button class="seg-btn" data-val="gece_sisi">🌫️ Gece Sisi</button>
@@ -553,7 +554,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=8.4"></script>
+  <script type="module" src="./js/main.js?v=8.5"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

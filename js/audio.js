@@ -370,6 +370,67 @@ class SoundEngine {
           });
           break;
         }
+        case 'tsunamiWarn': {
+          // 🚨 Dev gelgit derin sis düdüğü + uğultu uyarısı
+          const osc = this.ctx.createOscillator();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(118, now);
+          osc.frequency.linearRampToValueAtTime(142, now + 0.35);
+          osc.frequency.linearRampToValueAtTime(104, now + 0.85);
+          const lp = this.ctx.createBiquadFilter();
+          lp.type = 'lowpass';
+          lp.frequency.setValueAtTime(360, now);
+          const g = this.ctx.createGain();
+          g.gain.setValueAtTime(0.001, now);
+          g.gain.linearRampToValueAtTime(vol * 0.42, now + 0.14);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.92);
+          osc.connect(lp).connect(g).connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.95);
+          break;
+        }
+        case 'tsunamiRoar': {
+          // 🌊 Dev su duvarı kükremesi!
+          const src = this.ctx.createBufferSource();
+          src.buffer = this._noiseBuffer(1.15);
+          const bp = this.ctx.createBiquadFilter();
+          bp.type = 'lowpass';
+          bp.frequency.setValueAtTime(320, now);
+          bp.frequency.exponentialRampToValueAtTime(1150, now + 0.32);
+          bp.frequency.exponentialRampToValueAtTime(260, now + 1.1);
+          const g = this.ctx.createGain();
+          g.gain.setValueAtTime(0.001, now);
+          g.gain.linearRampToValueAtTime(vol * 0.72, now + 0.22);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 1.15);
+          src.connect(bp).connect(g).connect(this.ctx.destination);
+          src.start(now);
+          break;
+        }
+        case 'tsunamiHit': {
+          // 💥 Tsunami su çarpması + derin bas darbesi
+          const src = this.ctx.createBufferSource();
+          src.buffer = this._noiseBuffer(0.42);
+          const bp = this.ctx.createBiquadFilter();
+          bp.type = 'bandpass';
+          bp.frequency.setValueAtTime(750, now);
+          bp.frequency.exponentialRampToValueAtTime(190, now + 0.4);
+          const g = this.ctx.createGain();
+          g.gain.setValueAtTime(vol * 0.78, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+          src.connect(bp).connect(g).connect(this.ctx.destination);
+          src.start(now);
+          const sub = this.ctx.createOscillator();
+          sub.type = 'sine';
+          sub.frequency.setValueAtTime(130, now);
+          sub.frequency.exponentialRampToValueAtTime(42, now + 0.28);
+          const sg = this.ctx.createGain();
+          sg.gain.setValueAtTime(vol * 0.52, now);
+          sg.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          sub.connect(sg).connect(this.ctx.destination);
+          sub.start(now);
+          sub.stop(now + 0.31);
+          break;
+        }
         case 'ping': {
           // 📍 2v2 Takım Sinyali çift parlak bip!
           [880, 1180].forEach((freq, idx) => {

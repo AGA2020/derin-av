@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.4';
-import { hasLineOfSight } from './sim.js?v=8.4';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.5';
+import { hasLineOfSight } from './sim.js?v=8.5';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -732,6 +732,8 @@ export class SeaRenderer3D {
     this.buoyMeshes = new Map();
     this.geyserMeshes = new Map();
     this.edgeTentMeshes = new Map();
+    this.tsunamiRig = null;
+    this._tsunamiSprayCd = 0;
     this.krakenRig = null;
     this.crownRig = null;
     this.megaChestRig = null;
@@ -817,9 +819,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=8.4'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=8.4'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=8.4'],
+      ['chest', './vendor/models/pirate/chest.glb?v=8.5'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=8.5'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=8.5'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -3035,6 +3037,7 @@ export class SeaRenderer3D {
     this._syncGeysers(state.geysers || []);
     this._syncKraken(state.kraken);
     this._syncEdgeTentacles(state.edgeTentacles || []);
+    this._syncTsunami(state.tsunami, dt);
     this._syncCrown(state.crown);
     this._syncMegaChest(state.megaChest);
 
@@ -3869,6 +3872,200 @@ export class SeaRenderer3D {
     }
   }
 
+  _createTsunamiRig() {
+    const root = new THREE.Group();
+    const waveGroup = new THREE.Group();
+
+    // Sculpted curling giant wave cross-section extruded along X ∈ [-0.5, +0.5]
+    // Local +Z = wave travel direction; height ~54 units towering over 20-unit swimmers!
+    const profile = [
+      [-82, 0.0],
+      [-54, 14.0],
+      [-28, 34.0],
+      [-4, 52.0],
+      [18, 56.0],
+      [34, 48.0],
+      [40, 38.0],
+      [28, 34.0],
+      [16, 26.0],
+      [14, 12.0],
+      [36, 3.0],
+      [54, 0.0]
+    ];
+    const segX = 28;
+    const pCount = profile.length;
+    const positions = [];
+    const indices = [];
+    for (let ix = 0; ix <= segX; ix++) {
+      const u = ix / segX;
+      const x = u - 0.5;
+      const waveUndul = Math.sin(u * Math.PI * 10) * 4.5 + Math.cos(u * Math.PI * 17) * 2.5;
+      for (let ip = 0; ip < pCount; ip++) {
+        const [pz, py] = profile[ip];
+        const lift = py > 6 ? waveUndul * (py / 56) : 0;
+        positions.push(x, Math.max(0, py + lift), pz + (py > 30 ? waveUndul * 0.45 : 0));
+      }
+    }
+    for (let ix = 0; ix < segX; ix++) {
+      for (let ip = 0; ip < pCount - 1; ip++) {
+        const a = ix * pCount + ip;
+        const b = (ix + 1) * pCount + ip;
+        const c = (ix + 1) * pCount + (ip + 1);
+        const d = ix * pCount + (ip + 1);
+        indices.push(a, b, c, a, c, d);
+      }
+    }
+    const waveGeo = new THREE.BufferGeometry();
+    waveGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    waveGeo.setIndex(indices);
+    waveGeo.computeVertexNormals();
+    const waveMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,
+      emissive: 0x0369a1,
+      emissiveIntensity: 0.42,
+      roughness: 0.16,
+      metalness: 0.12,
+      transparent: true,
+      opacity: 0.88,
+      side: THREE.DoubleSide
+    });
+    const waveMesh = new THREE.Mesh(waveGeo, waveMat);
+    waveGroup.add(waveMesh);
+
+    // Bright frothy breaking white foam lip along the curling crest
+    const foamMat = new THREE.MeshStandardMaterial({
+      color: 0xf0f9ff,
+      emissive: 0xbae6fd,
+      emissiveIntensity: 0.55,
+      roughness: 0.35,
+      transparent: true,
+      opacity: 0.94
+    });
+    const foamCrest = new THREE.Mesh(new THREE.CylinderGeometry(8.5, 11.5, 1, 10, 12), foamMat);
+    foamCrest.rotation.z = Math.PI / 2;
+    foamCrest.position.set(0, 46, 33);
+    waveGroup.add(foamCrest);
+
+    // Leading boiling whitewater apron at water surface
+    const apronMat = new THREE.MeshBasicMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false
+    });
+    const apron = new THREE.Mesh(this._sharedGeo.plane, apronMat);
+    apron.scale.set(1, 1, 56);
+    apron.position.set(0, 2.2, 46);
+    waveGroup.add(apron);
+
+    // Trailing foamy wake behind the wave
+    const wakeMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.38,
+      depthWrite: false
+    });
+    const wake = new THREE.Mesh(this._sharedGeo.plane, wakeMat);
+    wake.scale.set(1, 1, 90);
+    wake.position.set(0, 1.5, -55);
+    waveGroup.add(wake);
+
+    root.add(waveGroup);
+
+    // Telegraph warning strip + animated inward chevron arrows
+    const warnGroup = new THREE.Group();
+    const warnMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false
+    });
+    const warnStrip = new THREE.Mesh(this._sharedGeo.plane, warnMat);
+    warnStrip.scale.set(1, 1, 110);
+    warnStrip.position.set(0, 2.8, 55);
+    warnGroup.add(warnStrip);
+
+    const arrowMat = new THREE.MeshBasicMaterial({
+      color: 0xfef08a,
+      transparent: true,
+      opacity: 0.92,
+      depthWrite: false
+    });
+    const arrows = [];
+    for (let i = 0; i < 6; i++) {
+      const cone = new THREE.Mesh(this._sharedGeo.cone, arrowMat);
+      cone.rotation.x = Math.PI / 2;
+      cone.scale.set(14, 28, 6);
+      cone.position.set(((i + 0.5) / 6 - 0.5), 4.5, 36);
+      warnGroup.add(cone);
+      arrows.push(cone);
+    }
+    root.add(warnGroup);
+
+    this.dynamicGroup.add(root);
+    return { root, waveGroup, warnGroup, warnMat, arrowMat, arrows, foamCrest };
+  }
+
+  _syncTsunami(ts, dt) {
+    if (!ts) {
+      if (this.tsunamiRig) this.tsunamiRig.root.visible = false;
+      return;
+    }
+    if (!this.tsunamiRig) this.tsunamiRig = this._createTsunamiRig();
+    const rig = this.tsunamiRig;
+    rig.root.visible = true;
+
+    const isHoriz = ts.dir === 'E' || ts.dir === 'W';
+    const span = (isHoriz ? WORLD_H : WORLD_W) + 120;
+    const rotY = Math.atan2(ts.dx, ts.dy);
+    rig.root.rotation.set(0, rotY, 0);
+    rig.root.position.set(isHoriz ? ts.pos : WORLD_W / 2, 0, isHoriz ? WORLD_H / 2 : ts.pos);
+
+    if (ts.state === 'telegraph') {
+      const pct = 1 - (ts.timer / (ts.maxTelegraph || 2.3));
+      const pulse = 0.5 + 0.5 * Math.sin(this.time * 14);
+      rig.warnGroup.visible = true;
+      rig.warnGroup.scale.set(span, 1, 1);
+      rig.warnMat.opacity = 0.28 + pulse * 0.26;
+      const slideZ = 18 + ((this.time * 110) % 72);
+      for (let i = 0; i < rig.arrows.length; i++) {
+        rig.arrows[i].scale.set(16 / span, 28, 6);
+        rig.arrows[i].position.z = slideZ;
+      }
+      // Swell rising dramatically at the horizon border before rushing in!
+      rig.waveGroup.visible = true;
+      rig.waveGroup.scale.set(span, 0.22 + pct * 0.85, 1);
+      rig.waveGroup.position.set(0, -18 * (1 - pct), -36 + pct * 22);
+    } else {
+      rig.warnGroup.visible = false;
+      rig.waveGroup.visible = true;
+      const bob = 1 + Math.sin(this.time * 9) * 0.06;
+      rig.waveGroup.scale.set(span, bob, 1);
+      rig.waveGroup.position.set(0, 0, 0);
+      rig.foamCrest.rotation.x = this.time * 5.5;
+
+      // Subtle camera rumble as tsunami sweeps near camera!
+      const camAxis = isHoriz ? this.camX : this.camY;
+      const dCam = Math.abs(camAxis - ts.pos);
+      if (dCam < 280) {
+        this.shakeAmt = Math.max(this.shakeAmt, (1 - dCam / 280) * 5.2);
+      }
+
+      // Emit flying white spray droplets along the visible crest!
+      this._tsunamiSprayCd = Math.max(0, (this._tsunamiSprayCd || 0) - dt);
+      if (this._tsunamiSprayCd <= 0) {
+        this._tsunamiSprayCd = 0.065;
+        const centerAlong = isHoriz ? this.camY : this.camX;
+        for (let i = 0; i < 4; i++) {
+          const offset = (Math.random() - 0.5) * 620;
+          const sx = isHoriz ? ts.pos + ts.dx * 36 : Math.max(30, Math.min(WORLD_W - 30, centerAlong + offset));
+          const sz = isHoriz ? Math.max(30, Math.min(WORLD_H - 30, centerAlong + offset)) : ts.pos + ts.dy * 36;
+          this._spawnSplashPlume(sx, sz, '#e0f2fe', 0.95);
+        }
+      }
+    }
+  }
+
   _syncCrown(crown) {
     if (!crown || crown.holderId) {
       if (this.crownRig) this.crownRig.visible = false;
@@ -4183,6 +4380,32 @@ export class SeaRenderer3D {
     // 6. Minimap
     this._drawMinimap(ctx, state, map, me);
 
+    // 6a. 🌊 Tsunami Telegraph Top Banner (clear warning in 3D!)
+    if (state.tsunami && state.tsunami.state === 'telegraph') {
+      const ts = state.tsunami;
+      const dirTxt = ts.dir === 'E' ? 'BATIDAN DOĞUYA ➡️' : ts.dir === 'W' ? 'DOĞUDAN BATIYA ⬅️' : ts.dir === 'S' ? 'KUZEYDEN GÜNEYE ⬇️' : 'GÜNEYDEN KUZEYE ⬆️';
+      const pulse = 0.65 + 0.35 * Math.sin(this.time * 12);
+      ctx.save();
+      ctx.fillStyle = `rgba(2, 132, 199, ${(0.76 * pulse).toFixed(2)})`;
+      ctx.strokeStyle = '#bae6fd';
+      ctx.lineWidth = 2;
+      const bw = Math.min(470, this.viewW - 24);
+      const bx = (this.viewW - bw) / 2;
+      const by = 68;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, 42, 12);
+      ctx.fill();
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 14px system-ui, sans-serif';
+      ctx.fillText(`🌊 TSUNAMİ GELİYOR (${ts.timer.toFixed(1)}s) · ${dirTxt}`, this.viewW / 2, by + 18);
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '700 11.5px system-ui, sans-serif';
+      ctx.fillText('🪨 Kaya arkasına saklan veya 🤿 SHIFT ile su altına dal!', this.viewW / 2, by + 35);
+      ctx.restore();
+    }
+
     // 6b. 🎬 Son Vuruş Ağır Çekim sinematik çerçeve!
     if (state.slowMo) {
       ctx.save();
@@ -4254,6 +4477,22 @@ export class SeaRenderer3D {
       ctx.beginPath();
       ctx.arc(pu.x * sx, pu.y * sy, 3, 0, Math.PI * 2);
       ctx.fill();
+    }
+    if (state.tsunami) {
+      const ts = state.tsunami;
+      ctx.strokeStyle = ts.state === 'telegraph' ? '#fde047' : '#38bdf8';
+      ctx.lineWidth = ts.state === 'telegraph' ? 2.8 : 3.8;
+      ctx.beginPath();
+      if (ts.dir === 'E' || ts.dir === 'W') {
+        const x = Math.max(0, Math.min(mw, ts.pos * sx));
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, mh);
+      } else {
+        const y = Math.max(0, Math.min(mh, ts.pos * sy));
+        ctx.moveTo(0, y);
+        ctx.lineTo(mw, y);
+      }
+      ctx.stroke();
     }
     if (state.kraken) {
       ctx.fillStyle = '#d946ef';

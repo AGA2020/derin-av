@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v8.4';
+export const GAME_VERSION = 'v8.5';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -12,7 +12,8 @@ export const ROUND_EVENTS = [
   { id: 'kasirga_hizi', name: 'Kasırga Hızı', icon: '⚡', color: '#38bdf8', desc: 'Tüm tekneler +%25 daha hızlı süzülür!' },
   { id: 'derin_deniz', name: 'Sonsuz Derinlik', icon: '🤿', color: '#06d6a0', desc: 'Su altında nefes tüketimi yarıya iner (%50)!' },
   { id: 'hazine_firtinasi', name: 'Hazine Fırtınası', icon: '📦', color: '#c084fc', desc: '4 deniz sandığı ile başlar ve 2 kat hızlı çıkar!' },
-  { id: 'kraken_uyanisi', name: 'Kraken Uyanışı', icon: '🐙', color: '#d946ef', desc: 'Merkezde dev Kraken uyanır — son vuruş takıma FULL şarj, +55 Kalkan & Hız verir!' }
+  { id: 'kraken_uyanisi', name: 'Kraken Uyanışı', icon: '🐙', color: '#d946ef', desc: 'Merkezde dev Kraken uyanır — son vuruş takıma FULL şarj, +55 Kalkan & Hız verir!' },
+  { id: 'tsunami', name: 'Tsunami', icon: '🌊', color: '#0ea5e9', desc: 'Her ~14 sn\'de bir dev su duvarı haritayı tarar — kaya arkasına saklan ya da SHIFT ile altından dal!' }
 ];
 export const ROUND_EVENT_MAP = Object.fromEntries(ROUND_EVENTS.map(e => [e.id, e]));
 
@@ -66,6 +67,15 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v8.5',
+    notes: [
+      '🌊 YENİ 8. TUR OLAYI — TSUNAMİ (DEV GELGİT)!',
+      '🚨 Uyarı & 4 Yönden Dev Su Duvarı: Her ~14 sn’de bir haritanın farklı bir kenarından 2.3 sn uyarı + sis düdüğü sonrası dev kıvrılan bir tsunami haritayı boydan boya tarar (3D & 2D özel görsel ve ses efektiyle)!',
+      '🪨 3 Farklı Kurtulma Yolu: Kayaların/gemilerin arkasına geçersen Dalga Siperi ile sıfır hasar alırsın, SHIFT ile su altına dalarsan altından süzülüp hasardan kurtulursun; Dalga Binicisi dalgayla aynı yönde sörf yapıp hız patlaması kazanır! Açıkta yakalananlar 32 hasar + dev savrulma yer, barut fıçıları ve sandıklar bile dalgayla sürüklenir!',
+      '🎛️ Lobideki Tur Olayı Seçicisine 🌊 Tsunami eklendi — istersen tüm turları direkt Tsunami’ye sabitleyebilirsin!'
+    ]
+  },
   {
     ver: 'v8.4',
     notes: [

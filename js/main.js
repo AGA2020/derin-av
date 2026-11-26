@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=8.4';
-import { sfx } from './audio.js?v=8.4';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.4';
-import { GameSim } from './sim.js?v=8.4';
-import { SeaRenderer } from './render.js?v=8.4';
+} from './data.js?v=8.5';
+import { sfx } from './audio.js?v=8.5';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.5';
+import { GameSim } from './sim.js?v=8.5';
+import { SeaRenderer } from './render.js?v=8.5';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1479,6 +1479,16 @@ function updateHudFromState(st) {
 
 function getEventShowcaseSvg(eventId) {
   switch (eventId) {
+    case 'tsunami':
+      return `<svg viewBox="0 0 120 88" fill="none">
+        <defs><linearGradient id="tsg" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#38bdf8"/><stop offset="55%" stop-color="#0284c7"/><stop offset="100%" stop-color="#0c4a6e"/></linearGradient></defs>
+        <path d="M6 76 Q14 26 52 16 Q82 10 92 28 Q74 24 68 38 Q64 50 86 58 L114 68 L114 80 L6 80 Z" fill="url(#tsg)" stroke="#bae6fd" stroke-width="2.2"/>
+        <path d="M46 18 Q76 11 91 27 Q79 20 67 28" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round"/>
+        <circle cx="96" cy="34" r="3.4" fill="#e0f2fe"/>
+        <circle cx="104" cy="42" r="2.5" fill="#bae6fd"/>
+        <circle cx="88" cy="40" r="2.2" fill="#ffffff"/>
+        <path d="M12 72 Q42 64 72 72 T114 72" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+      </svg>`;
     case 'kraken_uyanisi':
       return `<svg viewBox="0 0 120 88" fill="none">
         <defs><radialGradient id="krg" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="#f0abfc"/><stop offset="100%" stop-color="#7e22ce"/></radialGradient></defs>
@@ -1868,7 +1878,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=8.4');
+        const mod = await import('./render3d.js?v=8.5');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
         app.renderer3d.setQuality(app.gfxQuality, true);
       } catch (err) {
