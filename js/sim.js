@@ -21,7 +21,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=5.2';
+} from './data.js?v=5.3';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -1469,11 +1469,14 @@ export class GameSim {
       target.streak = 0;
       target.bounty = false;
       target.lives = Math.max(0, (target.lives || 1) - 1);
-      // 👑 Taç taşıyıcısı battıysa taç suya düşer!
+      // 👑 Taç taşıyıcısı battıysa taç suya düşer! (Kaya/enkaz içinde kalmasın!)
       if (this.crown && this.crown.holderId === target.id) {
         this.crown.holderId = null;
         this.crown.x = clamp(target.x, 70, WORLD_W - 70);
         this.crown.y = clamp(target.y, this.currentMap.beach ? this.currentMap.beach.sandY + 45 : 70, WORLD_H - 70);
+        this._resolveObstacleCollision(this.crown, 24, this.currentMap, false);
+        this.crown.x = clamp(this.crown.x, 70, WORLD_W - 70);
+        this.crown.y = clamp(this.crown.y, this.currentMap.beach ? this.currentMap.beach.sandY + 45 : 70, WORLD_H - 70);
         this.crown.dropGrace = 0.5;
         this._addPulse(this.crown.x, this.crown.y, 130, 'flash', 'N');
         this._pushFeed(`👑 ${target.name} battı — ALTIN TAÇ SUYA DÜŞTÜ!`, 'firearm');

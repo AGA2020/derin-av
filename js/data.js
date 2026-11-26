@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v5.2';
+export const GAME_VERSION = 'v5.3';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,15 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v5.3',
+    notes: [
+      '🏆 STÜDYO KALİTESİ 3D YENİLEME (GERÇEK .GLB MODELLER + PBR SU SHADER):',
+      '⛵ 14 Gerçek 3D Model (.glb): Korsan kalyonu, hayalet gemi, batık enkaz, hız teknesi, fener teknesi, doğal kayalık adalar, kavisli palmiyeler, hazine sandıkları, ahşap fıçılar, iskeleler ve şamandıralar!',
+      '🌊 Örümcek Ağı Gitti — Gerçek Fresnel + Specular PBR Okyanus: Yumuşak 3D sıvı dalga normalleri, gökyüzü yansıması, güneşte yakamoz parıltısı ve RoomEnvironment IBL stüdyo ışığı!',
+      '🌫️ Plastik halkalar, yaya geçidi akıntılar ve keskin sis balonları tamamen kaldırıldı — yumuşak kenarlı gerçek deniz sisi, akan su akıntı şeritleri ve doğal ada lagünleri geldi.'
+    ]
+  },
   {
     ver: 'v5.2',
     notes: [
