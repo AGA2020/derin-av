@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v7.1';
+export const GAME_VERSION = 'v7.2';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,14 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v7.2',
+    notes: [
+      '🐙 HARİTA KENARINDAN ÇIKAN DEV TENTAKÜLLER (Oyuncu Önerisi!):',
+      '🌊 Kraken Uyanışı sırasında Kraken hayattayken her 5 sn’de bir (Öfke fazında 3.8 sn!) haritanın kenarlarından 2–3 dev vantuzlu tentakül yükselip 1.1 sn uyarı sonrası içeri doğru şamar atar!',
+      '💥 Kenara sinmeyi kırar ve yakalananları 490 güçle savaşın ortasına fırlatır — Kraken öldüğünde kenar tentakülleri de durur!'
+    ]
+  },
   {
     ver: 'v7.1',
     notes: [

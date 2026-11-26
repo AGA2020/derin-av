@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=7.1';
-import { hasLineOfSight } from './sim.js?v=7.1';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=7.2';
+import { hasLineOfSight } from './sim.js?v=7.2';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -293,6 +293,7 @@ export class SeaRenderer {
     this._drawRocksAndShips(ctx, map);
     this._drawBreakables(ctx, state.breakables || []);
     this._drawKraken(ctx, state.kraken);
+    this._drawEdgeTentacles(ctx, state.edgeTentacles || []);
     this._drawCrown(ctx, state.crown);
     this._drawMegaChest(ctx, state.megaChest);
     this._drawPings(ctx, state.pings || [], me);
@@ -2199,6 +2200,63 @@ export class SeaRenderer {
     ctx.textAlign = 'center';
     ctx.fillText(k.enraged ? `🔥 ÖFKELİ KRAKEN · ${k.hp}/${k.maxHp}` : `🐙 KRAKEN · ${k.hp}/${k.maxHp}`, 0, -64);
     ctx.restore();
+  }
+
+  _drawEdgeTentacles(ctx, list) {
+    if (!list || list.length === 0) return;
+    const t = this.time;
+    for (const et of list) {
+      ctx.save();
+      ctx.translate(et.x, et.y);
+      ctx.rotate(et.angle);
+      const ix = 74;
+      if (et.phase === 'warn') {
+        const p = et.pct || 0;
+        ctx.fillStyle = `rgba(217, 70, 239, ${0.12 + p * 0.22})`;
+        ctx.beginPath();
+        ctx.arc(ix, 0, et.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#f0abfc';
+        ctx.lineWidth = 2.6;
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.arc(ix, 0, et.r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(244, 63, 94, 0.28)';
+        ctx.beginPath();
+        ctx.arc(ix, 0, Math.max(12, et.r * p), 0, Math.PI * 2);
+        ctx.fill();
+        // Emerging tentacle tip from map edge
+        const reach = 18 + p * 36;
+        ctx.strokeStyle = '#a21caf';
+        ctx.lineWidth = 14;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-10, 0);
+        ctx.quadraticCurveTo(reach * 0.5, Math.sin(t * 14 + et.id) * 14, reach, 0);
+        ctx.stroke();
+      } else {
+        const p = et.pct || 0;
+        const alpha = p > 0.45 ? Math.max(0, 1 - (p - 0.45) / 0.55) : 1;
+        const reach = p < 0.25 ? (55 + (p / 0.25) * 95) : (150 - (p - 0.25) * 80);
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = '#7e22ce';
+        ctx.lineWidth = 18;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-12, 0);
+        ctx.quadraticCurveTo(reach * 0.5, Math.sin(p * 10) * 16, reach, 0);
+        ctx.stroke();
+        ctx.fillStyle = '#f5d0fe';
+        for (const f of [0.3, 0.55, 0.78]) {
+          ctx.beginPath();
+          ctx.arc(reach * f, 4, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
   }
 
   _drawCrown(ctx, crown) {

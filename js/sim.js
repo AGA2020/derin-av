@@ -22,7 +22,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=7.1';
+} from './data.js?v=7.2';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -124,6 +124,8 @@ export class GameSim {
     this.geyserTimer = 4.5; // 🌋 Lav gayzeri sayacı
     this.kraken = null; // 🐙 Kraken Boss (7. Tur Olayı)
     this.krakenSpawnTimer = 0;
+    this.edgeTentacles = []; // 🐙 Harita kenarından çıkan dev tentaküller!
+    this.edgeTentTimer = 0;
     this.megaChest = null; // 💎 Tur Ortası Büyük Hazine Sandığı
     this.megaChestSpawned = false;
     this.pings = []; // 📍 2v2 Takım Sinyalleri
@@ -416,6 +418,8 @@ export class GameSim {
     this.breakables = [];
     this.crown = null;
     this.kraken = null;
+    this.edgeTentacles = [];
+    this.edgeTentTimer = 0;
     this.banner = null;
     this.pulses = [];
     this.sinkEffects = [];
@@ -584,6 +588,8 @@ export class GameSim {
     this.geyserTimer = 4.2;
     this.kraken = null;
     this.krakenSpawnTimer = this.roundEvent === 'kraken_uyanisi' ? 12.0 : 0;
+    this.edgeTentacles = [];
+    this.edgeTentTimer = 2.6;
     this.megaChest = null;
     this.megaChestSpawned = false;
     this.pings = [];
@@ -1952,6 +1958,77 @@ export class GameSim {
           p.y = k.y + ((p.y - k.y) / d) * minD;
         }
       }
+
+      // 🐙 HARİTA KENARINDAN ÇIKAN DEV TENTAKÜLLER (Kenara sinmeyi kırar & merkeze savurur!)
+      this.edgeTentTimer -= dt;
+      if (this.edgeTentTimer <= 0) {
+        this.edgeTentTimer = k.enraged ? 3.8 : 5.2;
+        const want = k.enraged ? 3 : 2;
+        const minTopY = curMap.beach ? curMap.beach.sandY + 26 : 16;
+        const edgePlayers = this.players.filter(pl =>
+          pl.alive && (pl.x < 250 || pl.x > WORLD_W - 250 || pl.y < minTopY + 230 || pl.y > WORLD_H - 250)
+        );
+        for (let s = 0; s < want; s++) {
+          if (this.edgeTentacles.length >= 4) break;
+          let tx, ty, nx, ny;
+          const targetP = edgePlayers[s];
+          if (targetP && Math.random() < 0.72) {
+            const dLeft = targetP.x;
+            const dRight = WORLD_W - targetP.x;
+            const dTop = curMap.beach ? 9999 : targetP.y;
+            const dBot = WORLD_H - targetP.y;
+            const m = Math.min(dLeft, dRight, dTop, dBot);
+            if (m === dLeft) { tx = 14; ty = clamp(targetP.y, minTopY + 90, WORLD_H - 90); nx = 1; ny = 0; }
+            else if (m === dRight) { tx = WORLD_W - 14; ty = clamp(targetP.y, minTopY + 90, WORLD_H - 90); nx = -1; ny = 0; }
+            else if (m === dTop) { tx = clamp(targetP.x, 120, WORLD_W - 120); ty = 14; nx = 0; ny = 1; }
+            else { tx = clamp(targetP.x, 120, WORLD_W - 120); ty = WORLD_H - 14; nx = 0; ny = -1; }
+          } else {
+            const sides = curMap.beach ? [0, 1, 3] : [0, 1, 2, 3];
+            const side = sides[Math.floor(Math.random() * sides.length)];
+            if (side === 0) { tx = 14; ty = minTopY + 90 + Math.random() * (WORLD_H - minTopY - 180); nx = 1; ny = 0; }
+            else if (side === 1) { tx = WORLD_W - 14; ty = minTopY + 90 + Math.random() * (WORLD_H - minTopY - 180); nx = -1; ny = 0; }
+            else if (side === 2) { tx = 140 + Math.random() * (WORLD_W - 280); ty = 14; nx = 0; ny = 1; }
+            else { tx = 140 + Math.random() * (WORLD_W - 280); ty = WORLD_H - 14; nx = 0; ny = -1; }
+          }
+          if (this.edgeTentacles.some(et => dist(et.x, et.y, tx, ty) < 250)) continue;
+          this.edgeTentacles.push({
+            id: this._nextEntityId++,
+            x: tx,
+            y: ty,
+            nx,
+            ny,
+            angle: Math.atan2(ny, nx),
+            r: 92,
+            phase: 'warn',
+            timer: 1.1,
+            maxTimer: 1.1
+          });
+        }
+      }
+    }
+    for (let i = this.edgeTentacles.length - 1; i >= 0; i--) {
+      const et = this.edgeTentacles[i];
+      et.timer -= dt;
+      if (et.phase === 'warn' && et.timer <= 0) {
+        et.phase = 'slam';
+        et.timer = 0.85;
+        et.maxTimer = 0.85;
+        const ix = et.x + et.nx * 74;
+        const iy = et.y + et.ny * 74;
+        this._addPulse(ix, iy, et.r + 16, 'boom', 'N');
+        this.onEvent({ type: 'sfx', name: 'splash' });
+        const dmg = this.kraken?.enraged ? 22 : 18;
+        for (const p of this.players) {
+          if (!p.alive) continue;
+          if (dist(ix, iy, p.x, p.y) <= et.r + p.r) {
+            if (p.submerged) this._surfacePlayer(p, true);
+            this._applyDamage(p, dmg, null, et.nx * 490, et.ny * 490, 'Kraken Tentakülü');
+            this._addFloatText(p.x, p.y - 34, '🐙 KENARDAN ŞAMAR!', '#e879f9');
+          }
+        }
+      } else if (et.phase === 'slam' && et.timer <= 0) {
+        this.edgeTentacles.splice(i, 1);
+      }
     }
 
     // 👑 ALTIN TAÇ MODU SİMÜLASYONU
@@ -2876,6 +2953,7 @@ export class GameSim {
     if (k.hp <= 0) {
       const kx = k.x; const ky = k.y;
       this.kraken = null;
+      this.edgeTentacles = [];
       this._addPulse(kx, ky, 210, 'boom', 'N');
       this.onEvent({ type: 'sfx', name: 'sink' });
       const killer = this.players.find(pl => pl.id === attackerId);
@@ -3350,6 +3428,17 @@ export class GameSim {
         enraged: Boolean(this.kraken.enraged),
         aim: Number((this.kraken.aim || 0).toFixed(2))
       } : null,
+      edgeTentacles: this.edgeTentacles.map(et => ({
+        id: et.id,
+        x: Math.round(et.x),
+        y: Math.round(et.y),
+        nx: Number(et.nx.toFixed(2)),
+        ny: Number(et.ny.toFixed(2)),
+        angle: Number(et.angle.toFixed(2)),
+        r: et.r,
+        phase: et.phase,
+        pct: Number((1 - Math.max(0, et.timer) / (et.maxTimer || 1)).toFixed(2))
+      })),
       lighthouse: this.currentMap.lighthouse ? {
         x: this.currentMap.lighthouse.x,
         y: this.currentMap.lighthouse.y,

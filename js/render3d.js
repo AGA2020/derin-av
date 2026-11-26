@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=7.1';
-import { hasLineOfSight } from './sim.js?v=7.1';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=7.2';
+import { hasLineOfSight } from './sim.js?v=7.2';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -731,6 +731,7 @@ export class SeaRenderer3D {
     this.zoneMeshes = new Map();
     this.buoyMeshes = new Map();
     this.geyserMeshes = new Map();
+    this.edgeTentMeshes = new Map();
     this.krakenRig = null;
     this.crownRig = null;
     this.megaChestRig = null;
@@ -816,9 +817,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=7.1'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=7.1'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=7.1'],
+      ['chest', './vendor/models/pirate/chest.glb?v=7.2'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=7.2'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=7.2'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -2659,6 +2660,7 @@ export class SeaRenderer3D {
     this._syncBuoys(state.rescueBuoys || []);
     this._syncGeysers(state.geysers || []);
     this._syncKraken(state.kraken);
+    this._syncEdgeTentacles(state.edgeTentacles || []);
     this._syncCrown(state.crown);
     this._syncMegaChest(state.megaChest);
 
@@ -3324,6 +3326,134 @@ export class SeaRenderer3D {
       // Rear high into the air during telegraph, lash out wildly when enraged!
       t.arm.rotation.z = warn ? (0.36 + wp * 0.42 + wave * 0.12) : (wave * (enraged ? 0.26 : 0.16));
       t.arm.position.y = bob * 0.6 + (warn ? wp * 14 : Math.cos(this.time * spd * 0.8 + t.idx) * 5);
+    }
+  }
+
+  // 🐙 Perimeter Edge Tentacles erupting from map borders and slamming inward!
+  _syncEdgeTentacles(list) {
+    const seen = new Set();
+    if (!this._edgeTentGeo) {
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-12, -8, 0),
+        new THREE.Vector3(24, 58, 6),
+        new THREE.Vector3(74, 88, -6),
+        new THREE.Vector3(122, 54, 4),
+        new THREE.Vector3(148, 18, 0)
+      ]);
+      const geo = new THREE.TubeGeometry(curve, 20, 8.5, 10, false);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const frac = Math.max(0, Math.min(1, (pos.getX(i) + 12) / 160));
+        const c = curve.getPoint(frac);
+        const taper = 1.3 - frac * 0.92;
+        pos.setXYZ(
+          i,
+          c.x + (pos.getX(i) - c.x) * taper,
+          c.y + (pos.getY(i) - c.y) * taper,
+          c.z + (pos.getZ(i) - c.z) * taper
+        );
+      }
+      geo.computeVertexNormals();
+      this._edgeTentGeo = geo;
+      this._edgeTentCurve = curve;
+    }
+
+    for (const et of list) {
+      seen.add(et.id);
+      let rig = this.edgeTentMeshes.get(et.id);
+      if (!rig) {
+        const root = new THREE.Group();
+        const skinMat = new THREE.MeshStandardMaterial({ color: '#6b21a8', roughness: 0.3, metalness: 0.18 });
+        const cupMat = new THREE.MeshStandardMaterial({ color: '#f5d0fe', roughness: 0.4, emissive: '#c026d3', emissiveIntensity: 0.3 });
+
+        const pivot = new THREE.Group();
+        const arm = new THREE.Mesh(this._edgeTentGeo, skinMat);
+        arm.castShadow = true;
+        pivot.add(arm);
+        for (const f of [0.22, 0.42, 0.62, 0.8]) {
+          const pt = this._edgeTentCurve.getPoint(f);
+          const cup = new THREE.Mesh(this._sharedGeo.sphere, cupMat);
+          cup.scale.setScalar(4.4 - f * 2.2);
+          cup.position.set(pt.x, pt.y - 4.5, pt.z);
+          pivot.add(cup);
+        }
+        root.add(pivot);
+
+        // Telegraph danger ring + growing red fill at inward impact zone
+        const warnOuter = new THREE.Mesh(
+          new THREE.RingGeometry(et.r - 5, et.r, 36),
+          new THREE.MeshBasicMaterial({ color: '#f0abfc', transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false })
+        );
+        warnOuter.rotation.x = -Math.PI / 2;
+        warnOuter.position.set(74, 2.8, 0);
+        root.add(warnOuter);
+
+        const warnFill = new THREE.Mesh(
+          new THREE.CircleGeometry(1, 32),
+          new THREE.MeshBasicMaterial({ color: '#f43f5e', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false })
+        );
+        warnFill.rotation.x = -Math.PI / 2;
+        warnFill.position.set(74, 2.6, 0);
+        root.add(warnFill);
+
+        // Churning purple surf foam at border eruption anchor
+        const baseFoam = new THREE.Mesh(
+          new THREE.PlaneGeometry(76, 76),
+          new THREE.MeshBasicMaterial({ map: this.shoreFoamTex, color: '#e879f9', transparent: true, opacity: 0.6, depthWrite: false })
+        );
+        baseFoam.rotation.x = -Math.PI / 2;
+        baseFoam.position.set(0, 2.1, 0);
+        root.add(baseFoam);
+
+        this.dynamicGroup.add(root);
+        rig = { root, pivot, warnOuter, warnFill, baseFoam, slammed: false };
+        this.edgeTentMeshes.set(et.id, rig);
+      }
+
+      rig.root.position.set(et.x, 0, et.y);
+      rig.root.rotation.y = -et.angle;
+      rig.baseFoam.rotation.z += 0.04;
+
+      if (et.phase === 'warn') {
+        const p = et.pct || 0;
+        rig.warnOuter.visible = true;
+        rig.warnFill.visible = true;
+        const sc = Math.max(12, et.r * p);
+        rig.warnFill.scale.set(sc, sc, 1);
+        rig.warnFill.material.opacity = 0.16 + p * 0.28;
+        // Rise menacingly from border water & rear back!
+        rig.pivot.position.y = -72 + p * 74;
+        rig.pivot.rotation.z = 0.45 + p * 0.35 + Math.sin(this.time * 16 + et.id) * 0.06;
+      } else {
+        rig.warnOuter.visible = false;
+        rig.warnFill.visible = false;
+        const p = et.pct || 0;
+        if (!rig.slammed) {
+          rig.slammed = true;
+          const ix = et.x + et.nx * 74;
+          const iy = et.y + et.ny * 74;
+          this._spawnSplashPlume(ix, iy, '#e879f9', 1.45);
+          this._triggerBlastLight(ix, iy, '#d946ef', 5.5);
+        }
+        if (p < 0.22) {
+          // Whip forward and SLAM flat into the ocean!
+          const slamT = p / 0.22;
+          rig.pivot.rotation.z = 0.8 - slamT * 1.15;
+          rig.pivot.position.y = 2 - slamT * 12;
+        } else {
+          // Submerge smoothly back into the abyssal waves
+          const sinkT = (p - 0.22) / 0.78;
+          rig.pivot.rotation.z = -0.35 - sinkT * 0.25;
+          rig.pivot.position.y = -10 - sinkT * 95;
+        }
+      }
+    }
+
+    for (const [id, rig] of this.edgeTentMeshes.entries()) {
+      if (!seen.has(id)) {
+        this.dynamicGroup.remove(rig.root);
+        this.edgeTentMeshes.delete(id);
+      }
     }
   }
 
