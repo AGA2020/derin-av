@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>İKİ İTEMLİ OYUN — Online Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=6.2" />
+  <link rel="stylesheet" href="./styles.css?v=6.3" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -250,12 +250,12 @@
       </div>
     </div>
 
-    <!-- ⚔️ VS / KARŞILAŞMA EKRANI (TUR BAŞI 3.8 SN) -->
+    <!-- ⚔️ VS / KARŞILAŞMA EKRANI (TUR BAŞI 5.5 SN) -->
     <div id="overlay-intro" class="overlay">
       <div class="modal vs-modal">
         <div class="vs-header">
           <div id="intro-map-title" class="draft-badge">TUR 1/4 · FIRTINA BOĞAZI</div>
-          <div class="vs-countdown-wrap">DENİZE AÇILIŞ: <span id="intro-countdown" class="vs-countdown">3</span></div>
+          <div class="vs-countdown-wrap">DENİZE AÇILIŞ: <span id="intro-countdown" class="vs-countdown">5</span></div>
         </div>
         <div id="intro-event-showcase" class="vs-event-showcase" style="display:none"></div>
         <div id="intro-vs-body" class="vs-body teams"></div>
@@ -294,7 +294,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v6.2</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v6.3</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -536,7 +536,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=6.2"></script>
+  <script type="module" src="./js/main.js?v=6.3"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

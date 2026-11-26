@@ -22,7 +22,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=6.2';
+} from './data.js?v=6.3';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -546,9 +546,9 @@ export class GameSim {
       s.readyItems = true;
     }
 
-    // ⚔️ Önce 3.8 sn VS / Karşılaşma Ekranı (herkesin çarı & 2 itemi görünür!)
+    // ⚔️ Önce 5.5 sn VS / Karşılaşma Ekranı (Tur Olayı + herkesin çarı, 2 itemi & kombosu!)
     this.phase = 'intro';
-    this.phaseTimer = 3.8;
+    this.phaseTimer = 5.5;
     this.projectiles = [];
     this.traps = [];
     this.zones = [];
