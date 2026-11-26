@@ -16,11 +16,11 @@ import {
   FFA_ITEMS,
   ALL_ITEMS,
   SEA_MAPS
-} from './data.js?v=5.33';
-import { sfx } from './audio.js?v=5.33';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=5.33';
-import { GameSim } from './sim.js?v=5.33';
-import { SeaRenderer } from './render.js?v=5.33';
+} from './data.js?v=5.34';
+import { sfx } from './audio.js?v=5.34';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=5.34';
+import { GameSim } from './sim.js?v=5.34';
+import { SeaRenderer } from './render.js?v=5.34';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1646,7 +1646,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=5.33');
+        const mod = await import('./render3d.js?v=5.34');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
       } catch (err) {
         console.warn('3D WebGL init error:', err);

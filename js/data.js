@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v5.33';
+export const GAME_VERSION = 'v5.34';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -66,6 +66,13 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v5.34',
+    notes: [
+      '🪵 Barikat GLB modeline sürüm önbellek kırıcı (?v=5.34) eklendi — eski şişe kasası önbellekten gelmez, gerçek ahşap barikat görünür.',
+      '⭕ Tekne ve sandık halkaları dalga sırtlarının hafif üstüne alınarak dalga kesilmesi giderildi.'
+    ]
+  },
   {
     ver: 'v5.33',
     notes: [

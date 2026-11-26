@@ -6,8 +6,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.33';
-import { hasLineOfSight } from './sim.js?v=5.33';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=5.34';
+import { hasLineOfSight } from './sim.js?v=5.34';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -464,9 +464,9 @@ export class SeaRenderer3D {
       ['rocksB', './vendor/models/pirate/rocks-b.glb'],
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
-      ['chest', './vendor/models/pirate/chest.glb'],
-      ['barrel', './vendor/models/pirate/barrel.glb'],
-      ['barricade', './vendor/models/pirate/barricade.glb'],
+      ['chest', './vendor/models/pirate/chest.glb?v=5.34'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=5.34'],
+      ['barricade', './vendor/models/pirate/barricade.glb?v=5.34'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -968,13 +968,13 @@ export class SeaRenderer3D {
   _createCharRig(charId, hullHex, roleHex, hasCustomSkin = false) {
     const root = new THREE.Group();
 
-    // Subtle crisp role ring right on the water surface for competitive clarity
+    // Subtle crisp role ring right above wave crests for clean unbroken readability
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(21, 23.8, 32),
-      new THREE.MeshBasicMaterial({ color: roleHex, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false })
+      new THREE.MeshBasicMaterial({ color: roleHex, transparent: true, opacity: 0.78, side: THREE.DoubleSide, depthWrite: false })
     );
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 2.0;
+    ring.position.y = 3.6;
     root.add(ring);
 
     const shield = new THREE.Mesh(
@@ -990,7 +990,7 @@ export class SeaRenderer3D {
       new THREE.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false })
     );
     aura.rotation.x = -Math.PI / 2;
-    aura.position.y = 2.2;
+    aura.position.y = 3.8;
     aura.visible = false;
     root.add(aura);
 
@@ -1704,7 +1704,7 @@ export class SeaRenderer3D {
             if (hit) { range = d; break; }
           }
           showAim = true;
-          this.aimGuideMesh.position.set(sp.x, 2.3, sp.y);
+          this.aimGuideMesh.position.set(sp.x, 3.6, sp.y);
           this.aimGuideMesh.rotation.y = -sp.aim;
           this.aimGuideMesh.scale.set(range, 1, 1);
           this.aimGuideMesh.material.color.set(p.role === 'hunter' ? '#ffd166' : '#80ffdb');
@@ -1864,7 +1864,7 @@ export class SeaRenderer3D {
           new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false })
         );
         ring.rotation.x = -Math.PI / 2;
-        ring.position.y = 2.0;
+        ring.position.y = 3.6;
         g.add(ring);
 
         this.dynamicGroup.add(g);
