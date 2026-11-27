@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.9';
-import { hasLineOfSight } from './sim.js?v=8.9';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.0';
+import { hasLineOfSight } from './sim.js?v=9.0';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -302,6 +302,7 @@ export class SeaRenderer {
     this._drawDecoys(ctx, state.decoys || [], me, map);
     this._drawPlayers(ctx, players, me, map, state.roundEvent);
     this._drawProjectiles(ctx, state.projectiles || [], dt);
+    this._drawMeleeSwings(ctx, state.meleeSwings || []);
     this._drawZones(ctx, state.zones || []);
     this._drawFogs(ctx, map, me);
     this._drawLighthouse(ctx, state.lighthouse);
@@ -1353,6 +1354,52 @@ export class SeaRenderer {
         ctx.moveTo(len + 5, 0); ctx.lineTo(len - 1, -3.2); ctx.lineTo(len - 1, 3.2);
         ctx.closePath(); ctx.fill();
       }
+    } else if (itemId === 'cutlass') {
+      // ⚔️ Korsan Palası: altın kabzalı kavisli çelik pala
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(-1, -4.2, 3.2, 8.4);
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 3.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(2, 0);
+      ctx.quadraticCurveTo(11, -3.5, 19, -1);
+      ctx.stroke();
+    } else if (itemId === 'trident') {
+      // 🔱 Poseidon Mızrağı: uzun altın-turkuaz üç dişli mızrak
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(-4, 0); ctx.lineTo(17, 0);
+      ctx.stroke();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2.1;
+      ctx.beginPath();
+      ctx.moveTo(14, -5); ctx.lineTo(22, -4);
+      ctx.moveTo(15, 0); ctx.lineTo(24, 0);
+      ctx.moveTo(14, 5); ctx.lineTo(22, 4);
+      ctx.stroke();
+    } else if (itemId === 'heavy_oar') {
+      // 🪵 Dev Kürek: kalın ahşap sap + geniş kürek palası
+      ctx.strokeStyle = '#92400e';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-4, 0); ctx.lineTo(13, 0);
+      ctx.stroke();
+      ctx.fillStyle = '#b45309';
+      ctx.strokeStyle = '#451a03';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.roundRect(11, -4.8, 11, 9.6, 3);
+      ctx.fill(); ctx.stroke();
+    } else if (itemId === 'coral_dagger') {
+      // 🗡️ Dalgıç Hançeri: parlak mercan-turkuaz hançer
+      ctx.fillStyle = '#f43f5e';
+      ctx.fillRect(-1, -3, 3, 6);
+      ctx.fillStyle = '#5eead4';
+      ctx.beginPath();
+      ctx.moveTo(2, -2.5); ctx.lineTo(14, 0); ctx.lineTo(2, 2.5);
+      ctx.closePath(); ctx.fill();
     } else if (itemId === 'mirror_shield') {
       ctx.fillStyle = '#e0f2fe';
       ctx.strokeStyle = '#38bdf8';
@@ -2237,6 +2284,57 @@ export class SeaRenderer {
       }
     }
     ctx.restore();
+  }
+
+  _drawMeleeSwings(ctx, swings) {
+    if (!swings || swings.length === 0) return;
+    for (const ms of swings) {
+      const p = ms.pct || 0;
+      const alpha = Math.max(0, 1 - p * p);
+      ctx.save();
+      ctx.translate(ms.x, ms.y);
+      ctx.rotate(ms.angle);
+      ctx.globalAlpha = alpha;
+      if (ms.kind === 'trident') {
+        // Piercing 3-prong aqua-gold spear thrust!
+        const reach = ms.range * (0.45 + 0.55 * Math.min(1, p * 2.2));
+        for (const oy of [-13, 0, 13]) {
+          const g = ctx.createLinearGradient(12, oy, reach, oy);
+          g.addColorStop(0, 'rgba(56, 189, 248, 0)');
+          g.addColorStop(0.6, 'rgba(56, 189, 248, 0.85)');
+          g.addColorStop(1, '#fef08a');
+          ctx.strokeStyle = g;
+          ctx.lineWidth = oy === 0 ? 7 : 4.2;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(14, oy * 0.45);
+          ctx.lineTo(reach - (oy === 0 ? 0 : 12), oy);
+          ctx.stroke();
+        }
+      } else {
+        const half = (ms.arc || 2) * 0.5;
+        const rOut = ms.range * (0.82 + p * 0.22);
+        const rIn = rOut * (ms.kind === 'heavy_oar' ? 0.56 : 0.64);
+        const colMain = ms.kind === 'heavy_oar' ? 'rgba(251, 191, 36, 0.68)'
+          : ms.kind === 'coral_dagger' ? 'rgba(244, 63, 94, 0.72)'
+            : 'rgba(224, 242, 254, 0.82)';
+        const colEdge = ms.kind === 'heavy_oar' ? '#fef08a'
+          : ms.kind === 'coral_dagger' ? '#5eead4'
+            : '#38bdf8';
+        ctx.fillStyle = colMain;
+        ctx.beginPath();
+        ctx.arc(0, 0, rOut, -half, half);
+        ctx.arc(0, 0, rIn, half, -half, true);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = colEdge;
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.arc(0, 0, rOut, -half, half);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   _drawCrown(ctx, crown) {

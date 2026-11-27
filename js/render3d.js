@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=8.9';
-import { hasLineOfSight } from './sim.js?v=8.9';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.0';
+import { hasLineOfSight } from './sim.js?v=9.0';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -732,6 +732,7 @@ export class SeaRenderer3D {
     this.buoyMeshes = new Map();
     this.geyserMeshes = new Map();
     this.edgeTentMeshes = new Map();
+    this.meleeSwingMeshes = new Map();
     this.tsunamiRig = null;
     this._tsunamiSprayCd = 0;
     this.krakenRig = null;
@@ -820,9 +821,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=8.9'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=8.9'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=8.9'],
+      ['chest', './vendor/models/pirate/chest.glb?v=9.0'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=9.0'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=9.0'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -1880,6 +1881,72 @@ export class SeaRenderer3D {
         const cross2 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 5, 5.4), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
         cross2.position.x = 7.5;
         g.add(cross2);
+        break;
+      }
+      case 'cutlass': {
+        // ⚔️ Korsan Palası: Altın koruma kabzalı parlak çelik korsan palası!
+        const hilt = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 5.5, 8), wood);
+        hilt.position.set(2, -1, 0);
+        g.add(hilt);
+        const guard = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.7, 6, 10, Math.PI), gold);
+        guard.rotation.z = -Math.PI / 2;
+        guard.position.set(4.5, 0, 0);
+        g.add(guard);
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(20, 2.8, 0.9), steel);
+        blade.position.set(14.5, 0.8, 0);
+        blade.rotation.z = 0.08;
+        g.add(blade);
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(1.6, 5, 4), steel);
+        tip.rotation.z = -Math.PI / 2 + 0.14;
+        tip.position.set(25.5, 1.8, 0);
+        g.add(tip);
+        break;
+      }
+      case 'trident': {
+        // 🔱 Poseidon Mızrağı: Uzun altın sap + 3 parlayan turkuaz mızrak ucu!
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 26, 8), gold);
+        shaft.rotation.z = -Math.PI / 2;
+        shaft.position.x = 11;
+        g.add(shaft);
+        const aquaGlow = new THREE.MeshStandardMaterial({ color: '#38bdf8', emissive: '#0284c7', emissiveIntensity: 0.65, metalness: 0.6, roughness: 0.2 });
+        const cross = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 10), gold);
+        cross.position.x = 23;
+        g.add(cross);
+        for (const pz of [-4.2, 0, 4.2]) {
+          const prong = new THREE.Mesh(new THREE.ConeGeometry(1.45, pz === 0 ? 10 : 7.5, 6), aquaGlow);
+          prong.rotation.z = -Math.PI / 2;
+          prong.position.set(pz === 0 ? 28.5 : 27, 0, pz);
+          g.add(prong);
+        }
+        break;
+      }
+      case 'heavy_oar': {
+        // 🪵 Dev Kürek: Kalın ahşap sap + demir şeritli geniş kürek palası!
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 18, 8), wood);
+        pole.rotation.z = -Math.PI / 2;
+        pole.position.x = 7;
+        g.add(pole);
+        const paddle = new THREE.Mesh(new THREE.BoxGeometry(14, 1.8, 7.6), new THREE.MeshStandardMaterial({ color: '#b45309', roughness: 0.65 }));
+        paddle.position.x = 21;
+        g.add(paddle);
+        const band = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 8.0), darkIron);
+        band.position.x = 15.5;
+        g.add(band);
+        break;
+      }
+      case 'coral_dagger': {
+        // 🗡️ Dalgıç Hançeri: Mercan kabzalı parlayan turkuaz dalgıç bıçağı!
+        const grip = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, 5, 8), new THREE.MeshStandardMaterial({ color: '#f43f5e', roughness: 0.5 }));
+        grip.rotation.z = -Math.PI / 2;
+        grip.position.x = 3;
+        g.add(grip);
+        const blade = new THREE.Mesh(
+          new THREE.ConeGeometry(2.2, 14, 4),
+          new THREE.MeshStandardMaterial({ color: '#5eead4', emissive: '#14b8a6', emissiveIntensity: 0.55, metalness: 0.7, roughness: 0.2 })
+        );
+        blade.rotation.z = -Math.PI / 2;
+        blade.position.x = 12;
+        g.add(blade);
         break;
       }
       case 'mirror_shield': {
@@ -3160,6 +3227,7 @@ export class SeaRenderer3D {
     this._syncPlayers(state, players, me, map);
     this._syncDecoys(state.decoys || [], me, map);
     this._syncProjectiles(state.projectiles || [], players);
+    this._syncMeleeSwings(state.meleeSwings || []);
     this._syncBarrels(state.barrels || []);
     this._syncPowerups(state.powerups || []);
     this._syncBreakables(state.breakables || []);
@@ -4337,6 +4405,59 @@ export class SeaRenderer3D {
           const sz = isHoriz ? Math.max(30, Math.min(WORLD_H - 30, centerAlong + offset)) : ts.pos + ts.dy * 36;
           this._spawnSplashPlume(sx, sz, '#e0f2fe', 0.95);
         }
+      }
+    }
+  }
+
+  _syncMeleeSwings(list) {
+    const seen = new Set();
+    for (const ms of list) {
+      seen.add(ms.id);
+      let entry = this.meleeSwingMeshes.get(ms.id);
+      if (!entry) {
+        const g = new THREE.Group();
+        const isTrident = ms.kind === 'trident';
+        const col = ms.kind === 'heavy_oar' ? 0xfbbf24
+          : ms.kind === 'coral_dagger' ? 0xf43f5e
+            : ms.kind === 'trident' ? 0x38bdf8
+              : 0xe0f2fe;
+        const mat = new THREE.MeshBasicMaterial({
+          color: col,
+          transparent: true,
+          opacity: 0.86,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        if (isTrident) {
+          for (const oz of [-13, 0, 13]) {
+            const beam = new THREE.Mesh(new THREE.ConeGeometry(oz === 0 ? 7 : 4.2, ms.range, 6), mat);
+            beam.rotation.z = -Math.PI / 2;
+            beam.position.set(ms.range * 0.5, 0, oz);
+            g.add(beam);
+          }
+        } else {
+          const arc = ms.arc || 2.1;
+          const rIn = ms.range * (ms.kind === 'heavy_oar' ? 0.52 : 0.62);
+          const geo = new THREE.RingGeometry(rIn, ms.range, 20, 1, -arc / 2, arc);
+          geo.rotateX(-Math.PI / 2);
+          const slash = new THREE.Mesh(geo, mat);
+          g.add(slash);
+        }
+        g.position.set(ms.x, 14, ms.y);
+        g.rotation.y = -ms.angle;
+        this.dynamicGroup.add(g);
+        entry = { root: g, mat };
+        this.meleeSwingMeshes.set(ms.id, entry);
+      }
+      const p = ms.pct || 0;
+      entry.mat.opacity = Math.max(0, (1 - p * p) * 0.88);
+      const sc = ms.kind === 'trident' ? (0.55 + Math.min(1, p * 2.1) * 0.52) : (0.84 + p * 0.24);
+      entry.root.scale.set(sc, 1, sc);
+    }
+    for (const [id, entry] of this.meleeSwingMeshes.entries()) {
+      if (!seen.has(id)) {
+        this._removeFrom(this.dynamicGroup, entry.root);
+        this.meleeSwingMeshes.delete(id);
       }
     }
   }

@@ -431,6 +431,71 @@ class SoundEngine {
           sub.stop(now + 0.31);
           break;
         }
+        case 'slash': {
+          // ⚔️ Çelik pala / mızrak savurma sesi
+          const src = this.ctx.createBufferSource();
+          src.buffer = this._noiseBuffer(0.18);
+          const bp = this.ctx.createBiquadFilter();
+          bp.type = 'bandpass';
+          bp.frequency.setValueAtTime(2200, now);
+          bp.frequency.exponentialRampToValueAtTime(520, now + 0.16);
+          const g = this.ctx.createGain();
+          g.gain.setValueAtTime(vol * 0.55, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+          src.connect(bp).connect(g).connect(this.ctx.destination);
+          src.start(now);
+          const osc = this.ctx.createOscillator();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(780, now);
+          osc.frequency.exponentialRampToValueAtTime(320, now + 0.12);
+          const og = this.ctx.createGain();
+          og.gain.setValueAtTime(vol * 0.22, now);
+          og.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+          osc.connect(og).connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.14);
+          break;
+        }
+        case 'parry': {
+          // ✨ Mermi kesme / çelik çınlaması!
+          [1680, 2320].forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.02);
+            osc.frequency.exponentialRampToValueAtTime(freq * 1.18, now + 0.26);
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(vol * 0.36, now + idx * 0.02);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+            osc.connect(g).connect(this.ctx.destination);
+            osc.start(now + idx * 0.02);
+            osc.stop(now + 0.29);
+          });
+          break;
+        }
+        case 'oar_whack': {
+          // 🪵 Dev kürek ağır ahşap darbesi + su patlaması!
+          const osc = this.ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(210, now);
+          osc.frequency.exponentialRampToValueAtTime(62, now + 0.19);
+          const g = this.ctx.createGain();
+          g.gain.setValueAtTime(vol * 0.65, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+          osc.connect(g).connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.23);
+          const src = this.ctx.createBufferSource();
+          src.buffer = this._noiseBuffer(0.22);
+          const lp = this.ctx.createBiquadFilter();
+          lp.type = 'lowpass';
+          lp.frequency.setValueAtTime(860, now);
+          const ng = this.ctx.createGain();
+          ng.gain.setValueAtTime(vol * 0.48, now);
+          ng.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+          src.connect(lp).connect(ng).connect(this.ctx.destination);
+          src.start(now);
+          break;
+        }
         case 'ping': {
           // 📍 2v2 Takım Sinyali çift parlak bip!
           [880, 1180].forEach((freq, idx) => {

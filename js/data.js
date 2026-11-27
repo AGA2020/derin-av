@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v8.9';
+export const GAME_VERSION = 'v9.0';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -67,6 +67,17 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v9.0',
+    notes: [
+      '⚔️ YAKIN DÖVÜŞ (MELEE) SİLAHLARI GELDİ — 4 Özgün Deniz Silahı (Toplam 24 İtem, 12 Avcı / 12 Av)!',
+      '⚔️ Korsan Palası (Avcı/FFA): Geniş 135° çelik kavisli savurma (38 Hasar, 4.2s CD) — havadaki düşman mermilerini kesip yok eder (PARRY!) ve barikatı tek hamlede yarar!',
+      '🔱 Poseidon Mızrağı (Avcı/FFA): 138px uzun menzilli ileri saplama (42 Hasar, 4.8s CD) — su altındaki dalgıçları da yakalayıp yüzeye fırlatır!',
+      '🪵 Dev Kürek (Av/FFA): Geniş savunma darbesi (24 Hasar, 4.5s CD) — rakibi 680 güçle uzağa fırlatır ve barut fıçılarını 740 hızla füze gibi rakibe şutlar!',
+      '🗡️ Dalgıç Hançeri (Av/FFA): Hızlı ileri atılma (30 Hasar + yavaşlatma, 3.2s CD) — sis/mürekkep veya sudan yeni çıkmışken vurursa +%50 PUSU KRİTİĞİ (45 Hasar)!',
+      '🔗 2 Yeni İkili Kombo (Korsan Düellosu & Mürekkep Suikastı), elde 3D/2D gerçek melee modelleri, kavisli kesme efektleri ve Draft’ta ⚔️ Yakın Dövüş filtresi!'
+    ]
+  },
   {
     ver: 'v8.9',
     notes: [
@@ -927,6 +938,40 @@ export const HUNTER_ITEMS = [
     radius: 175,
     dur: 3.3,
     desc: '3.3 sn girdap alanı — yakındaki rakipleri merkeze çeker.'
+  },
+  {
+    id: 'cutlass',
+    name: 'Korsan Palası',
+    icon: '⚔️',
+    category: 'YAKIN DÖVÜŞ',
+    firearm: false,
+    melee: true,
+    uses: 99,
+    cooldown: 4.2,
+    range: 102,
+    arc: 2.35,
+    damage: 38,
+    knockback: 220,
+    lunge: 230,
+    canParry: true,
+    desc: '38 Hasar + geniş savurma (4.2s CD); havadaki mermiyi keser!'
+  },
+  {
+    id: 'trident',
+    name: 'Poseidon Mızrağı',
+    icon: '🔱',
+    category: 'YAKIN DÖVÜŞ',
+    firearm: false,
+    melee: true,
+    uses: 99,
+    cooldown: 4.8,
+    range: 138,
+    arc: 0.72,
+    damage: 42,
+    knockback: 260,
+    lunge: 270,
+    hitsSubmerged: true,
+    desc: '42 Hasar uzun saplama (4.8s CD); su altındakileri de vurur!'
   }
 ];
 
@@ -1062,6 +1107,41 @@ export const PREY_ITEMS = [
     dur: 4.0,
     speedMult: 1.18,
     desc: '4 sn +%18 hız + arkanda rakipleri %60 yavaşlatan yosun izi.'
+  },
+  {
+    id: 'heavy_oar',
+    name: 'Dev Kürek',
+    icon: '🪵',
+    category: 'YAKIN DÖVÜŞ',
+    firearm: false,
+    melee: true,
+    uses: 99,
+    cooldown: 4.5,
+    range: 112,
+    arc: 2.2,
+    damage: 24,
+    knockback: 680,
+    lunge: 140,
+    barrelLaunch: 740,
+    desc: '24 Hasar + dev savurma (4.5s CD); barut fıçısını füze gibi şutlar!'
+  },
+  {
+    id: 'coral_dagger',
+    name: 'Dalgıç Hançeri',
+    icon: '🗡️',
+    category: 'YAKIN DÖVÜŞ',
+    firearm: false,
+    melee: true,
+    uses: 99,
+    cooldown: 3.2,
+    range: 88,
+    arc: 1.55,
+    damage: 30,
+    knockback: 165,
+    lunge: 280,
+    slowDur: 1.3,
+    ambushCrit: true,
+    desc: '30 Hasar + yavaşlatma (3.2s CD); sis/dalıştan çıkınca +%50 kritik!'
   }
 ];
 
@@ -1080,7 +1160,9 @@ export const ITEM_COMBOS = [
   { id: 'karanlik_pusu', items: ['ink_cloud', 'sea_mine'], icon: '🦑', name: 'Karanlık Pusu', desc: 'Su Altı Mayını anında kurulur (0.15s) ve +10 ekstra hasar verir!' },
   { id: 'kor_atis', items: ['flash_flare', 'flintlock'], icon: '✨', name: 'Kör Atış Ustası', desc: 'Kör veya sersemlemiş rakibe Korsan Tabancası +18 hasar vurur!' },
   { id: 'hayalet_kacisi', items: ['jet_stream', 'decoy_buoy'], icon: '👻', name: 'Hayalet Kaçışı', desc: 'Sahte Klon çıkarınca +1.5 sn hız takviyesi kazanırsın!' },
-  { id: 'zirhli_yosun', items: ['mirror_shield', 'kelp_trail'], icon: '🪞', name: 'Zırhlı Yosun', desc: 'Yosun İzi açınca anında +18 Kalkan kazanırsın!' }
+  { id: 'zirhli_yosun', items: ['mirror_shield', 'kelp_trail'], icon: '🪞', name: 'Zırhlı Yosun', desc: 'Yosun İzi açınca anında +18 Kalkan kazanırsın!' },
+  { id: 'kanca_pala', items: ['grapple_hook', 'cutlass'], icon: '⚔️', name: 'Korsan Düellosu', desc: 'Kancayla çekilen rakibe Korsan Palası +14 ekstra hasar vurur!' },
+  { id: 'sis_hanceri', items: ['ink_cloud', 'coral_dagger'], icon: '🗡️', name: 'Mürekkep Suikastı', desc: 'Dalgıç Hançeri isabeti +1.5 sn +%26 kaçış hızı verir!' }
 ];
 
 export function getActiveCombo(itemIds = []) {

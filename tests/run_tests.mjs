@@ -57,7 +57,7 @@ const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 check(indexHtml.includes(`>${GAME_VERSION}</button>`), `[SÜRÜM] index.html versiyon rozeti ${GAME_VERSION} ile eşleşmiyor`);
 
 check(CHARACTERS.length === 6, `[VERİ] 6 çar bekleniyor, bulunan: ${CHARACTERS.length}`);
-check(HUNTER_ITEMS.length === 10 && PREY_ITEMS.length === 10 && FFA_ITEMS.length === 20, `[VERİ] İtem sayıları hatalı`);
+check(HUNTER_ITEMS.length === 12 && PREY_ITEMS.length === 12 && FFA_ITEMS.length === 24, `[VERİ] İtem sayıları hatalı`);
 check(ROUND_EVENTS.length === 8, `[VERİ] 8 tur olayı bekleniyor, bulunan: ${ROUND_EVENTS.length}`);
 check(SEA_MAPS.length === 6, `[VERİ] 6 harita bekleniyor, bulunan: ${SEA_MAPS.length}`);
 
@@ -195,6 +195,52 @@ for (const itemDef of FFA_ITEMS) {
     for (let i = 0; i < 10; i++) tSim.step(0.03);
     check(p1.hp + p1.breath >= shBefore - 0.1, '[TSUNAMI] Kaya arkasında siperde olan oyuncu hasar almamalı!');
   }
+}
+
+// 2d. ⚔️ 4 Yakın Dövüş (Melee) Silahı doğrulama (Pala parry, Mızrak dalgıç, Kürek fıçı şutu, Hançer pusu kritiği)
+{
+  const mSim = new GameSim();
+  mSim.addHuman('p1', 'Melee1');
+  mSim.addHuman('p2', 'Melee2');
+  mSim.switchTeam('p2');
+  mSim.updateSettings({ mode: 'ffa', mapMode: '0', eventMode: 'off', lives: 2, barrels: true });
+  mSim.startMatch();
+  mSim.setPlayerItems('p1', ['cutlass', 'trident'], true);
+  mSim.setPlayerItems('p2', ['heavy_oar', 'coral_dagger'], true);
+  for (let i = 0; i < 125; i++) mSim.step(0.05);
+
+  const p1 = mSim.players.find(p => p.id === 'p1');
+  const p2 = mSim.players.find(p => p.id === 'p2');
+  p1.x = 260; p1.y = 350; p1.vx = 0; p1.vy = 0; p1.submerged = false;
+  p2.x = 345; p2.y = 350; p2.vx = 0; p2.vy = 0; p2.submerged = false;
+
+  // 1) Cutlass slices incoming enemy projectile + hits enemy + stays at 99 uses with short CD
+  mSim.projectiles.push({ id: 7777, kind: 'bullet', team: p2.team, ownerId: p2.id, x: 305, y: 350, vx: -500, vy: 0, r: 8, dist: 0, maxDist: 500, damage: 40 });
+  const p2Before = p2.hp + p2.breath;
+  mSim.triggerItem('p1', 0, 0);
+  check(!mSim.projectiles.some(pr => pr.id === 7777), '[MELEE:cutlass] Korsan Palası havadaki düşman mermisini kesmeli!');
+  check(p2.hp + p2.breath < p2Before, '[MELEE:cutlass] Korsan Palası menzildeki rakibe hasar vermeli!');
+  check(p1.items[0].usesLeft === 99 && p1.items[0].cd > 2, '[MELEE:cutlass] Melee silah tükenmemeli ve kısa bekleme süresine girmeli!');
+
+  // 2) Trident hits submerged enemy and forces them to surface!
+  p2.x = 375; p2.y = 350; p2.submerged = true; p2.breath = 70;
+  const p2SubBefore = p2.hp + p2.breath;
+  mSim.triggerItem('p1', 1, 0);
+  check(!p2.submerged && p2.hp + p2.breath < p2SubBefore, '[MELEE:trident] Poseidon Mızrağı su altındaki dalgıcı vurup yüzeye çıkarmalı!');
+
+  // 3) Heavy Oar launches powder barrel at high speed + huge knockback!
+  p1.x = 260; p1.y = 350; p1.vx = 0; p1.vy = 0;
+  p2.x = 335; p2.y = 350; p2.vx = 0; p2.vy = 0; p2.submerged = false; p2.stunTimer = 0;
+  mSim.barrels = [{ id: 8889, x: 280, y: 350, vx: 0, vy: 0, r: 19, hp: 30, maxHp: 30 }];
+  mSim.triggerItem('p2', 0, Math.PI);
+  check(mSim.barrels[0].vx < -600 && p1.vx < -400, '[MELEE:heavy_oar] Dev Kürek fıçıyı şutlamalı ve rakibi sert savurmalı!');
+
+  // 4) Coral Dagger deals ambush crit (+50%) from fog/ink!
+  p1.x = 260; p1.y = 350; p1.vx = 0; p1.vy = 0; p1.hp = p1.maxHp; p1.breath = p1.maxBreath; p1.firstHitUsed = true;
+  p2.x = 320; p2.y = 350; p2.vx = 0; p2.vy = 0; p2.inFog = true; p2.stunTimer = 0;
+  const p1CritBefore = p1.hp + p1.breath;
+  mSim.triggerItem('p2', 1, Math.PI);
+  check(p1CritBefore - (p1.hp + p1.breath) >= 40, '[MELEE:coral_dagger] Dalgıç Hançeri sisten pusu kritiği (+%50) vurmalı!');
 }
 
 // 🪙 Uzatma turu adaleti: avcı takımı yazı-tura ile seçilmeli (eskiden 5. tur hep Takım A'ya avcılık veriyordu)

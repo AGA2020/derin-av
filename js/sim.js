@@ -22,7 +22,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=8.9';
+} from './data.js?v=9.0';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -180,6 +180,7 @@ export class GameSim {
     this.rescueBuoys = []; // suya gömülen takım arkadaşını kurtarma şamandıraları!
     this.storm = { active: false, cx: WORLD_W / 2, cy: WORLD_H / 2, r: 1000, announced: false };
     this.pulses = []; // sonar rings, sound pings, splash rings
+    this.meleeSwings = []; // ⚔️ yakın dövüş savurma / saplama efektleri
     this.sinkEffects = []; // dramatic "SUYA GÖMÜLDÜ" vortexes
     this.floatTexts = []; // power-up / kalkan / batma metinleri
     this.feed = []; // kill/event feed
@@ -476,6 +477,7 @@ export class GameSim {
     this.tsunamiTimer = 0;
     this.banner = null;
     this.pulses = [];
+    this.meleeSwings = [];
     this.sinkEffects = [];
   }
 
@@ -569,8 +571,15 @@ export class GameSim {
   _botPickItems(role) {
     const pool = role === 'ffa' ? FFA_ITEMS : (role === 'hunter' ? HUNTER_ITEMS : PREY_ITEMS);
     const firearms = pool.filter(i => i.firearm);
-    const utils = pool.filter(i => !i.firearm);
-    // Bots usually pick 1 single-use firearm + 1 utility/trap
+    const melees = pool.filter(i => i.melee);
+    const utils = pool.filter(i => !i.firearm && !i.melee);
+    // Bots mix firearms, melee weapons (~32% chance), and utilities/traps!
+    if (melees.length > 0 && Math.random() < 0.32) {
+      const m = melees[Math.floor(Math.random() * melees.length)];
+      const partnerPool = Math.random() < 0.55 ? firearms : utils;
+      const other = partnerPool[Math.floor(Math.random() * partnerPool.length)];
+      return [m.id, other.id];
+    }
     const f = firearms[Math.floor(Math.random() * firearms.length)];
     const u = utils[Math.floor(Math.random() * utils.length)];
     return [f.id, u.id];
@@ -627,6 +636,7 @@ export class GameSim {
       announced: false
     };
     this.pulses = [];
+    this.meleeSwings = [];
     this.sinkEffects = [];
     this.floatTexts = [];
     this.feed = [];
@@ -694,12 +704,13 @@ export class GameSim {
       const itemStates = s.items.map(itemId => {
         const def = ALL_ITEMS[itemId];
         const longCdMode = def.firearm && this.settings.firearmMode === 'long_cd';
-        const maxU = longCdMode ? 99 : def.uses;
+        const maxU = (longCdMode || def.melee) ? 99 : def.uses;
         return {
           id: def.id,
           usesLeft: maxU,
           maxUses: maxU,
           firearm: def.firearm,
+          melee: Boolean(def.melee),
           longCd: longCdMode,
           cd: 0
         };
@@ -971,10 +982,12 @@ export class GameSim {
     const angle = Number.isFinite(aimAngle) ? aimAngle : p.aim;
     p.aim = angle;
 
-    // Tüketim: Varsayılan 24 sn UZUN DOLUM ('long_cd'); Lobi ayarı 'single' ise TEK KULLANIMLIK
+    // Tüketim: Varsayılan 24 sn UZUN DOLUM ('long_cd'); Melee sınırsız + kısa CD; Lobi ayarı 'single' ise TEK KULLANIMLIK
     const sk = p.sk || this._computeSkillBonuses([]);
     if (def.firearm && itemState.longCd) {
       itemState.cd = 24.0 * (ch.cdMult || 1);
+    } else if (def.melee) {
+      itemState.cd = def.cooldown * (ch.cdMult || 1) * sk.utilCdMult;
     } else {
       itemState.usesLeft -= 1;
       const utilMult = def.firearm ? 1.0 : sk.utilCdMult;
@@ -1339,6 +1352,144 @@ export class GameSim {
         this._addPulse(p.x, p.y, 90, 'splash', p.team);
         this.onEvent({ type: 'sfx', name: 'splash' });
         break;
+      }
+      case 'cutlass':
+      case 'trident':
+      case 'heavy_oar':
+      case 'coral_dagger': {
+        this._performMelee(p, def, angle, dmgMult);
+        break;
+      }
+    }
+  }
+
+  _performMelee(p, def, angle, dmgMult = 1) {
+    const map = this.currentMap;
+    // Mini forward lunge so melee feels snappy on moving water!
+    if (def.lunge) {
+      p.vx += Math.cos(angle) * def.lunge;
+      p.vy += Math.sin(angle) * def.lunge;
+    }
+    this.meleeSwings.push({
+      id: this._nextEntityId++,
+      ownerId: p.id,
+      team: p.team,
+      kind: def.id,
+      x: p.x,
+      y: p.y,
+      angle,
+      range: def.range,
+      arc: def.arc,
+      life: 0.28,
+      maxLife: 0.28
+    });
+    this.onEvent({ type: 'sfx', name: def.id === 'heavy_oar' ? 'oar_whack' : 'slash' });
+
+    const halfArc = def.arc * 0.5 + 0.18;
+    const normDiff = (a) => {
+      let d = a;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      return Math.abs(d);
+    };
+
+    // 1. ⚔️ Cutlass Parry: slice enemy projectiles out of mid-air!
+    if (def.canParry) {
+      let parried = 0;
+      for (let i = this.projectiles.length - 1; i >= 0; i--) {
+        const pr = this.projectiles[i];
+        if (pr.team === p.team) continue;
+        const d = dist(p.x, p.y, pr.x, pr.y);
+        if (d > def.range + (pr.r || 8) + 16) continue;
+        const aToPr = angleBetween(p.x, p.y, pr.x, pr.y);
+        if (d > 26 && normDiff(aToPr - angle) > halfArc + 0.2) continue;
+        this._addPulse(pr.x, pr.y, 44, 'flash', p.team);
+        this.projectiles.splice(i, 1);
+        parried++;
+      }
+      if (parried > 0) {
+        this._addFloatText(p.x, p.y - 34, '⚔️ MERMİ KESİLDİ!', '#fef08a');
+        this.onEvent({ type: 'sfx', name: 'parry' });
+      }
+    }
+
+    // 2. Hit enemy players within arc & range
+    const isAmbush = def.ambushCrit && (p.inFog || p.inInk || (p.diveCd || 0) > 0.45);
+    let hitAnyPlayer = false;
+    for (const other of this.players) {
+      if (!other.alive || other.team === p.team) continue;
+      if (other.submerged && !def.hitsSubmerged) continue;
+      const d = dist(p.x, p.y, other.x, other.y);
+      if (d > def.range + other.r) continue;
+      const aToOther = angleBetween(p.x, p.y, other.x, other.y);
+      if (d > 24 && normDiff(aToOther - angle) > halfArc) continue;
+      if (!hasLineOfSight(map, p.x, p.y, other.x, other.y)) continue;
+
+      hitAnyPlayer = true;
+      let dmg = Math.round(def.damage * dmgMult);
+      if (other.submerged && def.hitsSubmerged) {
+        this._surfacePlayer(other, true);
+        this._addFloatText(other.x, other.y - 36, '🔱 DERİNDEN YAKALADI!', '#38bdf8');
+      }
+      if (def.id === 'cutlass' && p.combo?.id === 'kanca_pala' && (other.grappleVuln || 0) > 0) {
+        dmg += 14;
+        this._addFloatText(other.x, other.y - 38, '⚔️ +14 DÜELLO!', '#ffd166');
+      }
+      if (isAmbush) {
+        dmg = Math.round(dmg * 1.5);
+        this._addFloatText(other.x, other.y - 36, `🗡️ PUSU KRİTİĞİ! -${dmg}`, '#f43f5e');
+      }
+      if (def.slowDur) {
+        other.slowTimer = Math.max(other.slowTimer || 0, def.slowDur);
+        other.slowFactor = Math.min(other.slowFactor || 1, 0.52);
+      }
+      const kbA = d > 6 ? aToOther : angle;
+      this._applyDamage(other, dmg, p.id, Math.cos(kbA) * def.knockback, Math.sin(kbA) * def.knockback, def.name);
+      this._addPulse(other.x, other.y, 58, 'splash', p.team);
+    }
+    if (hitAnyPlayer && def.id === 'coral_dagger' && p.combo?.id === 'sis_hanceri') {
+      p.speedBoost = Math.max(p.speedBoost || 0, 1.5);
+      p.speedMult = Math.max(p.speedMult || 1, 1.26);
+      this._addFloatText(p.x, p.y - 30, '🗡️ SUİKAST HIZI!', '#80ffdb');
+    }
+
+    // 3. Hit Kraken Boss
+    if (this.kraken && this.kraken.hp > 0) {
+      const kd = dist(p.x, p.y, this.kraken.x, this.kraken.y);
+      const aToK = angleBetween(p.x, p.y, this.kraken.x, this.kraken.y);
+      if (kd <= def.range + this.kraken.r && normDiff(aToK - angle) <= halfArc + 0.15) {
+        this._damageKraken(Math.round(def.damage * dmgMult * 1.15), p.id);
+      }
+    }
+
+    // 4. Smash breakable wooden barricades!
+    for (let i = this.breakables.length - 1; i >= 0; i--) {
+      const br = this.breakables[i];
+      const bd = dist(p.x, p.y, br.x, br.y);
+      const aToB = angleBetween(p.x, p.y, br.x, br.y);
+      if (bd <= def.range + br.r && (bd < 28 || normDiff(aToB - angle) <= halfArc + 0.15)) {
+        br.hp -= 60;
+        this._addPulse(br.x, br.y, 52, 'splash', p.team);
+        if (br.hp <= 0) {
+          this._addPulse(br.x, br.y, 82, 'boom', 'N');
+          this.breakables.splice(i, 1);
+        }
+      }
+    }
+
+    // 5. Launch / shove powder barrels (Dev Kürek shoots barrels like missiles!)
+    for (const b of this.barrels) {
+      const bd = dist(p.x, p.y, b.x, b.y);
+      if (bd > def.range + (b.r || 19) + 14) continue;
+      const aToB = angleBetween(p.x, p.y, b.x, b.y);
+      if (bd > 26 && normDiff(aToB - angle) > halfArc + 0.15) continue;
+      const launchSpd = def.barrelLaunch || 340;
+      b.vx = Math.cos(angle) * launchSpd;
+      b.vy = Math.sin(angle) * launchSpd;
+      b.pushedBy = p.id;
+      if (def.barrelLaunch) {
+        this._addPulse(b.x, b.y, 64, 'splash', p.team);
+        this._addFloatText(b.x, b.y - 28, '🪵 FIÇI ŞUTU!', '#fbbf24');
       }
     }
   }
@@ -2139,13 +2290,17 @@ export class GameSim {
       }
     }
 
-    // Update pulses
+    // Update pulses & melee swings
     for (let i = this.pulses.length - 1; i >= 0; i--) {
       const pu = this.pulses[i];
       pu.life -= dt;
       const prog = 1 - Math.max(0, pu.life / pu.maxLife);
       pu.r = 12 + (pu.maxR - 12) * prog;
       if (pu.life <= 0) this.pulses.splice(i, 1);
+    }
+    for (let i = this.meleeSwings.length - 1; i >= 0; i--) {
+      this.meleeSwings[i].life -= dt;
+      if (this.meleeSwings[i].life <= 0) this.meleeSwings.splice(i, 1);
     }
 
     // Update sink effects & float texts
@@ -2737,7 +2892,7 @@ export class GameSim {
             // 🔗 İKİLİ KOMBO HASAR & İŞARET BONUSLARI!
             const shooter = this.players.find(pl => pl.id === pr.ownerId);
             let finalDmg = pr.damage || 0;
-            if (pr.kind === 'hook' && shooter?.combo?.id === 'kanca_pompa') {
+            if (pr.kind === 'hook' && (shooter?.combo?.id === 'kanca_pompa' || shooter?.combo?.id === 'kanca_pala')) {
               p.grappleVuln = 2.5;
               this._addFloatText(p.x, p.y - 30, '🪝 KOMBO AÇILDI!', '#ffd166');
             }
@@ -3590,6 +3745,9 @@ export class GameSim {
               this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, def.speed));
               break;
             }
+          } else if (def.melee && bestD < def.range + 28 && los) {
+            this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, 0));
+            break;
           } else if ((def.id === 'capture_net' || def.id === 'grapple_hook') && bestD < 360 && los) {
             this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, def.speed));
             break;
@@ -3808,6 +3966,10 @@ export class GameSim {
           if (def.firearm && los && bestD < (def.id === 'hand_mortar' ? 300 : 420)) {
             // 🔫 Karşı saldırı: hareket eden avcının önüne nişan al
             this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, def.speed));
+            break;
+          }
+          if (def.melee && los && bestD < def.range + 26) {
+            this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, 0));
             break;
           }
           if (def.id === 'mirror_shield' && bestD < 300 && los && hunterArmed && bot.mirrorTimer <= 0 && react) {
@@ -4166,6 +4328,7 @@ export class GameSim {
           usesLeft: it.usesLeft,
           maxUses: it.maxUses,
           firearm: it.firearm,
+          melee: Boolean(it.melee),
           longCd: Boolean(it.longCd),
           cd: Number(it.cd.toFixed(1)),
           maxCd: it.longCd ? 24 : (ALL_ITEMS[it.id]?.cooldown || 1)
@@ -4287,6 +4450,17 @@ export class GameSim {
         kind: pu.kind,
         team: pu.team,
         alpha: Number(clamp(pu.life / pu.maxLife, 0, 1).toFixed(2))
+      })),
+      meleeSwings: this.meleeSwings.map(ms => ({
+        id: ms.id,
+        kind: ms.kind,
+        team: ms.team,
+        x: Math.round(ms.x),
+        y: Math.round(ms.y),
+        angle: Number(ms.angle.toFixed(2)),
+        range: ms.range,
+        arc: ms.arc,
+        pct: Number(clamp(1 - ms.life / ms.maxLife, 0, 1).toFixed(2))
       })),
       sinkEffects: this.sinkEffects.map(se => ({
         id: se.id,

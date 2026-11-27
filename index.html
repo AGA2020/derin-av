@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>İKİ İTEMLİ OYUN — Online Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=8.9" />
+  <link rel="stylesheet" href="./styles.css?v=9.0" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -20,7 +20,7 @@
       <button id="btn-home-fs" class="btn-icon" title="Tam Ekran">⛶</button>
     </div>
     <div class="home-shell">
-      <div class="brand-badge">4 MOD · 6 ÇAR · 20 İTEM · 6 HARİTA</div>
+      <div class="brand-badge">4 MOD · 6 ÇAR · 24 İTEM · 6 HARİTA</div>
       <h1 class="brand-title">İKİ İTEMLİ <span>OYUN</span></h1>
       <p class="brand-sub">Açık denizde Av &amp; Avcı kapışması — rakibini suya göm, dalgalara hükmet!</p>
 
@@ -240,6 +240,7 @@
           <div class="draft-filters">
             <button class="dfilter-btn active" data-dfilter="all">Tümü</button>
             <button class="dfilter-btn" data-dfilter="firearm">🔥 Ateşli Silahlar</button>
+            <button class="dfilter-btn" data-dfilter="melee">⚔️ Yakın Dövüş</button>
             <button class="dfilter-btn" data-dfilter="util">🎒 Yardımcı &amp; Tuzak</button>
           </div>
           <div id="draft-loadout-preview" class="draft-loadout-preview"></div>
@@ -297,7 +298,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v8.9</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v9.0</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -563,7 +564,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=8.9"></script>
+  <script type="module" src="./js/main.js?v=9.0"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

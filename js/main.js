@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=8.9';
-import { sfx } from './audio.js?v=8.9';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.9';
-import { GameSim } from './sim.js?v=8.9';
-import { SeaRenderer } from './render.js?v=8.9';
+} from './data.js?v=9.0';
+import { sfx } from './audio.js?v=9.0';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=9.0';
+import { GameSim } from './sim.js?v=9.0';
+import { SeaRenderer } from './render.js?v=9.0';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1140,7 +1140,8 @@ function renderDraftUI() {
     });
     const visiblePool = pool.filter(it => {
       if (app.draftFilter === 'firearm') return it.firearm;
-      if (app.draftFilter === 'util') return !it.firearm;
+      if (app.draftFilter === 'melee') return it.melee;
+      if (app.draftFilter === 'util') return !it.firearm && !it.melee;
       return true;
     });
 
@@ -1169,7 +1170,7 @@ function renderDraftUI() {
       const isPicked = idx >= 0;
       const isPartner = !isPicked && partnerIds.has(it.id);
       return `
-        <button class="item-card ${isPicked ? 'picked' : ''} ${isPartner ? 'combo-partner' : ''} ${it.firearm ? 'firearm' : ''}" data-item="${it.id}" ${locked ? 'disabled' : ''}>
+        <button class="item-card ${isPicked ? 'picked' : ''} ${isPartner ? 'combo-partner' : ''} ${it.firearm ? 'firearm' : ''} ${it.melee ? 'melee' : ''}" data-item="${it.id}" ${locked ? 'disabled' : ''}>
           <div class="item-top">
             <span class="item-ico">${it.icon}</span>
             <div class="item-badges">
@@ -1178,7 +1179,9 @@ function renderDraftUI() {
                 ? (st.settings?.firearmMode === 'single'
                   ? '<span class="badge-firearm">🔥 TEK ATIM</span>'
                   : '<span class="badge-firearm">⏳ 24s DOLUM</span>')
-                : `<span class="badge-util">${it.category} · ${it.uses}x</span>`}
+                : it.melee
+                  ? `<span class="badge-melee">⚔️ ${it.cooldown}s CD</span>`
+                  : `<span class="badge-util">${it.category} · ${it.uses}x</span>`}
             </div>
           </div>
           <div class="item-name">${it.name}</div>
@@ -1363,7 +1366,7 @@ function updateHudFromState(st) {
         const depleted = it.usesLeft <= 0;
         const onCd = it.cd > 0 && !depleted;
         const cdPct = onCd ? Math.min(100, Math.round((it.cd / (it.maxCd || 1)) * 100)) : 0;
-        slotEl.className = `hud-item-slot ${depleted ? 'depleted' : ''} ${it.firearm ? 'firearm' : ''} ${onCd ? 'cooldown' : ''}`;
+        slotEl.className = `hud-item-slot ${depleted ? 'depleted' : ''} ${it.firearm ? 'firearm' : ''} ${it.melee ? 'melee' : ''} ${onCd ? 'cooldown' : ''}`;
         slotEl.innerHTML = `
           ${onCd ? `<div class="cd-sweep" style="height:${cdPct}%"></div>` : ''}
           <div class="slot-key">${i === 0 ? '1·SOL' : '2·SAĞ'}</div>
@@ -1375,11 +1378,13 @@ function updateHudFromState(st) {
                 ? '<span class="txt-spent">TÜKENDİ</span>'
                 : onCd
                   ? `<span>${it.cd.toFixed(1)}s</span>`
-                  : it.longCd
-                    ? '<span class="txt-firearm">🔥 HAZIR</span>'
-                    : it.firearm
-                      ? `<span class="txt-firearm">${it.usesLeft}/1 TEK ATIM</span>`
-                      : `<span>${it.usesLeft}/${it.maxUses} HAZIR</span>`}
+                  : it.melee
+                    ? '<span class="txt-melee">⚔️ HAZIR</span>'
+                    : it.longCd
+                      ? '<span class="txt-firearm">🔥 HAZIR</span>'
+                      : it.firearm
+                        ? `<span class="txt-firearm">${it.usesLeft}/1 TEK ATIM</span>`
+                        : `<span>${it.usesLeft}/${it.maxUses} HAZIR</span>`}
             </div>
           </div>
         `;
@@ -1879,7 +1884,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=8.9');
+        const mod = await import('./render3d.js?v=9.0');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
         app.renderer3d.setQuality(app.gfxQuality, true);
       } catch (err) {
