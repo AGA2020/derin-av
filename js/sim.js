@@ -22,9 +22,22 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=8.8';
+} from './data.js?v=8.9';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
+
+// 🤖 Bot zorluk seviyeleri (sadece bot karar mantığını etkiler, oyun kuralları aynı kalır)
+//  react: düşünme anında tehlikeye tepki verme şansı · dodge: avcı çarpmasından kaçma şansı
+//  ram: avcı botun çarpma fırsatını değerlendirme şansı · aimErr: nişan sapması (radyan) · lead: hareket eden hedefin önüne nişan alma oranı
+//  lag: avcının kovaladığı hedefin yön değişikliğine tepki gecikmesi (sn)
+//  sonarWait: avcının sonarı atmadan önce temassız geçirdiği süre (0 = rastgele kullanır)
+//  memory: görüşten çıkan düşmanın son konumunu hatırlama süresi (sn) · smart: akıllı kaçış/saklanma
+export const BOT_LEVELS = {
+  easy: { react: 0.2, dodge: 0.12, ram: 0.35, sonarWait: 0, lag: 0.7, aimErr: 0.22, lead: 0, memory: 0, smart: false, share: false, thinkMult: 1.6 },
+  normal: { react: 0.6, dodge: 0.5, ram: 0.6, sonarWait: 9, lag: 0.4, aimErr: 0.08, lead: 0.5, memory: 3.5, smart: true, share: true, thinkMult: 1.0 },
+  hard: { react: 0.9, dodge: 0.8, ram: 1.0, sonarWait: 6, lag: 0.2, aimErr: 0.03, lead: 1.0, memory: 6, smart: true, share: true, thinkMult: 0.75 }
+};
+const BOT_DIRS = Array.from({ length: 16 }, (_, i) => (i / 16) * Math.PI * 2);
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -105,6 +118,7 @@ export class GameSim {
       eventMode: 'random', // 'random' | 'off' | ROUND_EVENTS[].id
       mapMode: 'rotate', // 'rotate' | '0'..'5'
       firearmMode: 'long_cd', // 'long_cd' (24s varsayılan) | 'single' (Hardcore Tek Atım)
+      botLevel: 'normal', // 🤖 Bot zorluğu: 'easy' | 'normal' | 'hard'
       powerups: true,
       barrels: true,
       storm: true,
@@ -361,6 +375,9 @@ export class GameSim {
     }
     if (['single', 'long_cd'].includes(String(patch.firearmMode))) {
       this.settings.firearmMode = String(patch.firearmMode);
+    }
+    if (['easy', 'normal', 'hard'].includes(String(patch.botLevel))) {
+      this.settings.botLevel = String(patch.botLevel);
     }
     for (const k of ['powerups', 'barrels', 'storm', 'rescue', 'skillTree', 'roundEvents']) {
       if (typeof patch[k] === 'boolean') this.settings[k] = patch[k];
@@ -767,7 +784,11 @@ export class GameSim {
           ty: WORLD_H / 2,
           repath: 0,
           strafeDir: Math.random() < 0.5 ? 1 : -1,
-          thinkCd: 0.2
+          thinkCd: 0.2,
+          mem: {}, // düşman id -> { x, y, t } son görülen konum
+          lastDir: null,
+          hideT: 0,
+          dodgeKey: null
         }
       };
     });
@@ -1098,6 +1119,10 @@ export class GameSim {
         for (const other of this.players) {
           if (other.alive && other.team !== p.team && !other.inInk) {
             other.revealTimer = Math.max(other.revealTimer, def.revealDur * trapBonus);
+          }
+          // 📡 Sonar dalgası herkesçe görülür: botlar sonarı atanın yerini hafızaya alır
+          if (other.alive && other.team !== p.team && other.botState?.mem && (BOT_LEVELS[this.settings.botLevel] || BOT_LEVELS.normal).memory > 0) {
+            other.botState.mem[p.id] = { x: p.x, y: p.y, vx: 0, vy: 0, t: this.matchTime };
           }
         }
         this.onEvent({ type: 'sfx', name: 'sonar' });
@@ -3370,8 +3395,24 @@ export class GameSim {
     }
 
     // Find visible enemies
+    const lvl = BOT_LEVELS[this.settings.botLevel] || BOT_LEVELS.normal;
     const enemies = this.players.filter(o => o.alive && o.team !== bot.team);
+    const allies = lvl.share ? this.players.filter(o => o.alive && o.team === bot.team && o.id !== bot.id) : [];
     const visible = enemies.filter(e => this._canSee(bot, e, map));
+    // 🧠 Hafıza: kendi gördüğü (ve takım arkadaşının gördüğü) düşmanların son konumu
+    if (!st.mem) st.mem = {};
+    if (lvl.memory > 0) {
+      for (const e of enemies) {
+        if (visible.includes(e) || allies.some(a => this._canSee(a, e, map))) {
+          st.mem[e.id] = { x: e.x, y: e.y, vx: e.vx || 0, vy: e.vy || 0, t: this.matchTime };
+        }
+      }
+      for (const id of Object.keys(st.mem)) {
+        const m = st.mem[id];
+        const alive = enemies.some(e => e.id === id);
+        if (!alive || this.matchTime - m.t > lvl.memory) delete st.mem[id];
+      }
+    }
 
     // Decoys can fool Hunter bots!
     let target = null;
@@ -3408,7 +3449,13 @@ export class GameSim {
     }
 
     // Bot takım arkadaşının kurtarma şamandırasına koşsun (yakında tehdit yoksa!)
-    const allyBuoy = this.rescueBuoys.find(rb => rb.team === bot.team);
+    let allyBuoy = this.rescueBuoys.find(rb => rb.team === bot.team);
+    // Akıllı av botu, avcıların beklediği şamandıraya intihar koşusu yapmaz
+    if (allyBuoy && lvl.smart && bot.role === 'prey') {
+      const camped = enemies.some(e => (visible.includes(e) || st.mem[e.id]) && dist(e.x, e.y, allyBuoy.x, allyBuoy.y) < 380)
+        || Object.values(st.mem).some(m => dist(m.x, m.y, allyBuoy.x, allyBuoy.y) < 380);
+      if (camped) allyBuoy = null;
+    }
     if (allyBuoy && (!target || bestD > 260)) {
       const dBuoy = dist(bot.x, bot.y, allyBuoy.x, allyBuoy.y);
       if (dBuoy > 26) {
@@ -3422,136 +3469,13 @@ export class GameSim {
     }
 
     if (bot.role === 'hunter' || bot.role === 'ffa') {
-      if (target) {
-        const a = angleBetween(bot.x, bot.y, target.x, target.y);
-        bot.aim = a;
-        mx = Math.cos(a);
-        my = Math.sin(a);
-
-        if (st.thinkCd <= 0) {
-          st.thinkCd = 0.28;
-          // Use items smartly
-          for (let i = 0; i < 2; i++) {
-            const it = bot.items[i];
-            if (!it || it.usesLeft <= 0 || it.cd > 0) continue;
-            const def = ALL_ITEMS[it.id];
-            if (def.firearm) {
-              const idealRange = def.id === 'blunderbuss' ? 235 : 520;
-              if (bestD < idealRange && hasLineOfSight(map, bot.x, bot.y, target.x, target.y)) {
-                this.triggerItem(bot.id, i, a + (Math.random() - 0.5) * 0.08);
-                break;
-              }
-            } else if ((def.id === 'capture_net' || def.id === 'grapple_hook') && bestD < 360 && hasLineOfSight(map, bot.x, bot.y, target.x, target.y)) {
-              this.triggerItem(bot.id, i, a);
-              break;
-            } else if (def.id === 'storm_surge' && bestD < 340 && bestD > 110) {
-              this.triggerItem(bot.id, i, a);
-              break;
-            }
-          }
-          // Close range: Suya Bastır Ram!
-          if (bestD < 155 && bot.spaceCd <= 0) {
-            this.triggerSpace(bot.id, a);
-          }
-        }
-      } else {
-        // Patrol toward fog banks or random points
-        if (st.repath <= 0 || dist(bot.x, bot.y, st.tx, st.ty) < 60) {
-          st.repath = 2.6;
-          const fog = map.fogs[Math.floor(Math.random() * map.fogs.length)];
-          st.tx = clamp(fog.x + (Math.random() - 0.5) * 260, 120, WORLD_W - 120);
-          st.ty = clamp(fog.y + (Math.random() - 0.5) * 260, 120, WORLD_H - 120);
-        }
-        const a = angleBetween(bot.x, bot.y, st.tx, st.ty);
-        bot.aim = a;
-        mx = Math.cos(a);
-        my = Math.sin(a);
-
-        // Use sonar or drop anchor while patrolling
-        if (st.thinkCd <= 0) {
-          st.thinkCd = 1.2;
-          for (let i = 0; i < 2; i++) {
-            const it = bot.items[i];
-            if (!it || it.usesLeft <= 0 || it.cd > 0) continue;
-            if (it.id === 'sonar' && Math.random() < 0.4) {
-              this.triggerItem(bot.id, i, a);
-              break;
-            }
-            if (it.id === 'anchor_trap' && Math.random() < 0.25) {
-              this.triggerItem(bot.id, i, a);
-              break;
-            }
-          }
-        }
-      }
+      const mv = this._botHunterBrain(bot, dt, map, lvl, target, bestD);
+      mx = mv.mx;
+      my = mv.my;
     } else {
-      // PREY BOT AI: Flee hunters, hide in fog, use defensive items!
-      if (target && bestD < 410) {
-        const away = angleBetween(target.x, target.y, bot.x, bot.y);
-        const toward = angleBetween(bot.x, bot.y, target.x, target.y);
-        bot.aim = toward;
-        // Blend flee + slight strafe away from edges
-        mx = Math.cos(away) + Math.cos(away + Math.PI / 2 * st.strafeDir) * 0.35;
-        my = Math.sin(away) + Math.sin(away + Math.PI / 2 * st.strafeDir) * 0.35;
-        if (bot.x < 160) mx += 0.9;
-        if (bot.x > WORLD_W - 160) mx -= 0.9;
-        if (bot.y < 160) my += 0.9;
-        if (bot.y > WORLD_H - 160) my -= 0.9;
-
-        if (st.thinkCd <= 0) {
-          st.thinkCd = 0.35;
-          // Bot kaçarken nefesi bolsa kısa dalış yapabilir, veya 1.2s sonra dibinde çıkabilir!
-          if (!bot.submerged && bestD < 190 && bot.diveCd <= 0 && bot.breath >= 45 && Math.random() < 0.25) {
-            this.toggleDive(bot.id);
-          } else if (bot.submerged && (bot.diveTime >= 1.5 || bot.breath < 22)) {
-            this.toggleDive(bot.id);
-          }
-          if (bestD < 150 && bot.spaceCd <= 0 && !bot.submerged) {
-            this.triggerSpace(bot.id, away);
-          }
-          for (let i = 0; i < 2; i++) {
-            const it = bot.items[i];
-            if (!it || it.usesLeft <= 0 || it.cd > 0) continue;
-            const def = ALL_ITEMS[it.id];
-            if (def.id === 'buoyancy_kit' && bot.hp < bot.maxHp * 0.55) {
-              this.triggerItem(bot.id, i, away);
-              break;
-            }
-            if (def.firearm && bestD < 250 && hasLineOfSight(map, bot.x, bot.y, target.x, target.y)) {
-              this.triggerItem(bot.id, i, toward);
-              break;
-            }
-            if ((def.id === 'ink_cloud' || def.id === 'jet_stream' || def.id === 'decoy_buoy' || def.id === 'sea_mine') && bestD < 240) {
-              this.triggerItem(bot.id, i, away);
-              break;
-            }
-            if (def.id === 'flash_flare' && bestD < 260) {
-              this.triggerItem(bot.id, i, toward);
-              break;
-            }
-          }
-        }
-      } else {
-        // Seek nearest fog bank & stay hidden
-        if (st.repath <= 0 || dist(bot.x, bot.y, st.tx, st.ty) < 40) {
-          st.repath = 4.0;
-          const fog = map.fogs[Math.floor(Math.random() * map.fogs.length)];
-          st.tx = fog.x + (Math.random() - 0.5) * 40;
-          st.ty = fog.y + (Math.random() - 0.5) * 40;
-        }
-        const dGoal = dist(bot.x, bot.y, st.tx, st.ty);
-        if (dGoal > 28) {
-          const a = angleBetween(bot.x, bot.y, st.tx, st.ty);
-          bot.aim = a;
-          mx = Math.cos(a) * 0.7;
-          my = Math.sin(a) * 0.7;
-        }
-        if (bot.hp < bot.maxHp * 0.65 && st.thinkCd <= 0) {
-          st.thinkCd = 1.0;
-          const kIdx = bot.items.findIndex(it => it.id === 'buoyancy_kit' && it.usesLeft > 0);
-          if (kIdx >= 0) this.triggerItem(bot.id, kIdx, bot.aim);
-        }
-      }
+      const mv = this._botPreyBrain(bot, dt, map, lvl, visible, enemies);
+      mx = mv.mx;
+      my = mv.my;
     }
 
     // Stay inside storm circle!
@@ -3565,6 +3489,539 @@ export class GameSim {
     }
 
     this.inputs[bot.id] = { mx: clamp(mx, -1, 1), my: clamp(my, -1, 1), aim: bot.aim };
+  }
+
+  // ───────────────────────── 🤖 BOT BEYNİ YARDIMCILARI ─────────────────────────
+  // Botun gideceği yol kayaya / batığa / barikata çarpıyor mu? (pad = gövde payı)
+  _botPathClear(map, x1, y1, x2, y2, pad) {
+    for (const obs of map.rocks) {
+      if (obs.type === 'rock') {
+        if (lineIntersectsCircle(x1, y1, x2, y2, obs.x, obs.y, obs.r + pad)) return false;
+      } else if (lineIntersectsRect(x1, y1, x2, y2, obs.x - pad, obs.y - pad, obs.w + pad * 2, obs.h + pad * 2)) {
+        return false;
+      }
+    }
+    for (const br of this.breakables) {
+      if (lineIntersectsCircle(x1, y1, x2, y2, br.x, br.y, br.r + pad)) return false;
+    }
+    return true;
+  }
+
+  // Kenar / köşe sıkışma cezası (0 = güvenli, negatif = duvara yakın)
+  _botEdgePenalty(map, x, y, margin = 180) {
+    const minY = map.beach ? map.beach.shallowY : 0;
+    const edge = Math.min(x, WORLD_W - x, y - minY, WORLD_H - y);
+    let pen = edge < margin ? -(margin - edge) / 45 : 0;
+    if (this.storm.active && dist(x, y, this.storm.cx, this.storm.cy) > this.storm.r - 90) pen -= 4;
+    return pen;
+  }
+
+  // 16 yön arasından skoru en yüksek, kayaya çarpmayan yönü seç
+  _botChooseDir(bot, map, scoreFn) {
+    const st = bot.botState;
+    const minY = map.beach ? map.beach.sandY + 40 : 50;
+    let best = 0;
+    let bestS = -Infinity;
+    for (const ang of BOT_DIRS) {
+      const c = Math.cos(ang);
+      const sn = Math.sin(ang);
+      const nx = bot.x + c * 90;
+      const ny = bot.y + sn * 90;
+      let sc = scoreFn(ang, bot.x + c * 200, bot.y + sn * 200);
+      if (nx < 45 || nx > WORLD_W - 45 || ny < minY || ny > WORLD_H - 45) sc -= 6;
+      if (!this._botPathClear(map, bot.x, bot.y, nx, ny, bot.r + 4)) sc -= 8;
+      if (st.lastDir !== null && st.lastDir !== undefined) sc += Math.cos(ang - st.lastDir) * 0.35;
+      if (sc > bestS) {
+        bestS = sc;
+        best = ang;
+      }
+    }
+    st.lastDir = best;
+    return best;
+  }
+
+  // Hedefe nişan al: zorluğa göre hareket eden hedefin önüne + sapma
+  _botAim(bot, target, lvl, projSpeed) {
+    let tx = target.x;
+    let ty = target.y;
+    if (projSpeed && lvl.lead > 0) {
+      const t = dist(bot.x, bot.y, tx, ty) / projSpeed;
+      tx += (target.vx || 0) * t * lvl.lead;
+      ty += (target.vy || 0) * t * lvl.lead;
+    }
+    return angleBetween(bot.x, bot.y, tx, ty) + (Math.random() - 0.5) * 2 * lvl.aimErr;
+  }
+
+  // ───────────────────────── 🎯 AVCI BOT ─────────────────────────
+  _botHunterBrain(bot, dt, map, lvl, target, bestD) {
+    const st = bot.botState;
+    let mx = 0;
+    let my = 0;
+    if (target) st.lastContact = this.matchTime;
+    if (st.lastContact === undefined) st.lastContact = this.matchTime;
+    if (target) {
+      // ⏱️ Tepki gecikmesi: hedefin 'lag' sn önceki konumuna göre kovala (ani dönüşlerle atlatılabilir)
+      if (!st.trail || st.trailId !== target.id) {
+        st.trail = [];
+        st.trailId = target.id;
+      }
+      st.trail.push({ t: this.matchTime, x: target.x, y: target.y });
+      while (st.trail.length > 2 && st.trail[1].t <= this.matchTime - lvl.lag) st.trail.shift();
+      const seenPos = st.trail[0];
+      const a = angleBetween(bot.x, bot.y, seenPos.x, seenPos.y);
+      bot.aim = angleBetween(bot.x, bot.y, target.x, target.y);
+      let moveA = a;
+      if (lvl.smart && !this._botPathClear(map, bot.x, bot.y, seenPos.x, seenPos.y, bot.r + 4)) {
+        moveA = this._botChooseDir(bot, map, (ang, fx, fy) => -dist(fx, fy, seenPos.x, seenPos.y) / 100 + Math.cos(ang - a) * 0.4);
+      }
+      mx = Math.cos(moveA);
+      my = Math.sin(moveA);
+
+      if (st.thinkCd <= 0) {
+        st.thinkCd = 0.28 * lvl.thinkMult;
+        const los = hasLineOfSight(map, bot.x, bot.y, target.x, target.y);
+        for (let i = 0; i < 2; i++) {
+          const it = bot.items[i];
+          if (!it || it.usesLeft <= 0 || it.cd > 0) continue;
+          const def = ALL_ITEMS[it.id];
+          if (def.firearm) {
+            const idealRange = def.id === 'blunderbuss' ? 235 : 520;
+            if (bestD < idealRange && los) {
+              this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, def.speed));
+              break;
+            }
+          } else if ((def.id === 'capture_net' || def.id === 'grapple_hook') && bestD < 360 && los) {
+            this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, def.speed));
+            break;
+          } else if (def.id === 'electric_net' && bestD < 430 && los) {
+            // ⚡ Elektrik Ağı: düz atış, yakındaki 2. düşmana da sıçrar
+            this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, def.speed));
+            break;
+          } else if (def.id === 'gravity_bomb' && bestD > 120 && bestD < 330) {
+            // 🌀 Çekim Bombası: hedefin üstüne bırak, avı içine çekip çarpmaya hazırla
+            this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, 0));
+            break;
+          } else if (def.id === 'storm_surge' && bestD < 340 && bestD > 110) {
+            this.triggerItem(bot.id, i, bot.aim);
+            break;
+          }
+        }
+        // Close range: Suya Bastır Ram!
+        if (bestD < 155 && bot.spaceCd <= 0 && Math.random() < lvl.ram) {
+          this.triggerSpace(bot.id, this._botAim(bot, target, lvl, 530));
+        }
+      }
+      return { mx, my };
+    }
+
+    // 🧠 Hedef görünmüyor: son görülen konumu araştır (Normal/Zor), yoksa sis cebi devriyesi
+    let goalX = null;
+    let goalY = null;
+    const memIds = Object.keys(st.mem || {});
+    if (lvl.memory > 0 && memIds.length) {
+      let m = null;
+      let mId = null;
+      for (const id of memIds) {
+        if (!m || st.mem[id].t > m.t) {
+          m = st.mem[id];
+          mId = id;
+        }
+      }
+      const age = this.matchTime - m.t;
+      goalX = clamp(m.x + m.vx * Math.min(age, 1.2), 60, WORLD_W - 60);
+      goalY = clamp(m.y + m.vy * Math.min(age, 1.2), 60, WORLD_H - 60);
+      if (dist(bot.x, bot.y, goalX, goalY) < 70) {
+        delete st.mem[mId];
+        st.searchSonar = true; // vardı ama yok → sonar at
+      }
+    }
+    if (goalX === null) {
+      if (st.repath <= 0 || dist(bot.x, bot.y, st.tx, st.ty) < 60) {
+        st.repath = 2.6;
+        const fog = map.fogs[Math.floor(Math.random() * map.fogs.length)];
+        st.tx = clamp(fog.x + (Math.random() - 0.5) * 260, 120, WORLD_W - 120);
+        st.ty = clamp(fog.y + (Math.random() - 0.5) * 260, 120, WORLD_H - 120);
+      }
+      goalX = st.tx;
+      goalY = st.ty;
+    }
+    const ga = angleBetween(bot.x, bot.y, goalX, goalY);
+    let moveA = ga;
+    if (lvl.smart && !this._botPathClear(map, bot.x, bot.y, bot.x + Math.cos(ga) * 110, bot.y + Math.sin(ga) * 110, bot.r + 4)) {
+      moveA = this._botChooseDir(bot, map, (ang, fx, fy) => -dist(fx, fy, goalX, goalY) / 100);
+    }
+    bot.aim = moveA;
+    mx = Math.cos(moveA);
+    my = Math.sin(moveA);
+
+    // Use sonar or drop anchor while patrolling
+    if (st.thinkCd <= 0) {
+      st.thinkCd = 1.2 * lvl.thinkMult;
+      for (let i = 0; i < 2; i++) {
+        const it = bot.items[i];
+        if (!it || it.usesLeft <= 0 || it.cd > 0) continue;
+        const sonarNow = lvl.sonarWait > 0
+          ? (st.searchSonar || this.matchTime - st.lastContact > lvl.sonarWait)
+          : Math.random() < 0.4;
+        if (it.id === 'sonar' && sonarNow) {
+          st.lastContact = this.matchTime; // bir sonraki sonar için yeniden bekle
+          st.searchSonar = false;
+          this.triggerItem(bot.id, i, moveA);
+          break;
+        }
+        if (it.id === 'anchor_trap' && Math.random() < 0.25) {
+          this.triggerItem(bot.id, i, moveA);
+          break;
+        }
+      }
+    }
+    return { mx, my };
+  }
+
+  // ───────────────────────── 🐟 AV BOT ─────────────────────────
+  _botPreyBrain(bot, dt, map, lvl, visible, enemies) {
+    const st = bot.botState;
+    if (st.born === undefined) st.born = this.matchTime;
+    let target = null;
+    let bestD = Infinity;
+    for (const e of visible) {
+      const d = dist(bot.x, bot.y, e.x, e.y);
+      if (d < bestD) {
+        bestD = d;
+        target = e;
+      }
+    }
+    if (!lvl.smart) return this._botPreyBrainSimple(bot, map, target, bestD);
+
+    // Tehditler: görünen avcılar + hafızadaki son konumlar (kısa ileri tahminle)
+    const threats = [];
+    for (const e of visible) threats.push({ x: e.x, y: e.y, seen: true });
+    for (const id of Object.keys(st.mem)) {
+      if (visible.some(v => v.id === id)) continue;
+      const m = st.mem[id];
+      const age = this.matchTime - m.t;
+      threats.push({ x: m.x + m.vx * Math.min(age, 1.5), y: m.y + m.vy * Math.min(age, 1.5), seen: false });
+    }
+    const hidden = !enemies.some(e => this._canSee(e, bot, map));
+    const away = target ? angleBetween(target.x, target.y, bot.x, bot.y) : bot.aim;
+    const canDive = !bot.submerged && bot.diveCd <= 0 && !bot.inShallow && bot.breath >= 30 && bot.stunTimer <= 0 && bot.rootTimer <= 0;
+
+    // ⚡ REFLEKS: avcının Suya Bastırma çarpmasından yana sıçrayarak / dalarak kaç
+    if (!bot.submerged) {
+      for (const e of visible) {
+        if (!(e.ramActive > 0) || st.dodgeKey === e.ramHitIds) continue;
+        const d = dist(bot.x, bot.y, e.x, e.y);
+        if (d > 240) continue;
+        const toMe = angleBetween(e.x, e.y, bot.x, bot.y);
+        const va = Math.atan2(e.vy, e.vx);
+        if (Math.cos(va - toMe) < 0.5) continue; // bana doğru gelmiyor
+        st.dodgeKey = e.ramHitIds;
+        if (Math.random() >= lvl.dodge) break;
+        if (bot.spaceCd <= 0 && bot.stunTimer <= 0 && bot.rootTimer <= 0) {
+          const sides = [va + Math.PI / 2, va - Math.PI / 2];
+          const score = ang => (this._botPathClear(map, bot.x, bot.y, bot.x + Math.cos(ang) * 110, bot.y + Math.sin(ang) * 110, bot.r) ? 2 : 0)
+            + this._botEdgePenalty(map, bot.x + Math.cos(ang) * 130, bot.y + Math.sin(ang) * 130);
+          this.triggerSpace(bot.id, score(sides[0]) >= score(sides[1]) ? sides[0] : sides[1]);
+        } else if (canDive) {
+          this.toggleDive(bot.id);
+        }
+        break;
+      }
+    }
+
+    // 🤿 REFLEKS: avcı çarpma menziline girerken (çarpması hazırsa) önceden dal — su altındakine çarpılmaz
+    if (target && !bot.submerged && bestD < 185 && bot.diveCd <= 0 && !bot.inShallow && bot.breath >= 15
+      && bot.stunTimer <= 0 && bot.rootTimer <= 0 && target.spaceCd <= 0.4 && !(this.crown && this.crown.holderId === bot.id)) {
+      const key = `${target.id}:${Math.floor(this.matchTime / 2.5)}`;
+      if (st.diveKey !== key) {
+        st.diveKey = key;
+        if (Math.random() < lvl.dodge) this.toggleDive(bot.id);
+      }
+    }
+
+    // 🪞 REFLEKS: üstüne gelen mermiye Ayna Kalkanı, yoksa yana kayarak sıyrıl
+    if (!bot.submerged) {
+      const mIdx = bot.items.findIndex(it => it.id === 'mirror_shield' && it.usesLeft > 0 && it.cd <= 0);
+      for (const pr of this.projectiles) {
+        if (pr.team === bot.team || st.dodgedProj === pr.id) continue;
+        const d = dist(bot.x, bot.y, pr.x, pr.y);
+        if (d > 420) continue;
+        const sp = Math.hypot(pr.vx, pr.vy) || 1;
+        const rx = bot.x - pr.x;
+        const ry = bot.y - pr.y;
+        const along = (rx * pr.vx + ry * pr.vy) / sp;
+        const cross = (rx * pr.vy - ry * pr.vx) / sp;
+        if (along <= 0 || Math.abs(cross) > bot.r + (pr.r || 10) + 22) continue;
+        st.dodgedProj = pr.id;
+        if (mIdx >= 0 && bot.mirrorTimer <= 0 && d < 260 && Math.random() < lvl.react + 0.25) {
+          this.triggerItem(bot.id, mIdx, away);
+        } else if (Math.random() < lvl.dodge) {
+          // Mermi yoluna dik, zaten kaydığımız tarafa doğru yana kay
+          const va = Math.atan2(pr.vy, pr.vx);
+          const side = cross >= 0 ? 1 : -1;
+          st.sidestep = { a: va - side * Math.PI / 2, t: Math.min(0.45, along / sp + 0.08) };
+        }
+        break;
+      }
+    }
+    if (st.sidestep) {
+      st.sidestep.t -= dt;
+      if (st.sidestep.t <= 0 || bot.submerged) st.sidestep = null;
+    }
+
+    // 🤔 DÜŞÜNME: dalış / çıkış / sıçrama / item kararları
+    if (st.thinkCd <= 0) {
+      st.thinkCd = 0.3 * lvl.thinkMult;
+      const react = Math.random() < lvl.react;
+      if (bot.submerged) {
+        // 🦈 Su altından avcının dibinde çık (Sürpriz Çıkış: %65 yavaşlatma) ya da tehlike geçince çık
+        const ambush = target && bestD < 64 && bot.diveTime >= 1.0;
+        const nearestThreat = threats.reduce((m, t) => Math.min(m, dist(bot.x, bot.y, t.x, t.y)), Infinity);
+        const covered = threats.every(t => !hasLineOfSight(map, t.x, t.y, bot.x, bot.y));
+        const safe = bot.diveTime >= 1.2 && (nearestThreat > 430 || (covered && nearestThreat > 240) || (bot.inFog && nearestThreat > 190));
+        if (ambush || safe || bot.breath < 14) this.toggleDive(bot.id);
+      } else if (target && hidden) {
+        // 🌫️ Saklanırken avcı dibimize geliyorsa: dal ve altından geç (görünmez + sürpriz çıkış şansı)
+        if (canDive && react && bestD < 175 && !(this.crown && this.crown.holderId === bot.id)) {
+          this.toggleDive(bot.id);
+        }
+      } else if (target) {
+        const ramReady = target.spaceCd <= 0.35;
+        if (canDive && react && bestD < 170 && (ramReady || bestD < 105) && !(this.crown && this.crown.holderId === bot.id)) {
+          this.toggleDive(bot.id);
+        } else if (bestD < 115 && bot.spaceCd <= 0 && (target.spaceCd > 0.8 || bot.breath < 15 || bot.diveCd > 0) && react) {
+          // Avcının çarpması beklemedeyken araya mesafe koy
+          this.triggerSpace(bot.id, this._botChooseDir(bot, map, (ang, fx, fy) => dist(fx, fy, target.x, target.y) / 100 + this._botEdgePenalty(map, fx, fy)));
+        }
+      }
+      if (target && !bot.submerged) {
+        const los = hasLineOfSight(map, bot.x, bot.y, target.x, target.y);
+        const hunterArmed = target.items?.some(it => it.cd <= 0 && it.usesLeft > 0 && (ALL_ITEMS[it.id]?.firearm || ['capture_net', 'grapple_hook', 'electric_net'].includes(it.id)));
+        for (let i = 0; i < 2; i++) {
+          const it = bot.items[i];
+          if (!it || it.usesLeft <= 0 || it.cd > 0) continue;
+          const def = ALL_ITEMS[it.id];
+          if (def.id === 'buoyancy_kit' && bot.hp < bot.maxHp * 0.55) {
+            this.triggerItem(bot.id, i, away);
+            break;
+          }
+          if (def.firearm && los && bestD < (def.id === 'hand_mortar' ? 300 : 420)) {
+            // 🔫 Karşı saldırı: hareket eden avcının önüne nişan al
+            this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, def.speed));
+            break;
+          }
+          if (def.id === 'mirror_shield' && bestD < 300 && los && hunterArmed && bot.mirrorTimer <= 0 && react) {
+            this.triggerItem(bot.id, i, away);
+            break;
+          }
+          if (hidden && def.id !== 'mirror_shield') continue; // saklıyken yerini belli etme
+          if (def.id === 'kelp_trail' && bestD < 300) {
+            // 🌿 Yosun İzi: hızlan, arkanda avcıyı yavaşlatan yosun bırak
+            this.triggerItem(bot.id, i, away);
+            break;
+          }
+          if (def.id === 'decoy_buoy' && bestD < 260) {
+            // Sahte klonu kaçış yönünün tersine yolla, avcıyı ayır
+            const fleeA = st.lastDir ?? away;
+            this.triggerItem(bot.id, i, fleeA + Math.PI * (Math.random() < 0.5 ? 0.6 : -0.6));
+            break;
+          }
+          if ((def.id === 'ink_cloud' || def.id === 'jet_stream' || def.id === 'sea_mine') && bestD < 240) {
+            this.triggerItem(bot.id, i, st.lastDir ?? away);
+            break;
+          }
+          if (def.id === 'flash_flare' && bestD < 280 && los) {
+            this.triggerItem(bot.id, i, this._botAim(bot, target, lvl, 0));
+            break;
+          }
+        }
+      } else if (!target && bot.hp < bot.maxHp * 0.65) {
+        const kIdx = bot.items.findIndex(it => it.id === 'buoyancy_kit' && it.usesLeft > 0 && it.cd <= 0);
+        if (kIdx >= 0) this.triggerItem(bot.id, kIdx, bot.aim);
+      }
+    }
+
+    // 🏃 HAREKET
+    if (st.sidestep) return { mx: Math.cos(st.sidestep.a), my: Math.sin(st.sidestep.a) };
+    // Su altında 1 sn dolduysa ve avcı yakınsa ona yanaş: sürpriz çıkış pususu
+    if (bot.submerged && target && bot.diveTime >= 0.9 && bestD < 170 && bot.breath > 14) {
+      const ta = angleBetween(bot.x, bot.y, target.x + (target.vx || 0) * 0.25, target.y + (target.vy || 0) * 0.25);
+      bot.aim = ta;
+      return { mx: Math.cos(ta), my: Math.sin(ta) };
+    }
+    const fleeing = bot.submerged ? threats.length > 0 && (target ? bestD < 330 : false)
+      : (target && (!hidden || bestD < 185) && bestD < 430);
+    if (fleeing) {
+      const fa = this._botChooseDir(bot, map, (ang, fx, fy) => {
+        let sc = 0;
+        const inFogAt = map.fogs.some(f => dist(fx, fy, f.x, f.y) < f.r - 8);
+        for (const t of threats) {
+          const dd = dist(fx, fy, t.x, t.y);
+          sc += Math.min(dd, 600) / 100 * (t.seen ? 1 : 0.5);
+          const losT = hasLineOfSight(map, t.x, t.y, fx, fy);
+          if (!losT) sc += 0.9;
+          else if (hidden && !inFogAt && dd < 420) sc -= 2.2; // saklıyken açığa çıkma
+        }
+        if (inFogAt) sc += 0.7;
+        for (const c of map.currents || []) {
+          if (fx > c.x && fx < c.x + c.w && fy > c.y && fy < c.y + c.h) sc += (Math.cos(ang) * c.dirX + Math.sin(ang) * c.dirY) * 0.8;
+        }
+        return sc + this._botEdgePenalty(map, fx, fy);
+      });
+      bot.aim = target ? angleBetween(bot.x, bot.y, target.x, target.y) : fa;
+      st.repath = 0; // tehlike geçince yeni saklanma yeri seç
+      return { mx: Math.cos(fa), my: Math.sin(fa) };
+    }
+
+    // 🌫️ SAKLAN: avcının bilinen / tahmini konumundan uzak sis cebi veya kaya arkası
+    const danger = threats.length ? threats
+      : (this.matchTime - st.born < 14 ? (map.hunterSpawns || []).map(sp => ({ x: sp.x, y: sp.y, seen: false })) : []);
+    const urgent = threats.some(t => t.seen); // avcıyı görüyoruz ama o bizi görmüyor: hemen siper al
+    const goalBad = st.goalX === undefined || danger.some(t => dist(t.x, t.y, st.goalX, st.goalY) < 230);
+    const atCover = bot.inFog && dist(bot.x, bot.y, st.goalX ?? bot.x, st.goalY ?? bot.y) < 40;
+    if (goalBad || (bot.revealTimer > 0 && st.hideT <= 0) || (urgent && st.repath <= 0) || (!atCover && st.repath <= 0)) {
+      st.repath = urgent ? 1.0 : 9 + Math.random() * 5;
+      st.hideT = bot.revealTimer > 0 ? 2.5 : 0;
+      this._botPickHideSpot(bot, map, danger, urgent);
+    }
+    st.hideT = Math.max(0, st.hideT - dt);
+    const dGoal = dist(bot.x, bot.y, st.goalX, st.goalY);
+    if (dGoal > 26) {
+      const ga = angleBetween(bot.x, bot.y, st.goalX, st.goalY);
+      let moveA = ga;
+      if (!this._botPathClear(map, bot.x, bot.y, bot.x + Math.cos(ga) * Math.min(110, dGoal), bot.y + Math.sin(ga) * Math.min(110, dGoal), bot.r + 4)) {
+        moveA = this._botChooseDir(bot, map, (ang, fx, fy) => -dist(fx, fy, st.goalX, st.goalY) / 100);
+      }
+      bot.aim = moveA;
+      const spd = dGoal > 120 || urgent ? 1 : 0.6;
+      return { mx: Math.cos(moveA) * spd, my: Math.sin(moveA) * spd };
+    }
+    return { mx: 0, my: 0 };
+  }
+
+  // Saklanma yeri: sis cepleri + kaya gölgeleri; yakın olsun, avcının görüşünden geçmeden varılsın
+  _botPickHideSpot(bot, map, danger, urgent = false) {
+    const st = bot.botState;
+    const cands = [];
+    for (const f of map.fogs) cands.push({ x: f.x + (Math.random() - 0.5) * f.r * 0.6, y: f.y + (Math.random() - 0.5) * f.r * 0.6, fog: true });
+    const cx = danger.length ? danger.reduce((sum, t) => sum + t.x, 0) / danger.length : WORLD_W / 2;
+    const cy = danger.length ? danger.reduce((sum, t) => sum + t.y, 0) / danger.length : WORLD_H / 2;
+    for (const r of map.rocks) {
+      const rx = r.type === 'rock' ? r.x : r.x + r.w / 2;
+      const ry = r.type === 'rock' ? r.y : r.y + r.h / 2;
+      const rr = r.type === 'rock' ? r.r : Math.max(r.w, r.h) / 2;
+      const a = angleBetween(cx, cy, rx, ry);
+      cands.push({ x: rx + Math.cos(a) * (rr + bot.r + 22), y: ry + Math.sin(a) * (rr + bot.r + 22), fog: false });
+    }
+    let best = null;
+    let bestS = -Infinity;
+    for (const c of cands) {
+      if (c.x < 60 || c.x > WORLD_W - 60 || c.y < 60 || c.y > WORLD_H - 60) continue;
+      if (map.beach && c.y < map.beach.sandY + 40) continue;
+      const travel = dist(bot.x, bot.y, c.x, c.y);
+      let sc = Math.random() * 0.8;
+      for (const t of danger) {
+        const dd = dist(c.x, c.y, t.x, t.y);
+        sc += Math.min(dd, 650) / 220;
+        const los = hasLineOfSight(map, t.x, t.y, c.x, c.y);
+        if (!los) sc += 0.8;
+        else if (t.seen && !c.fog && dd < 450) sc -= 3; // avcının gözü önünde siper olmaz
+        // Avcının yanından / görüşünden geçen rotaları sevme
+        const mxp = (bot.x + c.x) / 2;
+        const myp = (bot.y + c.y) / 2;
+        const dm = dist(mxp, myp, t.x, t.y);
+        if (dm < 260) sc -= 2.5;
+        else if (t.seen && dm < 420 && hasLineOfSight(map, t.x, t.y, mxp, myp)) sc -= 1.2;
+      }
+      if (c.fog) sc += 1.6;
+      // 2v2: takım arkadaşıyla aynı sise yığılma (tek sonar ikisini birden yakalamasın)
+      for (const al of this.players) {
+        if (al === bot || !al.alive || al.team !== bot.team) continue;
+        const ax = al.botState?.goalX ?? al.x;
+        const ay = al.botState?.goalY ?? al.y;
+        if (dist(c.x, c.y, ax, ay) < 260) sc -= 1.5;
+      }
+      sc -= travel / (urgent ? 110 : 260);
+      sc += this._botEdgePenalty(map, c.x, c.y, 150);
+      if (this.storm.active && dist(c.x, c.y, this.storm.cx, this.storm.cy) > this.storm.r - 140) sc -= 6;
+      if (sc > bestS) {
+        bestS = sc;
+        best = c;
+      }
+    }
+    if (!best) best = { x: WORLD_W / 2, y: WORLD_H / 2 };
+    st.goalX = best.x;
+    st.goalY = best.y;
+  }
+
+  // 'Kolay' av botu: eski basit davranış (düz kaç, rastgele sis cebine git)
+  _botPreyBrainSimple(bot, map, target, bestD) {
+    const st = bot.botState;
+    let mx = 0;
+    let my = 0;
+    if (target && bestD < 410) {
+      const away = angleBetween(target.x, target.y, bot.x, bot.y);
+      const toward = angleBetween(bot.x, bot.y, target.x, target.y);
+      bot.aim = toward;
+      mx = Math.cos(away) + Math.cos(away + Math.PI / 2 * st.strafeDir) * 0.35;
+      my = Math.sin(away) + Math.sin(away + Math.PI / 2 * st.strafeDir) * 0.35;
+      if (bot.x < 160) mx += 0.9;
+      if (bot.x > WORLD_W - 160) mx -= 0.9;
+      if (bot.y < 160) my += 0.9;
+      if (bot.y > WORLD_H - 160) my -= 0.9;
+      if (st.thinkCd <= 0) {
+        st.thinkCd = 0.35 * BOT_LEVELS.easy.thinkMult;
+        if (!bot.submerged && bestD < 190 && bot.diveCd <= 0 && bot.breath >= 45 && Math.random() < 0.25) {
+          this.toggleDive(bot.id);
+        } else if (bot.submerged && (bot.diveTime >= 1.5 || bot.breath < 22)) {
+          this.toggleDive(bot.id);
+        }
+        if (bestD < 150 && bot.spaceCd <= 0 && !bot.submerged) {
+          this.triggerSpace(bot.id, away);
+        }
+        for (let i = 0; i < 2; i++) {
+          const it = bot.items[i];
+          if (!it || it.usesLeft <= 0 || it.cd > 0) continue;
+          const def = ALL_ITEMS[it.id];
+          if (def.id === 'buoyancy_kit' && bot.hp < bot.maxHp * 0.55) {
+            this.triggerItem(bot.id, i, away);
+            break;
+          }
+          if (def.firearm && bestD < 250 && hasLineOfSight(map, bot.x, bot.y, target.x, target.y)) {
+            this.triggerItem(bot.id, i, toward + (Math.random() - 0.5) * 2 * BOT_LEVELS.easy.aimErr);
+            break;
+          }
+          if (['ink_cloud', 'jet_stream', 'decoy_buoy', 'sea_mine', 'kelp_trail'].includes(def.id) && bestD < 240) {
+            this.triggerItem(bot.id, i, away);
+            break;
+          }
+          if ((def.id === 'flash_flare' && bestD < 260) || (def.id === 'mirror_shield' && bestD < 200)) {
+            this.triggerItem(bot.id, i, toward);
+            break;
+          }
+        }
+      }
+    } else {
+      if (st.repath <= 0 || dist(bot.x, bot.y, st.tx, st.ty) < 40) {
+        st.repath = 4.0;
+        const fog = map.fogs[Math.floor(Math.random() * map.fogs.length)];
+        st.tx = fog.x + (Math.random() - 0.5) * 40;
+        st.ty = fog.y + (Math.random() - 0.5) * 40;
+      }
+      const dGoal = dist(bot.x, bot.y, st.tx, st.ty);
+      if (dGoal > 28) {
+        const a = angleBetween(bot.x, bot.y, st.tx, st.ty);
+        bot.aim = a;
+        mx = Math.cos(a) * 0.7;
+        my = Math.sin(a) * 0.7;
+      }
+      if (bot.hp < bot.maxHp * 0.65 && st.thinkCd <= 0) {
+        st.thinkCd = 1.0;
+        const kIdx = bot.items.findIndex(it => it.id === 'buoyancy_kit' && it.usesLeft > 0);
+        if (kIdx >= 0) this.triggerItem(bot.id, kIdx, bot.aim);
+      }
+    }
+    return { mx, my };
   }
 
   getLobbySnapshot() {

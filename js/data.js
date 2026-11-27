@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v8.8';
+export const GAME_VERSION = 'v8.9';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -67,6 +67,16 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v8.9',
+    notes: [
+      '🤖 BOT ZORLUĞU: Oda ayarlarına “Bot Zorluğu” eklendi — 🙂 Kolay · 🤖 Normal (varsayılan) · 😈 Zor. Sadece botların karar verme becerisini değiştirir; oyun kuralları, hasarlar ve insan oyuncular etkilenmez.',
+      '🐟 AV BOTLARI ARTIK GERÇEKTEN SAKLANIYOR: Avcıdan uzak, yakın sis ceplerini ve kaya arkalarını seçiyor, açık denizde dolaşmıyor; avcı dibine gelince dalıp altından geçiyor, ancak görüş dışındayken yüzeye çıkıyor, fırsat bulunca 🦈 Sürpriz Çıkış yapıyor, mermilerden yana kayıyor ve avcıların beklediği kurtarma şamandırasına intihar koşusu yapmıyor.',
+      '🎯 AVCI BOTLARI: Elektrik Ağı ve Çekim Bombası’nı artık kullanıyor; sonarı rastgele harcamak yerine temas kaybedince atıyor, kaybettiği avı son görüldüğü yerde arıyor ve kayalara takılmadan kovalıyor. Normal seviyede insan gibi küçük bir tepki gecikmesi var — ani manevrayla atlatılabilir.',
+      '🪞 Ayna Kalkanı ve 🌿 Yosun İzi artık av botlarınca da kullanılıyor (dört item eskiden botlarda hiç kullanılmıyordu).',
+      '📊 Ölçüm (bot-bot, Normal): av tarafının tur kazanma oranı 1v1’de ~%1’den ~%42’ye, 2v2’de ~%0’dan ~%13’e çıktı (2000 bot maçı).'
+    ]
+  },
   {
     ver: 'v8.8',
     notes: [

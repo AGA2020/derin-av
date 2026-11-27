@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=8.8';
-import { sfx } from './audio.js?v=8.8';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.8';
-import { GameSim } from './sim.js?v=8.8';
-import { SeaRenderer } from './render.js?v=8.8';
+} from './data.js?v=8.9';
+import { sfx } from './audio.js?v=8.9';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=8.9';
+import { GameSim } from './sim.js?v=8.9';
+import { SeaRenderer } from './render.js?v=8.9';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1879,7 +1879,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=8.8');
+        const mod = await import('./render3d.js?v=8.9');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
         app.renderer3d.setQuality(app.gfxQuality, true);
       } catch (err) {
@@ -2055,6 +2055,7 @@ function renderLobbyRulesSummary(st) {
     hpMult: 1,
     mapMode: 'rotate',
     firearmMode: 'long_cd',
+    botLevel: 'normal',
     powerups: true,
     barrels: true,
     storm: true,
@@ -2072,6 +2073,8 @@ function renderLobbyRulesSummary(st) {
     : evDef
       ? `${evDef.icon} ${evDef.name}`
       : '🎲 Rastgele Olay';
+  const botLabel = s.botLevel === 'easy' ? '🙂 Bot: Kolay' : s.botLevel === 'hard' ? '😈 Bot: Zor' : '🤖 Bot: Normal';
+  const hasBots = (st.slots || []).some(sl => sl.isBot);
   const modeLabel = s.mode === '1v1' ? '⚔️ 1v1' : s.mode === 'crown' ? '👑 Altın Taç' : s.mode === 'ffa' ? '💀 FFA' : '👥 2v2';
   const livesVal = s.lives || 1;
   const pills = [
@@ -2083,6 +2086,7 @@ function renderLobbyRulesSummary(st) {
     `🗺️ ${mapLabel}`,
     eventLabel,
     gunLabel,
+    ...(hasBots ? [botLabel] : []),
     ...(s.skillTree === false ? ['🌿 Ağaç Kapalı'] : []),
     ...(s.powerups === false ? ['📦 Sandık Kapalı'] : []),
     ...(s.barrels === false ? ['🧨 Fıçı Kapalı'] : []),
@@ -2275,7 +2279,7 @@ function init() {
     if (!app.sim) return;
     app.sim.updateSettings({
       mode: app.sim.settings.mode, totalRounds: 4, roundDuration: 85, hpMult: 1, lives: 1, skillTree: true,
-      mapMode: 'rotate', eventMode: 'random', firearmMode: 'long_cd', powerups: true, barrels: true, storm: true, rescue: true
+      mapMode: 'rotate', eventMode: 'random', firearmMode: 'long_cd', botLevel: 'normal', powerups: true, barrels: true, storm: true, rescue: true
     });
     broadcastLobby();
     renderLobby();
@@ -2301,7 +2305,7 @@ function init() {
       btn.onclick = () => {
         if (!app.sim) return;
         const raw = btn.dataset.val;
-        const val = (key === 'mapMode' || key === 'firearmMode' || key === 'mode' || key === 'eventMode') ? raw : Number(raw);
+        const val = (key === 'mapMode' || key === 'firearmMode' || key === 'mode' || key === 'eventMode' || key === 'botLevel') ? raw : Number(raw);
         app.sim.updateSettings({ [key]: val });
         broadcastLobby();
         renderLobby();

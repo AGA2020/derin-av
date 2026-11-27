@@ -263,6 +263,65 @@ for (const mode of ['2v2', '1v1']) {
   check(fixed.mapIndex === 2, '[HARİTA DÖNGÜSÜ] Sabit harita seçimi bozulmamalı!');
 }
 
+// 🤖 Bot zorluğu ayarı: varsayılan Normal, sadece geçerli değerler, lobi anlık görüntüsünde görünür
+{
+  const s = new GameSim();
+  s.addHuman('h1', 'AGA');
+  check(s.settings.botLevel === 'normal', '[BOT ZORLUĞU] Varsayılan bot zorluğu Normal olmalı!');
+  s.updateSettings({ botLevel: 'hard' });
+  check(s.settings.botLevel === 'hard', '[BOT ZORLUĞU] Zor seviyesi seçilebilmeli!');
+  s.updateSettings({ botLevel: 'imkansiz' });
+  check(s.settings.botLevel === 'hard', '[BOT ZORLUĞU] Geçersiz değer ayarı bozmamalı!');
+  check(s.getLobbySnapshot().settings.botLevel === 'hard', '[BOT ZORLUĞU] Lobi anlık görüntüsü bot zorluğunu taşımalı!');
+  s.fillEmptyWithBots();
+  s.startMatch();
+  s.updateSettings({ botLevel: 'easy' });
+  check(s.settings.botLevel === 'hard', '[BOT ZORLUĞU] Maç başladıktan sonra bot zorluğu değiştirilememeli!');
+}
+
+// 🤖 Bot zekâsı: botlar eskiden hiç kullanmadığı 4 itemi kullanmalı, Normal'de av tarafı makul oranda kazanabilmeli,
+// zorluk seviyeleri sıralı olmalı (Kolay botlara karşı av, Zor'a göre daha çok kazanır)
+{
+  const runBots = (level, mode, matches) => {
+    const used = {};
+    let rounds = 0;
+    let preyWins = 0;
+    let stuck = 0;
+    for (let m = 0; m < matches; m++) {
+      const s = new GameSim((ev) => {
+        if (ev.type !== 'phase' || ev.phase !== 'round_end') return;
+        rounds++;
+        if (s.roundWinnerRole === 'prey') preyWins++;
+      });
+      s.updateSettings({ mode, botLevel: level });
+      s.fillEmptyWithBots();
+      s.startMatch();
+      const orig = s.triggerItem.bind(s);
+      s.triggerItem = (id, idx, a) => {
+        const it = s.players.find(p => p.id === id)?.items[idx];
+        const before = it ? `${it.usesLeft}|${it.cd}` : '';
+        const r = orig(id, idx, a);
+        if (it && `${it.usesLeft}|${it.cd}` !== before) used[it.id] = (used[it.id] || 0) + 1;
+        return r;
+      };
+      let steps = 0;
+      while (s.phase !== 'match_end' && steps < 60000) { s.step(0.05); steps++; }
+      if (s.phase !== 'match_end') stuck++;
+    }
+    return { used, rounds, preyRate: rounds ? preyWins / rounds : 0, stuck };
+  };
+  const normal = runBots('normal', '1v1', 45);
+  for (const id of ['electric_net', 'gravity_bomb', 'mirror_shield', 'kelp_trail']) {
+    check((normal.used[id] || 0) > 0, `[BOT ZEKÂSI] Botlar '${id}' itemini hiç kullanmadı!`);
+  }
+  check(normal.stuck === 0, `[BOT ZEKÂSI] Normal bot maçlarında ${normal.stuck} maç takıldı!`);
+  check(normal.preyRate > 0.15 && normal.preyRate < 0.7, `[BOT ZEKÂSI] Normal 1v1'de av kazanma oranı makul olmalı (bulunan: %${(normal.preyRate * 100).toFixed(1)})`);
+  const easy = runBots('easy', '1v1', 45);
+  const hard = runBots('hard', '1v1', 45);
+  check(easy.stuck === 0 && hard.stuck === 0, '[BOT ZEKÂSI] Kolay/Zor bot maçları takılmamalı!');
+  check(easy.preyRate > hard.preyRate, `[BOT ZEKÂSI] Kolay avcılara karşı av, Zor'a göre daha çok kazanmalı (Kolay %${(easy.preyRate * 100).toFixed(1)} · Zor %${(hard.preyRate * 100).toFixed(1)})`);
+}
+
 // ============================================================
 // 3. 80 TAM MAÇLIK KAOS / STRES SİMÜLASYONU (HEADLESS FUZZ)
 // ============================================================

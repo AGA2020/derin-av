@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>İKİ İTEMLİ OYUN — Online Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=8.8" />
+  <link rel="stylesheet" href="./styles.css?v=8.9" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -297,7 +297,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v8.8</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v8.9</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -397,6 +397,15 @@
           <div class="seg-group" data-setting="firearmMode">
             <button class="seg-btn" data-val="long_cd">⏳ Uzun Dolum (24 sn · Varsayılan)</button>
             <button class="seg-btn" data-val="single">🔥 Tek Atım (Hardcore)</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">Bot Zorluğu</div>
+          <div class="seg-group" data-setting="botLevel">
+            <button class="seg-btn" data-val="easy">🙂 Kolay</button>
+            <button class="seg-btn" data-val="normal">🤖 Normal (Varsayılan)</button>
+            <button class="seg-btn" data-val="hard">😈 Zor</button>
           </div>
         </div>
 
@@ -554,7 +563,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=8.8"></script>
+  <script type="module" src="./js/main.js?v=8.9"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

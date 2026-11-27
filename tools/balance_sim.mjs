@@ -1,5 +1,5 @@
 // İKİ İTEMLİ OYUN — Denge Simülasyonu (bot maçlarından çar / item / harita / olay istatistiği)
-// Çalıştırma: node tools/balance_sim.mjs [--matches2v2 300] [--matches1v1 300] [--out tools/out/balance.json]
+// Çalıştırma: node tools/balance_sim.mjs [--matches2v2 300] [--matches1v1 300] [--botLevel normal] [--out tools/out/balance.json]
 //
 // Oyunun kendi GameSim'i ile tamamen bot maçları oynatır. Her maçta çarlar rastgele (tekrarsız) dağıtılır,
 // botlar itemlerini kendileri seçer (1 ateşli silah + 1 yardımcı). Oyun koduna dokunmaz, sadece ölçer.
@@ -18,6 +18,7 @@ const arg = (name, def) => {
 };
 const N2 = Number(arg('matches2v2', 300));
 const N1 = Number(arg('matches1v1', 300));
+const BOT_LEVEL = arg('botLevel', 'normal'); // 'easy' | 'normal' | 'hard'
 const OUT = path.resolve(process.cwd(), arg('out', path.join(__dirname, 'out', 'balance.json')));
 const DT = 0.05;
 const MAX_STEPS = 60000; // takılı maç koruması (~50 dk oyun süresi)
@@ -35,6 +36,8 @@ function reasonKey(winnerRole, reason) {
   if (/Süre doldu/.test(reason)) return 'prey_timeout';
   return 'prey_sank_hunters';
 }
+
+const itemUses = {}; // item id -> botların başarılı kullanım sayısı
 
 function runMatch(mode, matchIdx) {
   const rows = [];
@@ -69,7 +72,7 @@ function runMatch(mode, matchIdx) {
       prevStats[p.id] = { ...st };
     }
   });
-  sim.updateSettings({ mode });
+  sim.updateSettings({ mode, botLevel: BOT_LEVEL });
   const chars = shuffle(CHARACTERS.map(c => c.id));
   sim.fillEmptyWithBots();
   sim.getActiveSlots().forEach((s, i) => { s.charId = chars[i]; });
@@ -77,6 +80,15 @@ function runMatch(mode, matchIdx) {
   // 'playing' fazına geçişi yakalamak için _beginPlay'i sar
   const origBegin = sim._beginPlay.bind(sim);
   sim._beginPlay = () => { origBegin(); roundStartTime = sim.matchTime; };
+  // Başarılı item kullanımlarını say (kullanım hakkı / bekleme süresi değiştiyse item gerçekten kullanıldı)
+  const origTrigger = sim.triggerItem.bind(sim);
+  sim.triggerItem = (id, idx, a) => {
+    const it = sim.players.find(p => p.id === id)?.items[idx];
+    const before = it ? `${it.usesLeft}|${it.cd}` : '';
+    const r = origTrigger(id, idx, a);
+    if (it && `${it.usesLeft}|${it.cd}` !== before) itemUses[it.id] = (itemUses[it.id] || 0) + 1;
+    return r;
+  };
   let steps = 0;
   while (sim.phase !== 'match_end' && steps < MAX_STEPS) {
     sim.step(DT);
@@ -105,6 +117,8 @@ for (const [mode, n] of plan) {
 
 const meta = {
   version: GAME_VERSION,
+  botLevel: BOT_LEVEL,
+  itemUses,
   generatedAt: new Date().toISOString(),
   matches: { '2v2': N2, '1v1': N1 },
   stuckMatches: stuck,

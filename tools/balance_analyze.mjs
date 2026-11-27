@@ -1,7 +1,7 @@
 // İKİ İTEMLİ OYUN — Denge analizi: balance_sim.mjs çıktısını özet istatistiğe çevirir.
 // Çalıştırma: node tools/balance_analyze.mjs [girdi.json] [çıktı.json]
 //
-// Not: Botlar 4 itemi hiç kullanmaz (aşağıdaki BOT_UNUSED) — bunlar raporda ayrıca işaretlenir.
+// Not: Botların hiç kullanmadığı itemler (BOT_UNUSED, simülasyonun saydığı kullanımlardan) raporda ayrıca işaretlenir.
 // 1v1 en temiz çar sinyalidir: tur süresi = avın hayatta kalma süresi (avcı kazandıysa).
 
 import fs from 'fs';
@@ -11,9 +11,11 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IN = path.resolve(process.argv[2] || path.join(__dirname, 'out', 'balance.json'));
 const OUT = path.resolve(process.argv[3] || path.join(__dirname, 'out', 'balance_summary.json'));
-const BOT_UNUSED = ['electric_net', 'gravity_bomb', 'mirror_shield', 'kelp_trail'];
-
 const { meta, rows } = JSON.parse(fs.readFileSync(IN, 'utf8'));
+// v8.9 öncesi çıktılarda kullanım sayısı yok: o sürümlerde botlar bu 4 itemi hiç kullanmıyordu
+const BOT_UNUSED = meta.itemUses
+  ? [...meta.hunterItems, ...meta.preyItems].map(i => i.id).filter(id => !meta.itemUses[id])
+  : ['electric_net', 'gravity_bomb', 'mirror_shield', 'kelp_trail'];
 
 function mean(a) { return a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0; }
 function stats(a) {
@@ -121,7 +123,7 @@ const allItems = [...meta.hunterItems, ...meta.preyItems];
 const codeMeta = [
   { label: 'balance_sim.mjs', value: fs.readFileSync(path.join(__dirname, 'balance_sim.mjs'), 'utf8'), type: 'code', lang: 'javascript' },
   { label: 'balance_analyze.mjs', value: fs.readFileSync(fileURLToPath(import.meta.url), 'utf8'), type: 'code', lang: 'javascript' },
-  { label: 'Girdi', value: `${meta.matches['2v2']} adet 2v2 + ${meta.matches['1v1']} adet 1v1 bot maçı, oyun sürümü ${meta.version}, ${meta.generatedAt.slice(0, 10)}` }
+  { label: 'Girdi', value: `${meta.matches['2v2']} adet 2v2 + ${meta.matches['1v1']} adet 1v1 bot maçı (bot zorluğu: ${meta.botLevel || 'tek seviye'}), oyun sürümü ${meta.version}, ${meta.generatedAt.slice(0, 10)}` }
 ];
 const tables = {
   overview: ['2v2', '1v1'].map(mode => {
