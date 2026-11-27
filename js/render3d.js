@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.2';
-import { hasLineOfSight } from './sim.js?v=9.2';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.3';
+import { hasLineOfSight } from './sim.js?v=9.3';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -822,9 +822,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=9.2'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=9.2'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=9.2'],
+      ['chest', './vendor/models/pirate/chest.glb?v=9.3'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=9.3'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=9.3'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -3300,7 +3300,7 @@ export class SeaRenderer3D {
     this.sunLight.target.position.set(this.camX, 0, this.camY);
 
     // Sync all 3D entities
-    this._syncPlayers(state, players, me, map);
+    this._syncPlayers(state, players, me, map, dt);
     this._syncDecoys(state.decoys || [], me, map);
     this._syncProjectiles(state.projectiles || [], players);
     this._syncMeleeSwings(state.meleeSwings || []);
@@ -3332,7 +3332,7 @@ export class SeaRenderer3D {
     this._renderOverlay2D(state, players, me, map, touchJoy);
   }
 
-  _syncPlayers(state, players, me, map) {
+  _syncPlayers(state, players, me, map, dt = 0.016) {
     const aliveIds = new Set();
     let showAim = false;
     let showDiveRing = false;
@@ -3441,8 +3441,12 @@ export class SeaRenderer3D {
       rig.body.rotation.z = pitch;
 
       const slowMul = p.slowTimer ? 0.55 : 1;
-      const kickSpd = (6 + spd * 0.055) * slowMul;
-      const stroke = Math.sin(this.time * kickSpd + (p.id?.length || 0));
+      // Sürekli artan yüzme fazı (time * değişkenHız yerine!) -> hızlanınca elde item titremesi SIFIR!
+      const armSpd = (2.4 + Math.min(3.6, spd * 0.016)) * slowMul;
+      const legRate = (4.6 + Math.min(5.8, spd * 0.028)) * slowMul;
+      anim.armPhase = (anim.armPhase ?? (p.id?.length || 0)) + dt * armSpd;
+      anim.legPhase = (anim.legPhase ?? (p.id?.length || 0)) + dt * legRate;
+      const stroke = Math.sin(anim.armPhase);
       const ap = rig.animParts;
       if (ap.rightArm && ap.leftArm) {
         const R = ap.rightArm.rotation;
@@ -3453,8 +3457,8 @@ export class SeaRenderer3D {
           R.z = -0.35; L.z = -0.35;
         } else if (rooted) {
           // Çapadan/ağdan kurtulmak için çırpınma
-          R.y = 0.2 + Math.sin(this.time * 20) * 0.35; L.y = -0.2 - Math.sin(this.time * 20 + 1.3) * 0.35;
-          R.z = 0.75 + Math.sin(this.time * 18) * 0.5; L.z = 0.75 - Math.sin(this.time * 18) * 0.5;
+          R.y = 0.2 + Math.sin(this.time * 16) * 0.28; L.y = -0.2 - Math.sin(this.time * 16 + 1.3) * 0.28;
+          R.z = 0.72 + Math.sin(this.time * 14) * 0.4; L.z = 0.72 - Math.sin(this.time * 14) * 0.4;
         } else if (blind) {
           // Elleri gözlerine kapatır
           R.y = 0.85; L.y = -0.85; R.z = 0.92; L.z = 0.92;
@@ -3463,17 +3467,18 @@ export class SeaRenderer3D {
           R.y = 0.25; L.y = -0.25; R.z = 0.12; L.z = 0.12;
         } else if (riding) {
           // Sörf dengesi: kollar yana açık
-          R.y = -0.55 + Math.sin(this.time * 4) * 0.08; L.y = 0.55 - Math.sin(this.time * 4) * 0.08;
+          R.y = -0.55 + Math.sin(this.time * 3.5) * 0.06; L.y = 0.55 - Math.sin(this.time * 3.5) * 0.06;
           R.z = 0.35; L.z = 0.35;
         } else {
           const recPitch = recoil > 0 ? 0.42 : 0;
-          R.y = 0.08 + stroke * (spd > 35 ? 0.2 : 0.05);
-          L.y = -0.08 - stroke * (spd > 35 ? 0.2 : 0.05);
-          R.z = recPitch + stroke * (spd > 35 ? 0.14 : 0.04);
-          L.z = recPitch - stroke * (spd > 35 ? 0.14 : 0.04);
+          const moveAmp = Math.min(1, spd / 160);
+          R.y = 0.08 + stroke * (0.03 + moveAmp * 0.09);
+          L.y = -0.08 - stroke * (0.03 + moveAmp * 0.09);
+          R.z = recPitch + stroke * (0.025 + moveAmp * 0.055);
+          L.z = recPitch - stroke * (0.025 + moveAmp * 0.055);
           if (lowHp && Math.sin(this.time * 1.7 + sp.x * 0.01) > 0.3) {
             // Bitkin, yardım ister gibi el sallama
-            R.z = 1.15 + Math.sin(this.time * 14) * 0.3;
+            R.z = 1.15 + Math.sin(this.time * 10) * 0.25;
           }
         }
         // İtem kullanımı: o eldeki kol ileri savrulur (rakip hangi itemi kullandığını görür)
@@ -3485,14 +3490,14 @@ export class SeaRenderer3D {
       }
       if (ap.rightLeg && ap.leftLeg) {
         let base = 0.55;
-        let legAmp = spd > 35 ? 0.34 : 0.1;
-        let legSpd = kickSpd * 1.35;
+        let legAmp = spd > 35 ? 0.3 : 0.09;
+        let legSin = Math.sin(anim.legPhase);
         if (riding) { base = 1.3; legAmp = 0.05; }
-        else if (dashing) { base = 0.2; legAmp = 0.12; legSpd *= 1.6; }
-        else if (rooted) { legAmp = 0.5; legSpd = 24; }
+        else if (dashing) { base = 0.2; legAmp = 0.12; legSin = Math.sin(anim.legPhase * 1.4); }
+        else if (rooted) { legAmp = 0.45; legSin = Math.sin(this.time * 18); }
         else if (stunned) { legAmp = 0.04; }
-        ap.rightLeg.rotation.z = base + Math.sin(this.time * legSpd) * legAmp;
-        ap.leftLeg.rotation.z = base - Math.sin(this.time * legSpd) * legAmp;
+        ap.rightLeg.rotation.z = base + legSin * legAmp;
+        ap.leftLeg.rotation.z = base - legSin * legAmp;
       }
       if (ap.head) {
         if (stunned) {

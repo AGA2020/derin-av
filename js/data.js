@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v9.2';
+export const GAME_VERSION = 'v9.3';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -67,6 +67,12 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v9.3',
+    notes: [
+      '💪 Akıcı Kol & İtem Sallanma Düzeltmesi (3D & 2D): Hızlanıp yavaşlarken eldeki silahların/itemlerin aşırı hızlı titreşmesine neden olan faz atlaması giderildi; artık yüzerken eldeki itemler sakin, doğal ve sabit bir ritimle süzülür!'
+    ]
+  },
   {
     ver: 'v9.2',
     notes: [

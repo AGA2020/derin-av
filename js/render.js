@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.2';
-import { hasLineOfSight } from './sim.js?v=9.2';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.3';
+import { hasLineOfSight } from './sim.js?v=9.3';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -1437,9 +1437,11 @@ export class SeaRenderer {
   _drawCharacterBody(ctx, p, ch, mainColor, roleColor, spd, seed) {
     const t = this.time;
     const strokeW = p.isMe ? 2.6 : 1.9;
-    const kickSpd = 6.5 + Math.min(7, spd * 0.035);
-    const stroke = Math.sin(t * kickSpd + seed);
-    const swimAmp = spd > 35 ? 4.5 : 1.2;
+    if (!this._swimPhase) this._swimPhase = new Map();
+    const ph = (this._swimPhase.get(p.id) ?? seed) + 0.016 * (2.6 + Math.min(3.6, spd * 0.016));
+    this._swimPhase.set(p.id, ph);
+    const stroke = Math.sin(ph);
+    const swimAmp = 0.9 + Math.min(1.6, spd * 0.008);
     const skinTone = p.charId === 'hayalet' ? '#a5f3fc' : '#f6c39b';
     const stunned = Boolean(p.stunTimer);
     const rooted = Boolean(p.rootTimer) && !stunned;
