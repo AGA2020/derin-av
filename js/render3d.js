@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.1';
-import { hasLineOfSight } from './sim.js?v=9.1';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.2';
+import { hasLineOfSight } from './sim.js?v=9.2';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -822,9 +822,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=9.1'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=9.1'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=9.1'],
+      ['chest', './vendor/models/pirate/chest.glb?v=9.2'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=9.2'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=9.2'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -1554,6 +1554,50 @@ export class SeaRenderer3D {
         m.position.set(bx, 28, bz);
         this.mapGroup.add(m);
         this.ambientSprites.push({ kind: 'wisp', mesh: m, bx, bz, phase: i * 1.1 });
+      }
+    }
+
+    // 7b. 🐠 Living Underwater Marine Life (Tropical Fish Schools & Bioluminescent Jellyfish!)
+    const fishCols = map.id === 'volkanik_resif'
+      ? [0xfb923c, 0xfef08a, 0xf43f5e]
+      : map.id === 'hayalet_sis'
+        ? [0x5eead4, 0x38bdf8, 0xc084fc]
+        : [0xfbbf24, 0xfb7185, 0x38bdf8, 0x34d399];
+    const fishGeo = new THREE.ConeGeometry(2.6, 11, 5);
+    fishGeo.rotateX(Math.PI / 2);
+    for (let i = 0; i < 18; i++) {
+      const fMat = new THREE.MeshBasicMaterial({
+        color: fishCols[i % fishCols.length],
+        transparent: true,
+        opacity: 0.72
+      });
+      const fish = new THREE.Mesh(fishGeo, fMat);
+      const schoolIdx = Math.floor(i / 6);
+      const cx = 360 + schoolIdx * 430;
+      const cz = (map.beach ? 440 : 340) + (schoolIdx % 2) * 260;
+      const orbitR = 90 + (i % 6) * 22;
+      fish.position.set(cx + orbitR, -8 - (i % 4) * 1.5, cz);
+      this.ultraDecorGroup.add(fish);
+      this.ambientSprites.push({
+        kind: 'fish',
+        mesh: fish,
+        bx: cx,
+        bz: cz,
+        orbitR,
+        spd: 0.34 + (schoolIdx * 0.08),
+        phase: (i % 6) * 0.45 + schoolIdx * 2.1
+      });
+    }
+    if (map.id === 'hayalet_sis' || map.id === 'firtina_bogazi' || map.id === 'korsan_enkazi') {
+      const jMat = new THREE.MeshBasicMaterial({ color: 0xa5f3fc, transparent: true, opacity: 0.56 });
+      for (let j = 0; j < 7; j++) {
+        const jell = new THREE.Mesh(this._sharedGeo.sphere, jMat);
+        jell.scale.set(5.5, 3.6, 5.5);
+        const bx = 260 + ((j * 223) % (WORLD_W - 520));
+        const bz = 200 + ((j * 173) % (WORLD_H - 400));
+        jell.position.set(bx, -5.5, bz);
+        this.ultraDecorGroup.add(jell);
+        this.ambientSprites.push({ kind: 'jelly', mesh: jell, bx, bz, phase: j * 1.3 });
       }
     }
 
@@ -3037,7 +3081,7 @@ export class SeaRenderer3D {
       if (fg.children[1]) fg.children[1].rotation.z -= dt * 0.04;
     }
 
-    // Animate ambient wisps/embers
+    // Animate ambient wisps/embers/fish/jellyfish
     for (const sp of this.ambientSprites) {
       if (sp.kind === 'ember') {
         sp.mesh.position.y = ((sp.mesh.position.y + dt * 28) % 125) + 4;
@@ -3046,6 +3090,33 @@ export class SeaRenderer3D {
         sp.mesh.position.y = 26 + Math.sin(this.time * 2.2 + sp.phase) * 11;
         sp.mesh.position.x = sp.bx + Math.cos(this.time * 0.9 + sp.phase) * 28;
         sp.mesh.position.z = sp.bz + Math.sin(this.time * 1.1 + sp.phase) * 22;
+      } else if (sp.kind === 'fish') {
+        const ang = this.time * sp.spd + sp.phase;
+        const nx = sp.bx + Math.cos(ang) * sp.orbitR;
+        const nz = sp.bz + Math.sin(ang * 1.15) * (sp.orbitR * 0.72);
+        const dx = nx - sp.mesh.position.x;
+        const dz = nz - sp.mesh.position.z;
+        sp.mesh.position.x = nx;
+        sp.mesh.position.z = nz;
+        if (Math.hypot(dx, dz) > 0.05) sp.mesh.rotation.y = Math.atan2(dx, dz);
+      } else if (sp.kind === 'jelly') {
+        const pulse = 1 + Math.sin(this.time * 2.8 + sp.phase) * 0.22;
+        sp.mesh.scale.set(5.2 * pulse, 3.6 / pulse, 5.2 * pulse);
+        sp.mesh.position.y = -6.5 + Math.sin(this.time * 1.4 + sp.phase) * 2.4;
+      }
+    }
+
+    // 🎆 Match-End Celebratory Golden & Aqua Fireworks!
+    if (state.phase === 'match_end') {
+      this._fwCd = Math.max(0, (this._fwCd || 0) - dt);
+      if (this._fwCd <= 0) {
+        this._fwCd = 0.42;
+        const fx = this.camX + (Math.random() - 0.5) * 440;
+        const fz = this.camY + (Math.random() - 0.5) * 260;
+        const cols = ['#ffd166', '#38bdf8', '#f43f5e', '#34d399', '#e879f9'];
+        const col = cols[Math.floor(Math.random() * cols.length)];
+        this._spawnSplashPlume(fx, fz, col, 1.75);
+        this._triggerBlastLight(fx, fz, col, 4.5);
       }
     }
 
@@ -3098,6 +3169,10 @@ export class SeaRenderer3D {
       if (wasAlive === true && !p.alive) this._spawnSinkingVessel(p, sp);
       this.prevAlive.set(p.id, Boolean(p.alive));
 
+      if (p.alive && p.submerged && this.quality !== 'low' && (p.id === myId || (me && p.team === me.team)) && Math.random() < dt * 7.5) {
+        // 🫧 3D Underwater Dive Bubbles (visible to self & teammates — preserves stealth!)
+        this._spawnSplashPlume(sp.x + (Math.random() - 0.5) * 16, sp.y + (Math.random() - 0.5) * 16, '#bae6fd', 0.42);
+      }
       const wasSub = this.prevSubmerged.get(p.id);
       if (p.alive && wasSub !== undefined && wasSub !== Boolean(p.submerged)) {
         if (this._canViewerSee(me, p, map, state.roundEvent) || p.id === myId) {
@@ -4563,6 +4638,47 @@ export class SeaRenderer3D {
     rig.ballRing.position.set(b.x, 1.8, b.y);
     const pulse = 1 + Math.sin(this.time * 5) * 0.08;
     rig.ballRing.scale.set(32 * pulse, 1, 32 * pulse);
+  }
+
+  // 🌅 Live 3D Home Screen Ocean Diorama (sunlit Mercan Plajı gentle cinematic orbit!)
+  renderHomeDiorama(dt = 0.016) {
+    this.time += dt;
+    if (this.currentMapIndex !== 3 || this._needsMapRebuild) {
+      this._buildMap(3);
+      this._needsMapRebuild = false;
+    }
+    this.dynamicGroup.visible = false;
+    if (this.oceanUniforms) this.oceanUniforms.uTime.value = this.time;
+    if (this.skyUniforms) this.skyUniforms.uTime.value = this.time;
+    if (this.beachSurfMesh) {
+      this.beachSurfMesh.mesh.position.z = this.beachSurfMesh.baseZ + Math.sin(this.time * 1.7) * 5;
+    }
+    for (const sr of this.shorelineRings) {
+      sr.mesh.rotation.z += dt * 0.08;
+      const sc = 1 + Math.sin(this.time * 1.9 + sr.phase) * 0.05;
+      sr.mesh.scale.set(sc, sc, 1);
+    }
+    for (const sp of this.ambientSprites) {
+      if (sp.kind === 'fish') {
+        const ang = this.time * sp.spd + sp.phase;
+        const nx = sp.bx + Math.cos(ang) * sp.orbitR;
+        const nz = sp.bz + Math.sin(ang * 1.15) * (sp.orbitR * 0.72);
+        const dx = nx - sp.mesh.position.x;
+        const dz = nz - sp.mesh.position.z;
+        sp.mesh.position.x = nx;
+        sp.mesh.position.z = nz;
+        if (Math.hypot(dx, dz) > 0.05) sp.mesh.rotation.y = Math.atan2(dx, dz);
+      }
+    }
+    const lookX = WORLD_W * 0.5 + Math.sin(this.time * 0.16) * 210;
+    const lookZ = 390 + Math.cos(this.time * 0.13) * 85;
+    this.camera.fov = 44;
+    this.camera.updateProjectionMatrix();
+    this.camera.position.set(lookX + Math.sin(this.time * 0.11) * 140, 290, lookZ + 380);
+    this.camera.lookAt(lookX, 16, lookZ - 40);
+    if (this.ovCtx) this.ovCtx.clearRect(0, 0, this.viewW, this.viewH);
+    this.renderer.render(this.scene, this.camera);
+    this.dynamicGroup.visible = true;
   }
 
   _syncCrown(crown) {

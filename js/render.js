@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.1';
-import { hasLineOfSight } from './sim.js?v=9.1';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.2';
+import { hasLineOfSight } from './sim.js?v=9.2';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -284,6 +284,7 @@ export class SeaRenderer {
     this._drawOcean(ctx, map);
     this._drawBeach(ctx, map);
     this._drawCurrents(ctx, map);
+    this._drawAmbientFish2D(ctx, map);
     if (state.phase === 'lobby') this._drawLobbyArena(ctx, state);
     this._drawWakes(ctx);
     this._drawPulses(ctx, state.pulses || [], me);
@@ -2283,6 +2284,34 @@ export class SeaRenderer {
         ctx.arc(sx, y, r, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+    ctx.restore();
+  }
+
+  _drawAmbientFish2D(ctx, map) {
+    const t = this.time;
+    ctx.save();
+    for (let i = 0; i < 10; i++) {
+      const school = Math.floor(i / 5);
+      const cx = 420 + school * 720;
+      const cy = (map.beach ? 480 : 380) + (school % 2) * 210;
+      const r = 75 + (i % 5) * 24;
+      const ang = t * (0.36 + school * 0.08) + (i % 5) * 0.55;
+      const fx = cx + Math.cos(ang) * r;
+      const fy = cy + Math.sin(ang * 1.15) * (r * 0.65);
+      const dir = Math.atan2(Math.cos(ang * 1.15) * 1.15 * 0.65, -Math.sin(ang));
+      ctx.save();
+      ctx.translate(fx, fy);
+      ctx.rotate(dir);
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(56, 189, 248, 0.28)' : 'rgba(251, 191, 36, 0.25)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 8, 3.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-7, 0); ctx.lineTo(-12, -3.5); ctx.lineTo(-12, 3.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
     ctx.restore();
   }

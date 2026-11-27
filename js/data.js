@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v9.1';
+export const GAME_VERSION = 'v9.2';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -67,6 +67,15 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v9.2',
+    notes: [
+      '🏝️ AÇIK DÜNYA LOBİ ARTIK VARSAYILAN AÇILIYOR! Oda kurunca veya katılınca panel ekranı kapatmaz — doğrudan Isınma Koyunda yüzerek başlarsın! Üst çubuktan tek tıkla (veya TAB ile) 🎭 Çar & Takım, 🤖 +Bot, ⚙️ Ayarlar ve 🚀 Maçı Başlat’a ulaşabilirsin.',
+      '🎨 6 ÖZEL ÇİZİM ÇAR PORTRESİ: Lobi, Takım Kartları, VS Karşılaşma ve Maç Sonu MVP ekranlarında standart emojiler yerine her 6 çara özel renkli çizgi-film SVG portreleri geldi!',
+      '🌅 CANLI 3D ANA MENÜ DİORAMASI: 3D modda ana menü açıldığı an arka planda güneşli 3D Mercan Plajı, palmiyeler, parlayan okyanus ve yüzen balık sürüleri canlı döner!',
+      '🐠 YAŞAYAN DENİZ HAYATI & KUTLAMA EFEKTLERİ: Suyun altında yüzen tropik balık sürüleri, parlayan denizanaları, SHIFT dalışında 3D hava kabarcıkları ve maç sonu zafer havai fişekleri eklendi!'
+    ]
+  },
   {
     ver: 'v9.1',
     notes: [

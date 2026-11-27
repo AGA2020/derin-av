@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=9.1';
-import { sfx } from './audio.js?v=9.1';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=9.1';
-import { GameSim } from './sim.js?v=9.1';
-import { SeaRenderer } from './render.js?v=9.1';
+} from './data.js?v=9.2';
+import { sfx } from './audio.js?v=9.2';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=9.2';
+import { GameSim } from './sim.js?v=9.2';
+import { SeaRenderer } from './render.js?v=9.2';
 
 const $ = (id) => document.getElementById(id);
 
@@ -347,20 +347,31 @@ function showToast(msg) {
 }
 
 function setScreen(name) {
+  const wasLobby = $('screen-lobby')?.classList.contains('active');
   ['screen-home', 'screen-lobby', 'screen-game'].forEach(id => {
     $(id).classList.toggle('active', id === `screen-${name}`);
   });
   const gameEl = $('screen-game');
   const lobbyEl = $('screen-lobby');
+  const homeEl = $('screen-home');
+  const useHome3d = name === 'home' && app.viewMode === '3d' && Boolean(app.renderer3d);
+  gameEl.classList.toggle('home-bg-active', useHome3d);
+  homeEl?.classList.toggle('has-3d-diorama', useHome3d);
   if (name === 'lobby') {
     gameEl.classList.add('lobby-bg-active');
     lobbyEl.classList.add('has-live-cove');
+    if (!wasLobby) {
+      // 🏝️ Lobiye girince doğrudan Açık Dünya Isınma Koyunda başla!
+      setLobbyRoam(true);
+      showToast('🏝️ Isınma Koyundasın! WASD ile yüz · TAB ile Çar & Takım panelini aç!');
+    }
     app.renderer?.resize();
     app.renderer3d?.resize();
   } else {
     gameEl.classList.remove('lobby-bg-active');
     lobbyEl.classList.remove('has-live-cove');
     if (app.lobbyRoam) setLobbyRoam(false);
+    if (useHome3d) app.renderer3d?.resize();
   }
 }
 
@@ -368,12 +379,17 @@ function setLobbyRoam(on) {
   app.lobbyRoam = Boolean(on);
   const lobbyEl = $('screen-lobby');
   if (lobbyEl) lobbyEl.classList.toggle('roam-mode', app.lobbyRoam);
+  const isHostLike = app.mode === 'host' || app.mode === 'offline';
   const rCode = $('roam-code');
   if (rCode) rCode.textContent = app.roomCode || '----';
   const rCopy = $('btn-roam-copy');
   if (rCopy) rCopy.style.display = app.mode === 'offline' ? 'none' : '';
+  const rBot = $('btn-roam-bot');
+  if (rBot) rBot.style.display = isHostLike ? '' : 'none';
+  const rSet = $('btn-roam-settings');
+  if (rSet) rSet.style.display = isHostLike ? '' : 'none';
   const rStart = $('btn-roam-start');
-  if (rStart) rStart.style.display = (app.mode === 'host' || app.mode === 'offline') ? '' : 'none';
+  if (rStart) rStart.style.display = isHostLike ? '' : 'none';
   if (!app.lobbyRoam && app.sim && app.sim.phase === 'lobby') {
     app.sim.setInput(app.myId, { mx: 0, my: 0, aim: app.localAim });
   }
@@ -996,7 +1012,7 @@ function renderLobby() {
     }
     return `
       <div class="slot-card ${isMe ? 'me' : ''}">
-        <div class="slot-avatar" style="background:${ch.color}22;border-color:${ch.color}">${ch.icon}</div>
+        <div class="slot-avatar" style="background:${ch.color}22;border-color:${ch.color}">${getCharPortraitSvg(s.charId)}</div>
         <div class="slot-info">
           <div class="slot-name">${s.name} ${isMe ? '<span class="tag-me">SEN</span>' : ''} ${s.isBot ? '<span class="tag-bot">BOT</span>' : ''} ${(s.wins || 0) > 0 ? `<span class="tag-wins" title="Bu akşamki maç galibiyeti">🏆 ${s.wins}</span>` : ''}</div>
           <div class="slot-char">${ch.name} · ${ch.roleTag}</div>
@@ -1062,7 +1078,7 @@ function renderLobby() {
     return `
       <button class="char-card ${selected ? 'selected' : ''}" data-char="${c.id}" style="--char-color:${c.color}">
         <div class="char-head">
-          <span class="char-ico">${c.icon}</span>
+          <span class="char-ico">${getCharPortraitSvg(c.id)}</span>
           <div>
             <div class="char-title">${c.name}</div>
             <div class="char-sub">${c.roleTag}</div>
@@ -1560,6 +1576,84 @@ function updateHudFromState(st) {
   }
 }
 
+function getCharPortraitSvg(charId) {
+  switch (charId) {
+    case 'kaptan':
+      return `<svg class="char-portrait-svg" viewBox="0 0 64 64" fill="none">
+        <defs><linearGradient id="pk" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#92400e"/><stop offset="100%" stop-color="#451a03"/></linearGradient></defs>
+        <rect width="64" height="64" rx="14" fill="url(#pk)"/>
+        <path d="M12 24 Q32 8 52 24 L48 31 Q32 23 16 31 Z" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+        <circle cx="32" cy="19" r="3.5" fill="#fbbf24"/>
+        <path d="M17 29 Q32 24 47 29 L46 34 Q32 30 18 34 Z" fill="#dc2626"/>
+        <circle cx="32" cy="40" r="13" fill="#f6c39b"/>
+        <path d="M19 42 Q22 57 32 58 Q42 57 45 42 Q39 48 32 48 Q25 48 19 42 Z" fill="#3b2210"/>
+        <path d="M24 44 Q32 47 40 44" stroke="#f8fafc" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="26.5" cy="37.5" r="2.6" fill="#0f172a"/><circle cx="27.3" cy="36.8" r="0.9" fill="#ffffff"/>
+        <rect x="33.5" y="34.5" width="7.5" height="6" rx="2" fill="#0f172a"/>
+        <line x1="20" y1="32" x2="43" y2="37" stroke="#0f172a" stroke-width="2"/>
+      </svg>`;
+    case 'kopekbaligi':
+      return `<svg class="char-portrait-svg" viewBox="0 0 64 64" fill="none">
+        <defs><linearGradient id="ps" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#be123c"/><stop offset="100%" stop-color="#4c0519"/></linearGradient></defs>
+        <rect width="64" height="64" rx="14" fill="url(#ps)"/>
+        <path d="M32 6 Q40 16 37 25 L26 25 Q26 14 32 6 Z" fill="#334155" stroke="#94a3b8" stroke-width="1.6"/>
+        <circle cx="32" cy="38" r="17" fill="#475569" stroke="#cbd5e1" stroke-width="1.8"/>
+        <ellipse cx="32" cy="42" rx="12" ry="10.5" fill="#f6c39b"/>
+        <path d="M20 35 L25 38 L29 34 L32 38 L35 34 L39 38 L44 35" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="round"/>
+        <rect x="21" y="37" width="9" height="5.5" rx="2.5" fill="#0f172a" stroke="#fb7185" stroke-width="1.5"/>
+        <rect x="34" y="37" width="9" height="5.5" rx="2.5" fill="#0f172a" stroke="#fb7185" stroke-width="1.5"/>
+        <circle cx="26" cy="39.5" r="1.4" fill="#38bdf8"/><circle cx="39" cy="39.5" r="1.4" fill="#38bdf8"/>
+        <path d="M25 47 Q32 51 39 47" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>`;
+    case 'hayalet':
+      return `<svg class="char-portrait-svg" viewBox="0 0 64 64" fill="none">
+        <defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0e7490"/><stop offset="100%" stop-color="#082f49"/></linearGradient></defs>
+        <rect width="64" height="64" rx="14" fill="url(#pg)"/>
+        <path d="M16 54 L16 32 C16 18 48 18 48 32 L48 54 L41 48 L35 55 L29 48 L22 55 Z" fill="#a5f3fc" opacity="0.92" stroke="#e0f2fe" stroke-width="2"/>
+        <ellipse cx="26" cy="34" rx="4.2" ry="5" fill="#082f49"/>
+        <ellipse cx="38" cy="34" rx="4.2" ry="5" fill="#082f49"/>
+        <circle cx="26" cy="34" r="2.2" fill="#38bdf8"/>
+        <circle cx="38" cy="34" r="2.2" fill="#38bdf8"/>
+        <ellipse cx="32" cy="43" rx="4" ry="2.8" fill="#0e7490"/>
+      </svg>`;
+    case 'fenerci':
+      return `<svg class="char-portrait-svg" viewBox="0 0 64 64" fill="none">
+        <defs><linearGradient id="pf" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d97706"/><stop offset="100%" stop-color="#78350f"/></linearGradient></defs>
+        <rect width="64" height="64" rx="14" fill="url(#pf)"/>
+        <path d="M14 54 Q16 38 32 38 Q48 38 50 54 Z" fill="#facc15" stroke="#a16207" stroke-width="1.8"/>
+        <path d="M16 30 Q32 10 48 30 Z" fill="#eab308" stroke="#fef08a" stroke-width="1.8"/>
+        <circle cx="32" cy="38" r="12" fill="#f6c39b"/>
+        <rect x="24" y="18" width="16" height="8" rx="4" fill="#334155"/>
+        <circle cx="32" cy="22" r="4.5" fill="#fef08a" stroke="#ffffff" stroke-width="1.5"/>
+        <circle cx="27" cy="37" r="2.3" fill="#0f172a"/><circle cx="37" cy="37" r="2.3" fill="#0f172a"/>
+        <circle cx="27.8" cy="36.2" r="0.8" fill="#fff"/><circle cx="37.8" cy="36.2" r="0.8" fill="#fff"/>
+        <path d="M27 44 Q32 47 37 44" stroke="#7c2d12" stroke-width="2" stroke-linecap="round"/>
+      </svg>`;
+    case 'ahtapot':
+      return `<svg class="char-portrait-svg" viewBox="0 0 64 64" fill="none">
+        <defs><linearGradient id="pa" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7e22ce"/><stop offset="100%" stop-color="#3b0764"/></linearGradient></defs>
+        <rect width="64" height="64" rx="14" fill="url(#pa)"/>
+        <path d="M12 52 Q20 40 26 48 M52 52 Q44 40 38 48 M18 58 Q26 46 32 52 Q38 46 46 58" stroke="#c084fc" stroke-width="5" stroke-linecap="round"/>
+        <ellipse cx="32" cy="27" rx="17" ry="15" fill="#a855f7" stroke="#e9d5ff" stroke-width="1.8"/>
+        <circle cx="32" cy="40" r="11" fill="#f6c39b"/>
+        <circle cx="26.5" cy="39" r="2.8" fill="#3b0764"/><circle cx="37.5" cy="39" r="2.8" fill="#3b0764"/>
+        <circle cx="27.2" cy="38.2" r="1.1" fill="#fde047"/><circle cx="38.2" cy="38.2" r="1.1" fill="#fde047"/>
+        <path d="M28 45 Q32 48 36 45" stroke="#581c87" stroke-width="2" stroke-linecap="round"/>
+      </svg>`;
+    default:
+      return `<svg class="char-portrait-svg" viewBox="0 0 64 64" fill="none">
+        <defs><linearGradient id="pd" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#059669"/><stop offset="100%" stop-color="#0284c7"/></linearGradient></defs>
+        <rect width="64" height="64" rx="14" fill="url(#pd)"/>
+        <path d="M16 32 Q22 14 34 15 Q46 16 49 28 Q38 22 26 24 Z" fill="#fef08a"/>
+        <circle cx="32" cy="38" r="13" fill="#f3b685"/>
+        <path d="M18 30 Q32 25 46 30 L45 34 Q32 30 19 34 Z" fill="#fb7185"/>
+        <rect x="20" y="34" width="11" height="7" rx="3" fill="#0ea5e9" stroke="#e0f2fe" stroke-width="1.8"/>
+        <rect x="33" y="34" width="11" height="7" rx="3" fill="#0ea5e9" stroke="#e0f2fe" stroke-width="1.8"/>
+        <path d="M26 46 Q32 51 38 46" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/>
+      </svg>`;
+  }
+}
+
 function getEventShowcaseSvg(eventId) {
   switch (eventId) {
     case 'tsunami':
@@ -1694,7 +1788,7 @@ function renderIntroVS(st) {
       return `
         <div class="vs-card ${isMe ? 'me' : ''}" style="--char-color:${ch.color}">
           <div class="vs-card-top">
-            <div class="vs-avatar">${ch.icon}</div>
+            <div class="vs-avatar">${getCharPortraitSvg(p.charId)}</div>
             <div class="vs-meta">
               <div class="vs-name">${p.name} ${isMe ? '<span class="tag-me">SEN</span>' : ''}</div>
               <div class="vs-char">${ch.name} · ${ch.roleTag}</div>
@@ -1818,7 +1912,7 @@ function renderMatchEnd(st) {
       $('match-mvp-banner').innerHTML = `
         <div class="mvp-crown">👑 MAÇIN MVP'Sİ</div>
         <div class="mvp-main">
-          <span class="mvp-ico">${mch.icon}</span>
+          <span class="mvp-ico">${getCharPortraitSvg(mvp.charId)}</span>
           <div>
             <div class="mvp-name">${mvp.name} <span class="mvp-title-badge">${mvp.title}</span></div>
             <div class="mvp-sub">🌊 ${mvp.sinks} Batırma · 💥 ${mvp.damage} Hasar · 🦈 ${mvp.ambushes} Pusu · 🛟 ${mvp.rescues} Kurtarma</div>
@@ -1838,7 +1932,7 @@ function renderMatchEnd(st) {
           <div class="stat-card-top">
             <div class="stat-player">
               <span class="stat-rank">#${idx + 1}</span>
-              <span class="stat-ico">${ch.icon}</span>
+              <span class="stat-ico">${getCharPortraitSvg(s.charId)}</span>
               <div>
                 <div class="stat-name">${s.name} <span class="stat-team">${teamTag}</span></div>
                 <div class="stat-award">${s.title}</div>
@@ -1961,9 +2055,14 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=9.1');
+        const mod = await import('./render3d.js?v=9.2');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
         app.renderer3d.setQuality(app.gfxQuality, true);
+        if ($('screen-home')?.classList.contains('active')) {
+          $('screen-game').classList.add('home-bg-active');
+          $('screen-home').classList.add('has-3d-diorama');
+          app.renderer3d.resize();
+        }
       } catch (err) {
         console.warn('3D WebGL init error:', err);
         app.viewMode = '2d';
@@ -1983,6 +2082,8 @@ async function setViewMode(mode, silent = false) {
   } else {
     app.viewMode = '2d';
     try { localStorage.setItem('derinav_view_mode', '2d'); } catch (_) {}
+    $('screen-game')?.classList.remove('home-bg-active');
+    $('screen-home')?.classList.remove('has-3d-diorama');
     updateViewToggleButtons();
     if (!silent) showToast('🎨 Klasik 2D Görünüm aktif!');
   }
@@ -2111,8 +2212,14 @@ function renderLoop(now) {
   }
 
   // Render canvas & HUD when tab is visible
-  if (app.renderer && $('screen-home').classList.contains('active')) {
-    app.renderer.renderHomeBg($('home-canvas'), dt);
+  if ($('screen-home').classList.contains('active')) {
+    if (app.viewMode === '3d' && app.renderer3d) {
+      $('screen-game').classList.add('home-bg-active');
+      $('screen-home').classList.add('has-3d-diorama');
+      app.renderer3d.renderHomeDiorama(dt);
+    } else if (app.renderer) {
+      app.renderer.renderHomeBg($('home-canvas'), dt);
+    }
   } else if ($('screen-lobby').classList.contains('active')) {
     if (activeR && app.liveState && app.liveState.phase === 'lobby') {
       updateLobbyRoamHud(app.liveState);
@@ -2610,9 +2717,24 @@ function init() {
   if ($('btn-roam-copy')) {
     $('btn-roam-copy').onclick = () => $('btn-copy-link')?.click();
   }
+  if ($('btn-roam-bot')) {
+    $('btn-roam-bot').onclick = () => $('btn-fill-bots')?.click();
+  }
+  if ($('btn-roam-settings')) {
+    $('btn-roam-settings').onclick = () => $('btn-open-settings')?.click();
+  }
   if ($('btn-roam-start')) {
     $('btn-roam-start').onclick = () => $('btn-start-match')?.click();
   }
+  if ($('btn-roam-leave')) {
+    $('btn-roam-leave').onclick = () => $('btn-leave-lobby')?.click();
+  }
+  $('screen-lobby')?.addEventListener('click', (e) => {
+    if (!app.lobbyRoam && e.target === $('screen-lobby')) {
+      sfx.play('ui');
+      setLobbyRoam(true);
+    }
+  });
   document.querySelectorAll('[data-roam-slot]').forEach(btn => {
     btn.onclick = () => useSlot(Number(btn.dataset.roamSlot));
   });
@@ -2633,6 +2755,11 @@ function init() {
         }
       }
       if (closed) { sfx.play('ui'); return; }
+      if ($('screen-lobby')?.classList.contains('active') && !app.lobbyRoam) {
+        sfx.play('ui');
+        setLobbyRoam(true);
+        return;
+      }
     }
     if (document.activeElement?.tagName === 'INPUT') return;
     if (isInfoModalOpen()) return;
