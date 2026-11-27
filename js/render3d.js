@@ -7,8 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.0';
-import { hasLineOfSight } from './sim.js?v=9.0';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.1';
+import { hasLineOfSight } from './sim.js?v=9.1';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -734,6 +734,7 @@ export class SeaRenderer3D {
     this.edgeTentMeshes = new Map();
     this.meleeSwingMeshes = new Map();
     this.tsunamiRig = null;
+    this.lobbyArenaRig = null;
     this._tsunamiSprayCd = 0;
     this.krakenRig = null;
     this.crownRig = null;
@@ -821,9 +822,9 @@ export class SeaRenderer3D {
       ['rocksSand', './vendor/models/pirate/rocks-sand.glb'],
       ['palm', './vendor/models/pirate/palm.glb'],
       ['grassPatch', './vendor/models/pirate/grass-patch.glb'],
-      ['chest', './vendor/models/pirate/chest.glb?v=9.0'],
-      ['barrel', './vendor/models/pirate/barrel.glb?v=9.0'],
-      ['barricade', './vendor/models/pirate/crate.glb?v=9.0'],
+      ['chest', './vendor/models/pirate/chest.glb?v=9.1'],
+      ['barrel', './vendor/models/pirate/barrel.glb?v=9.1'],
+      ['barricade', './vendor/models/pirate/crate.glb?v=9.1'],
       ['dock', './vendor/models/pirate/dock.glb'],
       ['buoy', './vendor/models/watercraft/buoy.glb']
     ];
@@ -3240,6 +3241,7 @@ export class SeaRenderer3D {
     this._syncTsunami(state.tsunami, dt);
     this._syncCrown(state.crown);
     this._syncMegaChest(state.megaChest);
+    this._syncLobbyArena(state, dt);
 
     if (state.storm && state.storm.active) {
       this.stormRing.visible = true;
@@ -4460,6 +4462,107 @@ export class SeaRenderer3D {
         this.meleeSwingMeshes.delete(id);
       }
     }
+  }
+
+  _createLobbyArenaRig() {
+    const root = new THREE.Group();
+
+    // 1. Vibrant 6-panel striped 3D Beach Ball!
+    const texCanvas = document.createElement('canvas');
+    texCanvas.width = 256;
+    texCanvas.height = 128;
+    const tctx = texCanvas.getContext('2d');
+    const cols = ['#ef476f', '#ffffff', '#ffd166', '#ffffff', '#0ea5e9', '#ffffff'];
+    const stripeW = texCanvas.width / cols.length;
+    cols.forEach((c, i) => {
+      tctx.fillStyle = c;
+      tctx.fillRect(i * stripeW, 0, stripeW + 1, texCanvas.height);
+    });
+    // White polar caps
+    tctx.fillStyle = '#fbbf24';
+    tctx.fillRect(0, 0, texCanvas.width, 14);
+    tctx.fillRect(0, texCanvas.height - 14, texCanvas.width, 14);
+    const ballTex = new THREE.CanvasTexture(texCanvas);
+    ballTex.colorSpace = THREE.SRGBColorSpace;
+    const ballMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(26, 20, 16),
+      new THREE.MeshStandardMaterial({ map: ballTex, roughness: 0.22, metalness: 0.05 })
+    );
+    ballMesh.castShadow = true;
+    root.add(ballMesh);
+
+    const ballRing = new THREE.Mesh(
+      this._sharedGeo.ring,
+      new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.65, depthWrite: false })
+    );
+    ballRing.scale.set(32, 1, 32);
+    ballRing.position.y = 1.6;
+    root.add(ballRing);
+
+    // 2. Center Water-Polo Ring
+    const centerRing = new THREE.Mesh(
+      new THREE.RingGeometry(82, 88, 40),
+      new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.26, side: THREE.DoubleSide, depthWrite: false })
+    );
+    centerRing.rotation.x = -Math.PI / 2;
+    centerRing.position.set(800, 1.4, 465);
+    root.add(centerRing);
+
+    // 3. 2 Floating Buoy-Post Water-Polo Goals (West Gold & East Aqua)
+    const goals = [
+      { x: 145, dir: 1, col: 0xffb703 },
+      { x: 1455, dir: -1, col: 0x38bdf8 }
+    ];
+    for (const g of goals) {
+      const postMat = new THREE.MeshStandardMaterial({ color: g.col, emissive: g.col, emissiveIntensity: 0.35, roughness: 0.3 });
+      const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+      for (const gz of [465 - 88, 465 + 88]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(5, 6.5, 42, 10), postMat);
+        post.position.set(g.x, 18, gz);
+        root.add(post);
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(7, 10, 8), whiteMat);
+        cap.position.set(g.x, 40, gz);
+        root.add(cap);
+      }
+      const crossbar = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, 176, 10), postMat);
+      crossbar.rotation.x = Math.PI / 2;
+      crossbar.position.set(g.x, 38, 465);
+      root.add(crossbar);
+
+      // Translucent net back curtain + water crease
+      const netMat = new THREE.MeshBasicMaterial({ color: g.col, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false });
+      const netBack = new THREE.Mesh(new THREE.PlaneGeometry(176, 38), netMat);
+      netBack.rotation.y = Math.PI / 2;
+      netBack.position.set(g.x - g.dir * 50, 19, 465);
+      root.add(netBack);
+
+      const crease = new THREE.Mesh(this._sharedGeo.plane, netMat);
+      crease.scale.set(54, 1, 176);
+      crease.position.set(g.x - g.dir * 27, 1.8, 465);
+      root.add(crease);
+    }
+
+    this.dynamicGroup.add(root);
+    return { root, ballMesh, ballRing };
+  }
+
+  _syncLobbyArena(state, dt) {
+    if (state.phase !== 'lobby' || !state.lobbyBall) {
+      if (this.lobbyArenaRig) this.lobbyArenaRig.root.visible = false;
+      return;
+    }
+    if (!this.lobbyArenaRig) this.lobbyArenaRig = this._createLobbyArenaRig();
+    const rig = this.lobbyArenaRig;
+    rig.root.visible = true;
+    const b = state.lobbyBall;
+    const bob = Math.sin(this.time * 4.2) * 3.5;
+    rig.ballMesh.position.set(b.x, 19 + bob, b.y);
+    rig.ballMesh.rotation.z -= (b.vx || 0) * dt * 0.038;
+    rig.ballMesh.rotation.x += (b.vy || 0) * dt * 0.038;
+    rig.ballMesh.rotation.y += dt * 0.4;
+    rig.ballRing.position.set(b.x, 1.8, b.y);
+    const pulse = 1 + Math.sin(this.time * 5) * 0.08;
+    rig.ballRing.scale.set(32 * pulse, 1, 32 * pulse);
   }
 
   _syncCrown(crown) {

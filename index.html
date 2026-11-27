@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>İKİ İTEMLİ OYUN — Online Deniz Arenası</title>
-  <link rel="stylesheet" href="./styles.css?v=9.0" />
+  <link rel="stylesheet" href="./styles.css?v=9.1" />
   <script src="./vendor/mqtt.min.js"></script>
 </head>
 <body>
@@ -75,6 +75,7 @@
           </div>
         </div>
         <div class="lobby-header-right">
+          <button id="btn-lobby-roam" class="btn-mini roam-toggle-btn" title="Lobide beklerken koyda serbestçe yüz & plaj topu oyna (TAB)">🏊‍♂️ Serbest Yüz (TAB)</button>
           <button id="btn-view-lobby" class="btn-mini btn-view-toggle is-3d" title="2D / 3D Görünüm Değiştir">🧊 3D Açık</button>
           <button id="btn-gfx-lobby" class="btn-mini btn-gfx-pill q-ultra" title="Grafik Kalitesi (Düşük / Orta / Ultra)">✨ Ultra</button>
           <button id="btn-guide-lobby" class="btn-mini">📖 Rehber</button>
@@ -143,6 +144,32 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- 🏝️ SERBEST YÜZME (FREE-ROAM LOBBY) KOMPAKT ÜST & ALT ÇUBUĞU -->
+    <div id="lobby-roam-bar" class="lobby-roam-bar">
+      <div class="roam-left">
+        <span class="roam-tag">🏝️ ISINMA KOYU</span>
+        <span class="roam-code-lbl">Oda: <b id="roam-code">----</b></span>
+        <button id="btn-roam-copy" class="btn-mini primary">🔗 Link</button>
+      </div>
+      <div id="roam-polo-score" class="roam-polo-pill">🏐 ALTIN 0 - 0 TURKUAZ</div>
+      <div class="roam-right">
+        <button id="btn-roam-panel" class="btn-mini primary">📋 Lobi Paneli (TAB)</button>
+        <button id="btn-roam-start" class="btn-mini roam-start-btn">🚀 Başlat</button>
+      </div>
+    </div>
+
+    <div id="lobby-roam-dock" class="lobby-roam-dock">
+      <button class="roam-act-btn" data-roam-slot="0">🪵 Kürek <small>1/Sol</small></button>
+      <button class="roam-act-btn" data-roam-slot="1">⚔️ Pala <small>2/Sağ</small></button>
+      <button class="roam-act-btn" id="btn-roam-space">🌊 Şut <small>SPACE</small></button>
+      <button class="roam-act-btn" id="btn-roam-dive">🤿 Dal <small>SHIFT</small></button>
+      <span class="roam-sep"></span>
+      <button class="roam-emo-btn" data-emote="0">😂</button>
+      <button class="roam-emo-btn" data-emote="1">🦈</button>
+      <button class="roam-emo-btn" data-emote="2">🔥</button>
+      <button class="roam-emo-btn" data-emote="3">💀</button>
     </div>
   </section>
 
@@ -298,7 +325,7 @@
     <button id="btn-reload-ver" class="btn-mini primary">🔄 Sayfayı Yenile</button>
   </div>
 
-  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v9.0</button>
+  <button id="btn-version" class="version-pill" title="Yama Notlarını Gör">v9.1</button>
 
   <!-- MAÇ AYARLARI MODALI (HOST) -->
   <div id="overlay-settings" class="overlay">
@@ -564,7 +591,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script type="module" src="./js/main.js?v=9.0"></script>
+  <script type="module" src="./js/main.js?v=9.1"></script>
   <script>
     setTimeout(function () {
       if (!window.__DERINAV_BOOTED) {

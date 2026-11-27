@@ -1,7 +1,7 @@
 // DERİN AV — 2v2 Denizde Av & Avcı Oyun Verileri
 // 6 Oynanabilir Çar, 2 İtemli Sistem, Ateşli Silahlar Tek Kullanımlık, Deniz Power-Up'ları
 
-export const GAME_VERSION = 'v9.0';
+export const GAME_VERSION = 'v9.1';
 export const EMOTES = ['😂', '🦈', '🔥', '💀'];
 
 // 🎲 RASTGELE TUR OLAYLARI (Lobi Ayarında Aç/Kapa!)
@@ -67,6 +67,15 @@ export const SKILL_NODE_MAP = Object.fromEntries(
 );
 
 export const CHANGELOG = [
+  {
+    ver: 'v9.1',
+    notes: [
+      '🏝️ SERBEST GEZİNMELİ LOBİ — ISINMA KOYU (FREE-ROAM LOBBY)!',
+      '🏊‍♂️ Oda kurunca veya odaya katılınca artık Mercan Plajı’nın canlı 3D/2D lagününde beklerken arkadaşlarınla özgürce yüzebilir, SHIFT ile dalabilir, SPACE & 🪵 Dev Kürek / ⚔️ Pala ile şakalaşabilir ve 3-6 emojileri fırlatabilirsin!',
+      '🏐 Mini Plaj Topu & Su Topu Kaleleri: Koyun ortasındaki dev plaj topunu iki kaleye şutlayıp beklerken mini maç yapabilirsin (canlı skor + ⚽ GOOOL kutlaması)!',
+      '✨ Canlı Çar & Kıyafet Ön İzlemesi: Lobide çarını veya rengini değiştirdiğin an sudaki karakterin anında şekil değiştirir; tek tıkla (veya TAB tuşuyla) Serbest Yüz ↔ Lobi Paneli arasında geçebilirsin!'
+    ]
+  },
   {
     ver: 'v9.0',
     notes: [

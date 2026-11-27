@@ -18,11 +18,11 @@ import {
   SEA_MAPS,
   getActiveCombo,
   getComboPartners
-} from './data.js?v=9.0';
-import { sfx } from './audio.js?v=9.0';
-import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=9.0';
-import { GameSim } from './sim.js?v=9.0';
-import { SeaRenderer } from './render.js?v=9.0';
+} from './data.js?v=9.1';
+import { sfx } from './audio.js?v=9.1';
+import { NetClient, generateRoomCode, fetchCloudTelemetry, checkRoomAlive } from './net.js?v=9.1';
+import { GameSim } from './sim.js?v=9.1';
+import { SeaRenderer } from './render.js?v=9.1';
 
 const $ = (id) => document.getElementById(id);
 
@@ -350,6 +350,42 @@ function setScreen(name) {
   ['screen-home', 'screen-lobby', 'screen-game'].forEach(id => {
     $(id).classList.toggle('active', id === `screen-${name}`);
   });
+  const gameEl = $('screen-game');
+  const lobbyEl = $('screen-lobby');
+  if (name === 'lobby') {
+    gameEl.classList.add('lobby-bg-active');
+    lobbyEl.classList.add('has-live-cove');
+    app.renderer?.resize();
+    app.renderer3d?.resize();
+  } else {
+    gameEl.classList.remove('lobby-bg-active');
+    lobbyEl.classList.remove('has-live-cove');
+    if (app.lobbyRoam) setLobbyRoam(false);
+  }
+}
+
+function setLobbyRoam(on) {
+  app.lobbyRoam = Boolean(on);
+  const lobbyEl = $('screen-lobby');
+  if (lobbyEl) lobbyEl.classList.toggle('roam-mode', app.lobbyRoam);
+  const rCode = $('roam-code');
+  if (rCode) rCode.textContent = app.roomCode || '----';
+  const rCopy = $('btn-roam-copy');
+  if (rCopy) rCopy.style.display = app.mode === 'offline' ? 'none' : '';
+  const rStart = $('btn-roam-start');
+  if (rStart) rStart.style.display = (app.mode === 'host' || app.mode === 'offline') ? '' : 'none';
+  if (!app.lobbyRoam && app.sim && app.sim.phase === 'lobby') {
+    app.sim.setInput(app.myId, { mx: 0, my: 0, aim: app.localAim });
+  }
+  if (!app.lobbyRoam && app.mode === 'client' && app.liveState?.phase === 'lobby') {
+    app.net?.send({ type: 'input', input: { mx: 0, my: 0, aim: Number(app.localAim.toFixed(2)) } });
+  }
+  app.renderer?.resize();
+  app.renderer3d?.resize();
+}
+
+function isControllablePhase(st) {
+  return Boolean(st && (st.phase === 'playing' || (st.phase === 'lobby' && app.lobbyRoam)));
 }
 
 function updateUrlRoom(code) {
@@ -381,8 +417,8 @@ function startHostTicker() {
     // Clamp step to keep physics rock-solid even after micro-hiccups
     const dt = Math.min(0.05, Math.max(0.004, rawDt));
 
-    if (app.sim.phase === 'playing') {
-      const mv = getMoveVector();
+    if (app.sim.phase === 'playing' || app.sim.phase === 'lobby') {
+      const mv = (app.sim.phase === 'playing' || app.lobbyRoam) ? getMoveVector() : { mx: 0, my: 0 };
       app.sim.setInput(app.myId, {
         mx: mv.mx,
         my: mv.my,
@@ -406,8 +442,15 @@ function startHostTicker() {
         broadcastLobby();
         renderDraftUI();
       }
-    } else if (app.sim.phase === 'lobby' && app.mode === 'host') {
-      if (now - app.lastLobbyPing >= 1500) {
+    } else if (app.sim.phase === 'lobby') {
+      // 🏝️ Isınma Koyu: 20Hz hafif canlı durum yayını (Host + Client akıcı gezer!)
+      if (now - app.lastBroadcast >= 50) {
+        app.lastBroadcast = now;
+        broadcastState();
+      } else {
+        app.liveState = app.sim.getStateSnapshot();
+      }
+      if (app.mode === 'host' && now - app.lastLobbyPing >= 1500) {
         app.lastLobbyPing = now;
         broadcastLobby();
       }
@@ -560,6 +603,7 @@ function leaveRoom() {
   app.liveState = null;
   app.roomCode = null;
   app.hudCache = {};
+  app.lobbyRoam = false;
   $('invite-banner').style.display = 'none';
   updateUrlRoom(null);
   setScreen('home');
@@ -679,9 +723,14 @@ function handleClientReceive(msg) {
     case 'state': {
       if (app.joinTimeout) { clearTimeout(app.joinTimeout); app.joinTimeout = null; }
       app.liveState = msg.data;
-      syncPhaseScreens(app.liveState.phase);
-      reconcileClientPrediction(app.liveState);
-      updateHudFromState(app.liveState);
+      if (app.liveState.phase === 'lobby') {
+        reconcileClientPrediction(app.liveState);
+        updateLobbyRoamHud(app.liveState);
+      } else {
+        syncPhaseScreens(app.liveState.phase);
+        reconcileClientPrediction(app.liveState);
+        updateHudFromState(app.liveState);
+      }
       break;
     }
     case 'sfx': {
@@ -698,7 +747,7 @@ function handleClientReceive(msg) {
 // ============================================================
 
 function reconcileClientPrediction(st) {
-  if (app.mode !== 'client' || st.phase !== 'playing') {
+  if (app.mode !== 'client' || !isControllablePhase(st)) {
     app.pred = null;
     return;
   }
@@ -727,7 +776,7 @@ function reconcileClientPrediction(st) {
 }
 
 function stepClientPrediction(dt) {
-  if (app.mode !== 'client' || !app.pred || !app.liveState || app.liveState.phase !== 'playing') return;
+  if (app.mode !== 'client' || !app.pred || !isControllablePhase(app.liveState)) return;
   const me = app.liveState.players?.find(p => p.id === app.myId);
   if (!me || !me.alive) return;
 
@@ -809,14 +858,42 @@ function broadcastLobby() {
   syncPhaseScreens(app.lobbyState.phase);
 }
 
+function updateLobbyRoamHud(st) {
+  if (!st || st.phase !== 'lobby') return;
+  const g = st.lobbyGoals || { A: 0, B: 0 };
+  const poloKey = `${g.A}_${g.B}`;
+  if (app.hudCache._polo !== poloKey) {
+    app.hudCache._polo = poloKey;
+    const el = $('roam-polo-score');
+    if (el) el.textContent = `🏐 ALTIN ${g.A} - ${g.B} TURKUAZ`;
+  }
+  const bKey = st.banner ? String(st.banner.id) : 'none';
+  if (app.hudCache._roamBanner !== bKey) {
+    app.hudCache._roamBanner = bKey;
+    const el = $('hud-banner');
+    if (el) {
+      if (st.banner) {
+        el.innerHTML = `<div class="hb-title" style="color:${st.banner.color || '#ffd166'}">${st.banner.text}</div><div class="hb-sub">${st.banner.sub || ''}</div>`;
+        el.classList.add('show');
+      } else {
+        el.classList.remove('show');
+      }
+    }
+  }
+}
+
 function broadcastState() {
   if (!app.sim) return;
   app.liveState = app.sim.getStateSnapshot();
   if (app.mode === 'host' && app.net?.connected) {
     app.net.send({ type: 'state', data: app.liveState });
   }
-  syncPhaseScreens(app.liveState.phase);
-  updateHudFromState(app.liveState);
+  if (app.liveState.phase === 'lobby') {
+    updateLobbyRoamHud(app.liveState);
+  } else {
+    syncPhaseScreens(app.liveState.phase);
+    updateHudFromState(app.liveState);
+  }
 }
 
 function syncPhaseScreens(phase) {
@@ -1794,7 +1871,7 @@ function renderMatchEnd(st) {
 
 function useSlot(slotIdx) {
   const st = app.liveState;
-  if (!st || st.phase !== 'playing') return;
+  if (!isControllablePhase(st)) return;
   sfx.unlock();
   if (app.sim) {
     app.sim.triggerItem(app.myId, slotIdx, app.localAim);
@@ -1884,7 +1961,7 @@ async function setViewMode(mode, silent = false) {
       app.loading3d = true;
       if (!silent) showToast('🧊 3D motoru yükleniyor...');
       try {
-        const mod = await import('./render3d.js?v=9.0');
+        const mod = await import('./render3d.js?v=9.1');
         app.renderer3d = new mod.SeaRenderer3D($('game-canvas-3d'), $('game-overlay-2d'));
         app.renderer3d.setQuality(app.gfxQuality, true);
       } catch (err) {
@@ -1913,7 +1990,7 @@ async function setViewMode(mode, silent = false) {
 
 function useSpace() {
   const st = app.liveState;
-  if (!st || st.phase !== 'playing') return;
+  if (!isControllablePhase(st)) return;
   sfx.unlock();
   if (app.sim) {
     app.sim.triggerSpace(app.myId, app.localAim);
@@ -1929,7 +2006,7 @@ function useSpace() {
 
 function useDive() {
   const st = app.liveState;
-  if (!st || st.phase !== 'playing') return;
+  if (!isControllablePhase(st)) return;
   sfx.unlock();
   if (app.sim) {
     app.sim.toggleDive(app.myId);
@@ -1940,7 +2017,7 @@ function useDive() {
 
 function useEmote(idx) {
   const st = app.liveState;
-  if (!st || st.phase !== 'playing') return;
+  if (!isControllablePhase(st)) return;
   sfx.unlock();
   if (app.sim) {
     app.sim.triggerEmote(app.myId, idx);
@@ -1985,7 +2062,7 @@ function getMoveVector() {
 }
 
 function sendClientInputNow() {
-  if (app.mode !== 'client' || !app.liveState || app.liveState.phase !== 'playing') return;
+  if (app.mode !== 'client' || !isControllablePhase(app.liveState)) return;
   const mv = getMoveVector();
   app.lastInputSend = performance.now();
   app.lastSentMoveKey = `${mv.mx.toFixed(2)}_${mv.my.toFixed(2)}`;
@@ -2014,7 +2091,7 @@ function renderLoop(now) {
   }
 
   const activeR = getActiveRenderer();
-  if (activeR && app.liveState && app.liveState.phase === 'playing') {
+  if (activeR && isControllablePhase(app.liveState)) {
     const me = app.liveState.players?.find(p => p.id === app.myId);
     if (me && (!app.touchAimMode || app.touchAimActive)) {
       const worldMouse = activeR.screenToWorld(app.mouseX, app.mouseY);
@@ -2036,8 +2113,13 @@ function renderLoop(now) {
   // Render canvas & HUD when tab is visible
   if (app.renderer && $('screen-home').classList.contains('active')) {
     app.renderer.renderHomeBg($('home-canvas'), dt);
-  } else if (app.renderer && $('screen-lobby').classList.contains('active')) {
-    app.renderer.renderHomeBg($('lobby-canvas'), dt);
+  } else if ($('screen-lobby').classList.contains('active')) {
+    if (activeR && app.liveState && app.liveState.phase === 'lobby') {
+      updateLobbyRoamHud(app.liveState);
+      activeR.render(app.liveState, app.myId, dt, app.localAim, app.lobbyRoam ? app.pred : null, app.lobbyRoam ? app.touchJoy : null);
+    } else if (app.renderer) {
+      app.renderer.renderHomeBg($('lobby-canvas'), dt);
+    }
   } else if (activeR && app.liveState && $('screen-game').classList.contains('active')) {
     if (app.sim) {
       updateHudFromState(app.liveState);
@@ -2200,7 +2282,8 @@ function init() {
         $('invite-banner').style.display = 'flex';
         $('invite-banner-code').textContent = cleanCode;
       } else {
-        $('invite-banner').style.display = 'none';
+        app.lobbyRoam = false;
+  $('invite-banner').style.display = 'none';
         $('input-code').value = '';
         updateUrlRoom(null);
         showToast(`ℹ️ ${cleanCode} odası artık kapalı.`);
@@ -2517,6 +2600,25 @@ function init() {
   });
   if ($('btn-team-ping')) $('btn-team-ping').onclick = () => triggerTeamPing(true);
 
+  // 🏝️ Serbest Gezinmeli Lobi (Isınma Koyu) butonları
+  if ($('btn-lobby-roam')) {
+    $('btn-lobby-roam').onclick = () => { sfx.unlock(); sfx.play('ui'); setLobbyRoam(true); };
+  }
+  if ($('btn-roam-panel')) {
+    $('btn-roam-panel').onclick = () => { sfx.play('ui'); setLobbyRoam(false); };
+  }
+  if ($('btn-roam-copy')) {
+    $('btn-roam-copy').onclick = () => $('btn-copy-link')?.click();
+  }
+  if ($('btn-roam-start')) {
+    $('btn-roam-start').onclick = () => $('btn-start-match')?.click();
+  }
+  document.querySelectorAll('[data-roam-slot]').forEach(btn => {
+    btn.onclick = () => useSlot(Number(btn.dataset.roamSlot));
+  });
+  if ($('btn-roam-space')) $('btn-roam-space').onclick = () => useSpace();
+  if ($('btn-roam-dive')) $('btn-roam-dive').onclick = () => useDive();
+
   const INFO_MODALS = ['overlay-guide', 'overlay-settings', 'overlay-career', 'overlay-admin', 'overlay-changelog'];
   const isInfoModalOpen = () => INFO_MODALS.some(id => $(id)?.classList.contains('active'));
 
@@ -2534,6 +2636,13 @@ function init() {
     }
     if (document.activeElement?.tagName === 'INPUT') return;
     if (isInfoModalOpen()) return;
+    if (e.code === 'Tab' && $('screen-lobby')?.classList.contains('active')) {
+      e.preventDefault();
+      sfx.unlock();
+      sfx.play('ui');
+      setLobbyRoam(!app.lobbyRoam);
+      return;
+    }
     const had = app.keys.has(e.code);
     app.keys.add(e.code);
     if (!had && app.mode === 'client') sendClientInputNow();

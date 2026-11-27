@@ -22,7 +22,7 @@ import {
   POWERUP_TYPES,
   POWERUP_MAP,
   SEA_MAPS
-} from './data.js?v=9.0';
+} from './data.js?v=9.1';
 
 const BOT_NAMES = ['Korsan Bot', 'Reis Bot', 'Yunus Bot', 'Martı Bot', 'Tayfa Bot', 'Fırtına Bot'];
 
@@ -126,7 +126,9 @@ export class GameSim {
     };
     this.totalRounds = 4; // Her takım 2 Avcı + 2 Av (beraberlikte Final Turu)
     this.round = 1;
-    this.mapIndex = 0;
+    this.mapIndex = 3; // 🏝️ Lobide güneşli Mercan Plajı Isınma Koyu!
+    this.lobbyBall = { x: 800, y: 465, vx: 0, vy: 0, r: 26, lastTouchTeam: null, lastTouchName: '' };
+    this.lobbyGoals = { A: 0, B: 0 };
     this.mapOrder = null; // 🗺️ 'Sırayla' modunda maç başına karıştırılan harita sırası (her harita eşit şans)
     this.overtimeHunterTeam = null; // 🪙 Uzatma turunda yazı-tura ile seçilen avcı takım
     this.roundEvent = null; // 🎲 Aktif rastgele tur olayı id
@@ -460,6 +462,7 @@ export class GameSim {
 
   backToLobby() {
     this.phase = 'lobby';
+    this.mapIndex = 3;
     this.players = [];
     this.projectiles = [];
     this.traps = [];
@@ -479,6 +482,383 @@ export class GameSim {
     this.pulses = [];
     this.meleeSwings = [];
     this.sinkEffects = [];
+    this.lobbyBall = { x: 800, y: 465, vx: 0, vy: 0, r: 26, lastTouchTeam: null, lastTouchName: '' };
+    this.lobbyGoals = { A: 0, B: 0 };
+    this._syncLobbyPlayers();
+  }
+
+  _syncLobbyPlayers() {
+    if (this.phase !== 'lobby') return;
+    this.mapIndex = 3; // Mercan Plajı Isınma Koyu
+    const activeSlots = this.getActiveSlots().filter(s => Boolean(s.id));
+    const activeIds = new Set(activeSlots.map(s => s.id));
+    const spawnPts = [
+      { x: 540, y: 410 },
+      { x: 595, y: 505 },
+      { x: 1060, y: 410 },
+      { x: 1005, y: 505 }
+    ];
+
+    // Remove players who left lobby
+    this.players = this.players.filter(p => activeIds.has(p.id));
+
+    for (const s of activeSlots) {
+      const ch = CHAR_MAP[s.charId] || CHARACTERS[0];
+      let p = this.players.find(pl => pl.id === s.id);
+      if (p) {
+        if (p.charId !== s.charId || p.skinId !== (s.skinId || 'auto')) {
+          p.charId = s.charId;
+          p.skinId = s.skinId || 'auto';
+          this._addPulse(p.x, p.y, 74, 'splash', s.team);
+        }
+        p.name = s.name;
+        p.team = s.team;
+        p.slotIdx = s.idx;
+        p.isBot = s.isBot;
+        p.role = s.team === 'A' ? 'hunter' : 'prey';
+      } else {
+        const sp = spawnPts[s.idx % spawnPts.length];
+        this.players.push({
+          id: s.id,
+          slotIdx: s.idx,
+          name: s.name,
+          team: s.team,
+          role: s.team === 'A' ? 'hunter' : 'prey',
+          isBot: s.isBot,
+          charId: s.charId,
+          skinId: s.skinId || 'auto',
+          x: sp.x,
+          y: sp.y,
+          vx: 0,
+          vy: 0,
+          aim: s.team === 'A' ? 0 : Math.PI,
+          r: 20,
+          hp: ch.hp,
+          maxHp: ch.hp,
+          breath: ch.breath || 75,
+          maxBreath: ch.breath || 75,
+          breathRegenDelay: 0,
+          shield: 0,
+          shieldTimer: 0,
+          lives: 1,
+          maxLives: 1,
+          respawnTimer: 0,
+          alive: true,
+          sinkingAnim: 0,
+          items: [
+            { id: 'heavy_oar', usesLeft: 99, maxUses: 99, firearm: false, melee: true, longCd: false, cd: 0 },
+            { id: 'cutlass', usesLeft: 99, maxUses: 99, firearm: false, melee: true, longCd: false, cd: 0 }
+          ],
+          spaceCd: 0,
+          ramActive: 0,
+          ramHitIds: new Set(),
+          dashTimer: 0,
+          submerged: false,
+          diveTime: 0,
+          diveCd: 0,
+          speedBoost: 0,
+          speedMult: 1,
+          slowTimer: 0,
+          slowFactor: 1,
+          rootTimer: 0,
+          stunTimer: 0,
+          blindTimer: 0,
+          revealTimer: 0,
+          stealthBoost: 0,
+          mirrorTimer: 0,
+          kelpTimer: 0,
+          kelpDropCd: 0,
+          emote: null,
+          emoteTimer: 0,
+          emoteCd: 0,
+          pingCd: 0,
+          inFog: false,
+          inInk: false,
+          inCurrent: false,
+          inShallow: false,
+          inStorm: false,
+          firstHitUsed: false,
+          sniperRefundUsed: false,
+          sk: this._computeSkillBonuses([]),
+          combo: null,
+          sinks: 0,
+          streak: 0,
+          bounty: false,
+          rescuedOnce: false,
+          botState: { thinkCd: 0.4, repath: 0, patrolX: 800, patrolY: 465 }
+        });
+      }
+    }
+
+    // Keep 4 playful harmless barrels in the cove
+    if (this.barrels.length < 4 && activeSlots.length > 0) {
+      const bSpots = [
+        { x: 650, y: 355 },
+        { x: 950, y: 355 },
+        { x: 640, y: 760 },
+        { x: 960, y: 760 }
+      ];
+      for (const bs of bSpots) {
+        if (this.barrels.length >= 4) break;
+        if (this.barrels.some(b => dist(b.x, b.y, bs.x, bs.y) < 110)) continue;
+        this.barrels.push({
+          id: this._nextEntityId++,
+          x: bs.x,
+          y: bs.y,
+          vx: 0,
+          vy: 0,
+          r: 19,
+          hp: 999,
+          maxHp: 999,
+          fuse: 0,
+          pushedBy: null
+        });
+      }
+    }
+  }
+
+  _stepLobby(dt) {
+    this._syncLobbyPlayers();
+    const map = this.currentMap;
+    const minWaterY = map.beach ? map.beach.sandY + 28 : 28;
+
+    if (this.banner) {
+      this.banner.life -= dt;
+      if (this.banner.life <= 0) this.banner = null;
+    }
+    for (let i = this.pulses.length - 1; i >= 0; i--) {
+      const pu = this.pulses[i];
+      pu.life -= dt;
+      const prog = 1 - Math.max(0, pu.life / pu.maxLife);
+      pu.r = 12 + (pu.maxR - 12) * prog;
+      if (pu.life <= 0) this.pulses.splice(i, 1);
+    }
+    for (let i = this.meleeSwings.length - 1; i >= 0; i--) {
+      this.meleeSwings[i].life -= dt;
+      if (this.meleeSwings[i].life <= 0) this.meleeSwings.splice(i, 1);
+    }
+    for (let i = this.floatTexts.length - 1; i >= 0; i--) {
+      this.floatTexts[i].life -= dt;
+      this.floatTexts[i].y -= dt * 26;
+      if (this.floatTexts[i].life <= 0) this.floatTexts.splice(i, 1);
+    }
+
+    const ball = this.lobbyBall;
+
+    // Step all lobby swimmers (humans + playful bots!)
+    for (const p of this.players) {
+      if (!p.alive) p.alive = true;
+      p.hp = p.maxHp;
+      p.spaceCd = Math.max(0, p.spaceCd - dt);
+      p.ramActive = Math.max(0, p.ramActive - dt);
+      p.dashTimer = Math.max(0, p.dashTimer - dt);
+      p.diveCd = Math.max(0, p.diveCd - dt);
+      p.speedBoost = Math.max(0, p.speedBoost - dt);
+      p.slowTimer = Math.max(0, p.slowTimer - dt);
+      p.emoteCd = Math.max(0, (p.emoteCd || 0) - dt);
+      if (p.emoteTimer > 0) {
+        p.emoteTimer = Math.max(0, p.emoteTimer - dt);
+        if (p.emoteTimer === 0) p.emote = null;
+      }
+      for (const it of p.items) {
+        if (it.cd > 0) it.cd = Math.max(0, it.cd - dt);
+      }
+
+      const ch = CHAR_MAP[p.charId] || CHARACTERS[0];
+      let mx = 0;
+      let my = 0;
+
+      if (p.isBot && ball) {
+        // Playful lobby bot: swims toward the beach ball and kicks it toward the opponent's goal!
+        const targetGoalX = p.team === 'A' ? 1455 : 145;
+        const gAngle = angleBetween(ball.x, ball.y, targetGoalX, 465);
+        const approachX = clamp(ball.x - Math.cos(gAngle) * 38, 120, WORLD_W - 120);
+        const approachY = clamp(ball.y - Math.sin(gAngle) * 38, minWaterY + 30, WORLD_H - 60);
+        const dToBall = dist(p.x, p.y, ball.x, ball.y);
+        const moveA = dToBall < 75 ? gAngle : angleBetween(p.x, p.y, approachX, approachY);
+        mx = Math.cos(moveA) * 0.78;
+        my = Math.sin(moveA) * 0.78;
+        p.aim = angleBetween(p.x, p.y, ball.x, ball.y);
+        if (dToBall < 72 && p.spaceCd <= 0) {
+          this.triggerSpace(p.id, gAngle);
+        }
+      } else {
+        const inp = this.inputs[p.id];
+        if (inp) {
+          mx = inp.mx || 0;
+          my = inp.my || 0;
+          if (Number.isFinite(inp.aim)) p.aim = inp.aim;
+        }
+      }
+
+      const mLen = Math.hypot(mx, my);
+      if (mLen > 1) { mx /= mLen; my /= mLen; }
+
+      let maxSpd = ch.speed * (p.speedBoost > 0 ? Math.max(1.25, p.speedMult) : 1.08);
+      if (p.submerged) maxSpd *= 0.72;
+      const accel = ch.turnBonus ? 11.5 : 8.8;
+      if (p.ramActive <= 0 && p.dashTimer <= 0) {
+        p.vx += (mx * maxSpd - p.vx) * Math.min(1, accel * dt);
+        p.vy += (my * maxSpd - p.vy) * Math.min(1, accel * dt);
+      } else {
+        const drag = Math.pow(0.95, dt * 60);
+        p.vx *= drag;
+        p.vy *= drag;
+      }
+
+      // Currents
+      p.inCurrent = false;
+      for (const cur of map.currents || []) {
+        if (p.x >= cur.x && p.x <= cur.x + cur.w && p.y >= cur.y && p.y <= cur.y + cur.h) {
+          p.inCurrent = true;
+          p.vx += cur.dirX * 140 * dt;
+          p.vy += cur.dirY * 140 * dt;
+        }
+      }
+
+      p.x = clamp(p.x + p.vx * dt, 34, WORLD_W - 34);
+      p.y = clamp(p.y + p.vy * dt, minWaterY, WORLD_H - 34);
+      this._resolveObstacleCollision(p, p.r, map, true);
+      p.x = clamp(p.x, 34, WORLD_W - 34);
+      p.y = clamp(p.y, minWaterY, WORLD_H - 34);
+
+      p.inShallow = Boolean(map.beach && p.y < map.beach.shallowY);
+      if (p.submerged) {
+        p.diveTime += dt;
+        p.breath = Math.max(0, p.breath - 12 * dt);
+        if (p.breath <= 0 || p.inShallow) {
+          this._surfacePlayer(p, false);
+        }
+      } else {
+        p.breath = Math.min(p.maxBreath, p.breath + 45 * dt);
+      }
+    }
+
+    // Playful player-vs-player bump & harmless ram shove
+    for (let i = 0; i < this.players.length; i++) {
+      for (let j = i + 1; j < this.players.length; j++) {
+        const a = this.players[i];
+        const b = this.players[j];
+        if (a.submerged !== b.submerged) continue;
+        const d = dist(a.x, a.y, b.x, b.y);
+        const minD = a.r + b.r;
+        if (d < minD && d > 0.01) {
+          const nx = (b.x - a.x) / d;
+          const ny = (b.y - a.y) / d;
+          const overlap = (minD - d) * 0.5;
+          a.x -= nx * overlap; a.y -= ny * overlap;
+          b.x += nx * overlap; b.y += ny * overlap;
+          if (a.ramActive > 0 && !a.ramHitIds?.has(b.id)) {
+            a.ramHitIds?.add(b.id);
+            b.vx += nx * 460; b.vy += ny * 460;
+            this._addPulse(b.x, b.y, 70, 'splash', a.team);
+            this.onEvent({ type: 'sfx', name: 'splash' });
+          } else if (b.ramActive > 0 && !b.ramHitIds?.has(a.id)) {
+            b.ramHitIds?.add(a.id);
+            a.vx -= nx * 460; a.vy -= ny * 460;
+            this._addPulse(a.x, a.y, 70, 'splash', b.team);
+            this.onEvent({ type: 'sfx', name: 'splash' });
+          }
+        }
+      }
+    }
+
+    // Step harmless lobby barrels
+    for (const b of this.barrels) {
+      b.x += (b.vx || 0) * dt;
+      b.y += (b.vy || 0) * dt;
+      const bDrag = Math.pow(0.96, dt * 60);
+      b.vx = (b.vx || 0) * bDrag;
+      b.vy = (b.vy || 0) * bDrag;
+      if (b.x < 40 || b.x > WORLD_W - 40) { b.vx *= -0.7; b.x = clamp(b.x, 40, WORLD_W - 40); }
+      if (b.y < minWaterY + 8 || b.y > WORLD_H - 40) { b.vy *= -0.7; b.y = clamp(b.y, minWaterY + 8, WORLD_H - 40); }
+      this._resolveObstacleCollision(b, b.r || 19, map, false);
+      for (const p of this.players) {
+        if (p.submerged) continue;
+        const d = dist(p.x, p.y, b.x, b.y);
+        const minD = p.r + (b.r || 19);
+        if (d < minD && d > 0.01) {
+          const nx = (b.x - p.x) / d;
+          const ny = (b.y - p.y) / d;
+          b.x += nx * (minD - d);
+          b.y += ny * (minD - d);
+          const push = p.ramActive > 0 ? 480 : 190;
+          b.vx = nx * push + p.vx * 0.4;
+          b.vy = ny * push + p.vy * 0.4;
+        }
+      }
+    }
+
+    // 🏐 Step Beach Ball Water-Polo Physics!
+    if (ball) {
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+      const drag = Math.pow(0.984, dt * 60);
+      ball.vx *= drag;
+      ball.vy *= drag;
+      if (Math.hypot(ball.vx, ball.vy) < 4) { ball.vx = 0; ball.vy = 0; }
+
+      // Bounce off arena boundaries
+      if (ball.x < 36) { ball.x = 36; ball.vx = Math.abs(ball.vx) * 0.78; }
+      if (ball.x > WORLD_W - 36) { ball.x = WORLD_W - 36; ball.vx = -Math.abs(ball.vx) * 0.78; }
+      if (ball.y < minWaterY + 8) { ball.y = minWaterY + 8; ball.vy = Math.abs(ball.vy) * 0.78; }
+      if (ball.y > WORLD_H - 36) { ball.y = WORLD_H - 36; ball.vy = -Math.abs(ball.vy) * 0.78; }
+
+      // Bounce off rocks / piers / yat
+      const prevBx = ball.x;
+      const prevBy = ball.y;
+      this._resolveObstacleCollision(ball, ball.r, map, false);
+      if (ball.x !== prevBx || ball.y !== prevBy) {
+        const nx = ball.x - prevBx;
+        const ny = ball.y - prevBy;
+        const nLen = Math.hypot(nx, ny) || 1;
+        const ux = nx / nLen; const uy = ny / nLen;
+        const dot = ball.vx * ux + ball.vy * uy;
+        if (dot < 0) {
+          ball.vx = (ball.vx - 1.8 * dot * ux);
+          ball.vy = (ball.vy - 1.8 * dot * uy);
+        }
+      }
+
+      // Player kicks / dribbles beach ball!
+      for (const p of this.players) {
+        if (p.submerged) continue;
+        const d = dist(p.x, p.y, ball.x, ball.y);
+        const minD = p.r + ball.r;
+        if (d < minD && d > 0.01) {
+          const nx = (ball.x - p.x) / d;
+          const ny = (ball.y - p.y) / d;
+          ball.x += nx * (minD - d + 2);
+          ball.y += ny * (minD - d + 2);
+          const kick = p.ramActive > 0 ? 560 : 240;
+          ball.vx = nx * kick + p.vx * 0.55;
+          ball.vy = ny * kick + p.vy * 0.55;
+          ball.lastTouchTeam = p.team;
+          ball.lastTouchName = p.name;
+          if (p.ramActive > 0) {
+            this._addPulse(ball.x, ball.y, 76, 'splash', p.team);
+            this.onEvent({ type: 'sfx', name: 'splash' });
+          }
+        }
+      }
+
+      // ⚽ Goal Check! West Goal (x <= 155, y ≈ 465) = Team B scores! East Goal (x >= 1445) = Team A scores!
+      const inGoalY = Math.abs(ball.y - 465) <= 88;
+      if (inGoalY && (ball.x <= 155 || ball.x >= 1445)) {
+        const scoringTeam = ball.x >= 1445 ? 'A' : 'B';
+        this.lobbyGoals[scoringTeam] = (this.lobbyGoals[scoringTeam] || 0) + 1;
+        const teamName = scoringTeam === 'A' ? 'TAKIM A (ALTIN)' : 'TAKIM B (TURKUAZ)';
+        const col = scoringTeam === 'A' ? '#ffd166' : '#38bdf8';
+        this._addPulse(ball.x, ball.y, 170, 'heal', scoringTeam);
+        this._addFloatText(ball.x, ball.y - 36, '⚽ GOOOL!', col);
+        this._triggerBanner(`⚽ GOOOL! ${teamName}`, `${ball.lastTouchName ? `${ball.lastTouchName} gol attı! · ` : ''}Skor: ${this.lobbyGoals.A} - ${this.lobbyGoals.B}`, col);
+        this.onEvent({ type: 'sfx', name: 'win' });
+        ball.x = 800;
+        ball.y = 465;
+        ball.vx = 0;
+        ball.vy = 0;
+      }
+    }
   }
 
   startDraft() {
@@ -959,7 +1339,7 @@ export class GameSim {
   }
 
   triggerItem(playerId, slotIndex, aimAngle) {
-    if (this.phase !== 'playing') return;
+    if (this.phase !== 'playing' && this.phase !== 'lobby') return;
     const p = this.players.find(pl => pl.id === playerId);
     if (!p || !p.alive || p.stunTimer > 0) return;
     if (slotIndex !== 0 && slotIndex !== 1) return;
@@ -1492,6 +1872,22 @@ export class GameSim {
         this._addFloatText(b.x, b.y - 28, '🪵 FIÇI ŞUTU!', '#fbbf24');
       }
     }
+
+    // 6. 🏐 Free-Roam Lobby Beach Ball Mega-Shot!
+    if (this.phase === 'lobby' && this.lobbyBall) {
+      const ball = this.lobbyBall;
+      const bd = dist(p.x, p.y, ball.x, ball.y);
+      const aToB = angleBetween(p.x, p.y, ball.x, ball.y);
+      if (bd <= def.range + ball.r + 16 && (bd < 30 || normDiff(aToB - angle) <= halfArc + 0.25)) {
+        const shotSpd = def.id === 'heavy_oar' ? 720 : 590;
+        ball.vx = Math.cos(angle) * shotSpd;
+        ball.vy = Math.sin(angle) * shotSpd;
+        ball.lastTouchTeam = p.team;
+        ball.lastTouchName = p.name;
+        this._addPulse(ball.x, ball.y, 82, 'splash', p.team);
+        this._addFloatText(ball.x, ball.y - 30, '🏐 SÜPER ŞUT!', '#ffd166');
+      }
+    }
   }
 
   // 📍 2v2 Takım Sinyali (Ping — sadece takım arkadaşları ve kendin görür!)
@@ -1516,7 +1912,7 @@ export class GameSim {
   }
 
   triggerSpace(playerId, aimAngle) {
-    if (this.phase !== 'playing') return;
+    if (this.phase !== 'playing' && this.phase !== 'lobby') return;
     const p = this.players.find(pl => pl.id === playerId);
     if (!p || !p.alive || p.stunTimer > 0 || p.rootTimer > 0 || p.spaceCd > 0) return;
 
@@ -1530,14 +1926,21 @@ export class GameSim {
     p.aim = angle;
     const boost = ch.dashBoost || 1.0;
 
-    if (p.role === 'hunter' || p.role === 'ffa') {
-      // AVCI / DEATHMATCH: DALGA HAMLESİ / SUYA BASTIRMA (Ram & Submerge)
-      p.spaceCd = 2.3 * (ch.turnBonus ? 0.8 : 1) * sk.spaceCdMult;
+    if (this.phase === 'lobby' || p.role === 'hunter' || p.role === 'ffa') {
+      // AVCI / DEATHMATCH / LOBİ: DALGA HAMLESİ / SUYA BASTIRMA (Ram & Submerge)
+      p.spaceCd = (this.phase === 'lobby' ? 1.8 : 2.3) * (ch.turnBonus ? 0.8 : 1) * sk.spaceCdMult;
       p.ramActive = 0.28;
       p.ramHitIds = new Set();
       const power = (530 + (p.speedBoost > 0 ? 105 : 0)) * boost;
       p.vx = Math.cos(angle) * power;
       p.vy = Math.sin(angle) * power;
+      if (this.phase === 'lobby' && this.lobbyBall && dist(p.x, p.y, this.lobbyBall.x, this.lobbyBall.y) <= 84) {
+        this.lobbyBall.vx = Math.cos(angle) * 590;
+        this.lobbyBall.vy = Math.sin(angle) * 590;
+        this.lobbyBall.lastTouchTeam = p.team;
+        this.lobbyBall.lastTouchName = p.name;
+        this._addFloatText(this.lobbyBall.x, this.lobbyBall.y - 28, '🏐 ŞUT!', '#38bdf8');
+      }
       this._addPulse(p.x, p.y, 130, 'splash', p.team);
       this.onEvent({ type: 'sfx', name: 'splash' });
     } else {
@@ -1553,7 +1956,7 @@ export class GameSim {
   }
 
   toggleDive(playerId) {
-    if (this.phase !== 'playing') return;
+    if (this.phase !== 'playing' && this.phase !== 'lobby') return;
     const p = this.players.find(pl => pl.id === playerId);
     if (!p || !p.alive) return;
 
@@ -1585,7 +1988,7 @@ export class GameSim {
   }
 
   triggerEmote(playerId, emoteIdx) {
-    if (this.phase !== 'playing') return;
+    if (this.phase !== 'playing' && this.phase !== 'lobby') return;
     const p = this.players.find(pl => pl.id === playerId);
     if (!p || !p.alive || p.emoteCd > 0) return;
     const icon = EMOTES[Number(emoteIdx)];
@@ -1667,6 +2070,14 @@ export class GameSim {
 
   _applyDamage(target, amount, attackerId, knockVx = 0, knockVy = 0, sourceLabel = '', isHeavy = false) {
     if (!target.alive) return;
+    if (this.phase === 'lobby') {
+      // 🏝️ Isınma Koyu: hasarsız ama komik savurma!
+      target.vx += knockVx;
+      target.vy += knockVy;
+      this._addPulse(target.x, target.y, 68, 'splash', target.team);
+      this.onEvent({ type: 'sfx', name: 'splash' });
+      return;
+    }
     const attackerObj = attackerId ? this.players.find(pl => pl.id === attackerId) : null;
     const atkDmgMult = (attackerObj && attackerObj.id !== target.id && attackerObj.sk) ? attackerObj.sk.dmgMult : 1.0;
     const atkKbMult = (attackerObj && attackerObj.id !== target.id && attackerObj.sk && isHeavy) ? attackerObj.sk.kbMult : 1.0;
@@ -1849,6 +2260,11 @@ export class GameSim {
 
   step(dt) {
     this.matchTime += dt;
+
+    if (this.phase === 'lobby') {
+      this._stepLobby(dt);
+      return;
+    }
 
     if (this.phase === 'draft') {
       this.phaseTimer -= dt;
@@ -4226,6 +4642,14 @@ export class GameSim {
       roundEvent: this.roundEvent,
       banner: this.banner ? { id: this.banner.id, text: this.banner.text, sub: this.banner.sub, color: this.banner.color } : null,
       scores: { ...this.scores },
+      lobbyGoals: this.phase === 'lobby' ? { ...this.lobbyGoals } : null,
+      lobbyBall: (this.phase === 'lobby' && this.lobbyBall) ? {
+        x: Math.round(this.lobbyBall.x),
+        y: Math.round(this.lobbyBall.y),
+        vx: Math.round(this.lobbyBall.vx),
+        vy: Math.round(this.lobbyBall.vy),
+        r: this.lobbyBall.r
+      } : null,
       ffaScores: { ...this.ffaScores },
       crown: this.crown ? { x: Math.round(this.crown.x), y: Math.round(this.crown.y), holderId: this.crown.holderId } : null,
       crownScores: this.crown ? Object.fromEntries(Object.entries(this.crownScores).map(([k, v]) => [k, Math.round(v)])) : null,

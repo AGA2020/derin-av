@@ -1,7 +1,7 @@
 // DERİN AV — Stylized Top-Down Ocean & Maritime Combat Renderer
 
-import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.0';
-import { hasLineOfSight } from './sim.js?v=9.0';
+import { WORLD_W, WORLD_H, CHAR_MAP, ALL_ITEMS, POWERUP_MAP, BOAT_SKIN_MAP, SEA_MAPS } from './data.js?v=9.1';
+import { hasLineOfSight } from './sim.js?v=9.1';
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(bx - ax, by - ay);
@@ -284,6 +284,7 @@ export class SeaRenderer {
     this._drawOcean(ctx, map);
     this._drawBeach(ctx, map);
     this._drawCurrents(ctx, map);
+    if (state.phase === 'lobby') this._drawLobbyArena(ctx, state);
     this._drawWakes(ctx);
     this._drawPulses(ctx, state.pulses || [], me);
     this._drawTraps(ctx, state.traps || [], me);
@@ -2282,6 +2283,95 @@ export class SeaRenderer {
         ctx.arc(sx, y, r, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+    ctx.restore();
+  }
+
+  _drawLobbyArena(ctx, state) {
+    const t = this.time;
+    // Water-polo center circle & halfway line
+    ctx.save();
+    ctx.strokeStyle = 'rgba(224, 242, 254, 0.24)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([12, 10]);
+    ctx.beginPath();
+    ctx.arc(800, 465, 86, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(800, 315);
+    ctx.lineTo(800, 615);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 2 Floating Buoy Water-Polo Goals (West = Gold Team A, East = Aqua Team B)
+    const goals = [
+      { x: 145, dir: 1, col: '#ffb703', fill: 'rgba(255, 183, 3, 0.14)', label: 'ALTIN KALE' },
+      { x: 1455, dir: -1, col: '#38bdf8', fill: 'rgba(56, 189, 248, 0.14)', label: 'TURKUAZ KALE' }
+    ];
+    for (const g of goals) {
+      const gx = g.dir === 1 ? g.x - 58 : g.x;
+      ctx.fillStyle = g.fill;
+      ctx.strokeStyle = g.col;
+      ctx.lineWidth = 4;
+      ctx.fillRect(gx, 465 - 88, 58, 176);
+      ctx.strokeRect(gx, 465 - 88, 58, 176);
+      // Floating buoy posts
+      for (const py of [465 - 88, 465 + 88]) {
+        ctx.fillStyle = g.col;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(g.x, py, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.fillStyle = g.col;
+      ctx.font = '800 11px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(g.label, gx + 29, 465 - 98);
+    }
+
+    // 🏐 Colorful Striped Beach Ball!
+    const ball = state.lobbyBall;
+    if (ball) {
+      const r = ball.r || 26;
+      const spd = Math.hypot(ball.vx || 0, ball.vy || 0);
+      const spin = t * 1.4 + (ball.x + ball.y) * 0.04;
+      ctx.save();
+      ctx.translate(ball.x, ball.y);
+      // Ripple collar
+      ctx.strokeStyle = 'rgba(224, 242, 254, 0.52)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r + 5 + Math.sin(t * 5 + spd * 0.01) * 2.5, 0, Math.PI * 2);
+      ctx.stroke();
+      // 6 colored beach-ball wedges
+      const cols = ['#ef476f', '#ffffff', '#ffd166', '#ffffff', '#0ea5e9', '#ffffff'];
+      for (let i = 0; i < 6; i++) {
+        const a0 = spin + (i / 6) * Math.PI * 2;
+        const a1 = spin + ((i + 1) / 6) * Math.PI * 2;
+        ctx.fillStyle = cols[i];
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, r, a0, a1);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.stroke();
+      // Glossy top button + shine
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.arc(0, 0, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.3, -r * 0.32, r * 0.28, r * 0.16, -0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
     ctx.restore();
   }

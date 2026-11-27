@@ -243,6 +243,34 @@ for (const itemDef of FFA_ITEMS) {
   check(p1CritBefore - (p1.hp + p1.breath) >= 40, '[MELEE:coral_dagger] Dalgıç Hançeri sisten pusu kritiği (+%50) vurmalı!');
 }
 
+// 2e. 🏝️ Serbest Gezinmeli Lobi (Isınma Koyu + Plaj Topu) doğrulama
+{
+  const lSim = new GameSim();
+  lSim.addHuman('h1', 'Host');
+  lSim.addHuman('h2', 'Misafir');
+  lSim.switchTeam('h2');
+  lSim.step(0.05);
+  check(lSim.phase === 'lobby' && lSim.players.length === 2 && lSim.mapIndex === 3, '[LOBBY_ROAM] Lobide oyuncular Mercan Plajında canlı doğmalı!');
+
+  // Live char switch updates swimmer immediately without losing position
+  const p1 = lSim.players.find(p => p.id === 'h1');
+  const p2 = lSim.players.find(p => p.id === 'h2');
+  lSim.pickCharacter('h1', 'ahtapot');
+  lSim.step(0.05);
+  check(p1.charId === 'ahtapot', '[LOBBY_ROAM] Lobide çar değişimi anında sudaki karaktere yansımalı!');
+
+  // Harmless knockback (0 damage!)
+  p1.x = 760; p1.y = 465; p2.x = 810; p2.y = 465;
+  const p2Hp = p2.hp;
+  lSim.triggerItem('h1', 0, 0); // Heavy Oar whack!
+  check(p2.hp === p2Hp && p2.alive && p2.vx > 200, '[LOBBY_ROAM] Lobide vuruşlar hasarsız ama itmeli olmalı!');
+
+  // Beach ball shot & goal scoring!
+  lSim.lobbyBall.x = 1430; lSim.lobbyBall.y = 465; lSim.lobbyBall.vx = 400; lSim.lobbyBall.vy = 0;
+  lSim.step(0.08);
+  check(lSim.lobbyGoals.A === 1 && Math.abs(lSim.lobbyBall.x - 800) < 5, '[LOBBY_ROAM] Plaj topu Doğu kalesine girince Takım A golü sayılmalı ve top merkeze dönmeli!');
+}
+
 // 🪙 Uzatma turu adaleti: avcı takımı yazı-tura ile seçilmeli (eskiden 5. tur hep Takım A'ya avcılık veriyordu)
 for (const mode of ['2v2', '1v1']) {
   let aHunter = 0;
